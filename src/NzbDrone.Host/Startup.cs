@@ -1,0 +1,413 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Threading.Tasks;
+using DryIoc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.OpenApi;
+using NLog.Extensions.Logging;
+using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Instrumentation;
+using NzbDrone.Common.Processes;
+using NzbDrone.Common.Serializer;
+using NzbDrone.Core.Configuration;
+using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Instrumentation;
+using NzbDrone.Core.Lifecycle;
+using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Host.AccessControl;
+using NzbDrone.Http.Authentication;
+using NzbDrone.SignalR;
+using Sonarr.Api.V3.System;
+using Sonarr.Api.V5.Series;
+using Sonarr.Http;
+using Sonarr.Http.Authentication;
+using Sonarr.Http.ClientSchema;
+using Sonarr.Http.ErrorManagement;
+using Sonarr.Http.Extensions;
+using Sonarr.Http.Frontend;
+using Sonarr.Http.Middleware;
+using StackExchange.Profiling;
+using IPNetwork = System.Net.IPNetwork;
+using LogLevel = Microsoft.Extensions.Logging.LogLevel;
+
+namespace NzbDrone.Host
+{
+    public class Startup
+    {
+        public Startup(IConfiguration configuration)
+        {
+            Configuration = configuration;
+        }
+
+        public IConfiguration Configuration { get; }
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddLogging(b =>
+            {
+                b.ClearProviders();
+                b.SetMinimumLevel(LogLevel.Trace);
+                b.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+                b.AddFilter("Sonarr.Http.Authentication.ApiKeyAuthenticationHandler", LogLevel.Information);
+                b.AddFilter("Microsoft.AspNetCore.DataProtection.KeyManagement.XmlKeyManager", LogLevel.Error);
+                b.AddNLog();
+            });
+
+            services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+                options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("10.0.0.0"), 8));
+                options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
+                options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("192.168.0.0"), 16));
+                options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("fc00::"), 7));
+                options.KnownIPNetworks.Add(new IPNetwork(IPAddress.Parse("fe80::"), 10));
+            });
+
+            services.AddRouting(options => options.LowercaseUrls = true);
+
+            services.AddResponseCompression();
+
+            services.AddCors(options =>
+            {
+                // Anidarr: restrict CORS to same origin only — no wildcard in production
+                options.AddPolicy(VersionedApiControllerAttribute.API_CORS_POLICY,
+                    builder =>
+                    builder.SetIsOriginAllowed(_ => false) // block cross-origin by default; override with reverse proxy
+                    .AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .AllowCredentials());
+
+                options.AddPolicy("AllowGet",
+                    builder =>
+                    builder.SetIsOriginAllowed(_ => false)
+                    .WithMethods("GET", "OPTIONS")
+                    .AllowAnyHeader());
+            });
+
+            // Anidarr: rate limiting (100 req/min general, 20 req/min search, 10 req/min login)
+            services.AddAnidarrRateLimiting();
+
+            services
+            .AddControllers(options =>
+            {
+                options.ReturnHttpNotAcceptable = true;
+            })
+
+            // Register all controllers from the API and HTTP projects
+            .AddApplicationPart(typeof(SystemController).Assembly)
+            .AddApplicationPart(typeof(SeriesLookupController).Assembly)
+            .AddApplicationPart(typeof(StaticResourceController).Assembly)
+            .AddJsonOptions(options =>
+            {
+                STJson.ApplySerializerSettings(options.JsonSerializerOptions);
+            })
+            .AddControllersAsServices();
+
+            services.ConfigureHttpJsonOptions(options =>
+            {
+                STJson.ApplySerializerSettings(options.SerializerOptions);
+            });
+
+            services.AddSwaggerGen(c =>
+            {
+                c.SwaggerDoc("v3", new OpenApiInfo
+                {
+                    Version = "3.0.0",
+                    Title = "Anidarr",
+                    Description = "Anidarr API docs - The v3 API docs apply to both v3 and v4 versions of Anidarr.",
+                    License = new OpenApiLicense
+                    {
+                        Name = "GPL-3.0",
+                        Url = new Uri("https://github.com/Sonarr/Sonarr/blob/develop/LICENSE")
+                    }
+                });
+
+                c.SwaggerDoc("v5", new OpenApiInfo
+                {
+                    Version = "5.0.0",
+                    Title = "Anidarr",
+                    Description = "Anidarr API docs - The v5 API docs apply to Anidarr v5 only.",
+                    License = new OpenApiLicense
+                    {
+                        Name = "GPL-3.0",
+                        Url = new Uri("https://github.com/Sonarr/Sonarr/blob/develop/LICENSE")
+                    }
+                });
+
+                var apiKeyHeader = new OpenApiSecurityScheme
+                {
+                    Name = "X-Api-Key",
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "apiKey",
+                    Description = "Apikey passed as header",
+                    In = ParameterLocation.Header,
+                };
+
+                c.AddSecurityDefinition("X-Api-Key", apiKeyHeader);
+
+                c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecuritySchemeReference(apiKeyHeader.Name, document)] = new List<string>(),
+                });
+
+                var apikeyQuery = new OpenApiSecurityScheme
+                {
+                    Name = "apikey",
+                    Type = SecuritySchemeType.ApiKey,
+                    Scheme = "apiKey",
+                    Description = "Apikey passed as query parameter",
+                    In = ParameterLocation.Query,
+                };
+
+                c.AddServer(new OpenApiServer
+                {
+                    Url = "{protocol}://{hostpath}",
+                    Variables = new Dictionary<string, OpenApiServerVariable>
+                    {
+                        { "protocol", new OpenApiServerVariable { Default = "http", Enum = new List<string> { "http", "https" } } },
+                        { "hostpath", new OpenApiServerVariable { Default = "localhost:8989" } }
+                    }
+                });
+
+                c.AddSecurityDefinition("apikey", apikeyQuery);
+
+                c.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+                {
+                    [new OpenApiSecuritySchemeReference(apikeyQuery.Name, document)] = new List<string>(),
+                });
+
+                c.DescribeAllParametersInCamelCase();
+
+                // Generate docs based on the controller's API version
+                c.DocInclusionPredicate((docName, apiDesc) =>
+                {
+                    Type type = null;
+
+                    if (apiDesc.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
+                    {
+                        type = controllerActionDescriptor.ControllerTypeInfo;
+                    }
+
+                    if (type == null)
+                    {
+                        return false;
+                    }
+
+                    var versions = new List<int>();
+
+                    versions.AddRange(type
+                        .GetCustomAttributes(true)
+                        .OfType<VersionedApiControllerAttribute>()
+                        .Select(attr => attr.Version));
+
+                    versions.AddRange(type
+                        .GetCustomAttributes(true)
+                        .OfType<VersionedFeedControllerAttribute>()
+                        .Select(attr => attr.Version));
+
+                    // Return anything with no version or a matching version
+                    return !versions.Any() || versions.Any(v => $"v{v}" == docName);
+                });
+            });
+
+            services
+            .AddSignalR()
+            .AddJsonProtocol(options =>
+            {
+                options.PayloadSerializerOptions = STJson.GetSerializerSettings();
+            });
+
+            services.AddDataProtection()
+                .PersistKeysToFileSystem(new DirectoryInfo(Configuration["dataProtectionFolder"]));
+
+            services.AddSingleton<IAuthorizationPolicyProvider, UiAuthorizationPolicyProvider>();
+            services.AddSingleton<IAuthorizationHandler, UiAuthorizationHandler>();
+
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("SignalR", policy =>
+                {
+                    policy.AuthenticationSchemes.Add("SignalR");
+                    policy.RequireAuthenticatedUser();
+                });
+
+                // Require auth on everything except those marked [AllowAnonymous]
+                options.FallbackPolicy = new AuthorizationPolicyBuilder("API")
+                .RequireAuthenticatedUser()
+                .Build();
+            });
+
+            services.AddAppAuthentication();
+
+            services.AddOptions<MiniProfilerOptions>()
+                .Configure<IConfigFileProvider>((options, configFileProvider) =>
+                {
+                    options.RouteBasePath = "/profiler";
+
+                    switch (configFileProvider.Theme)
+                    {
+                        case "light":
+                            options.ColorScheme = ColorScheme.Light;
+                            break;
+                        case "dark":
+                            options.ColorScheme = ColorScheme.Dark;
+                            break;
+                        default:
+                            options.ColorScheme = ColorScheme.Auto;
+                            break;
+                    }
+
+                    switch (configFileProvider.ProfilerPosition)
+                    {
+                        case "top-left":
+                            options.PopupRenderPosition = RenderPosition.Left;
+                            break;
+                        case "top-right":
+                            options.PopupRenderPosition = RenderPosition.Right;
+                            break;
+                        case "bottom-left":
+                            options.PopupRenderPosition = RenderPosition.BottomLeft;
+                            break;
+                        default:
+                            options.PopupRenderPosition = RenderPosition.BottomRight;
+                            break;
+                    }
+
+                    options.IgnoredPaths.Add("/MediaCover");
+                });
+
+            services.AddMiniProfiler();
+        }
+
+        public void Configure(IApplicationBuilder app,
+                              IContainer container,
+                              IStartupContext startupContext,
+                              Lazy<IMainDatabase> mainDatabaseFactory,
+                              Lazy<ILogDatabase> logDatabaseFactory,
+                              DatabaseTarget dbTarget,
+                              ISingleInstancePolicy singleInstancePolicy,
+                              InitializeLogger initializeLogger,
+                              ReconfigureLogging reconfigureLogging,
+                              IAppFolderFactory appFolderFactory,
+                              IProvidePidFile pidFileProvider,
+                              IConfigFileProvider configFileProvider,
+                              IRuntimeInfo runtimeInfo,
+                              IFirewallAdapter firewallAdapter,
+                              IEventAggregator eventAggregator,
+                              SonarrErrorPipeline errorHandler)
+        {
+            initializeLogger.Initialize();
+            appFolderFactory.Register();
+            pidFileProvider.Write();
+
+            configFileProvider.EnsureDefaultConfigFile();
+
+            reconfigureLogging.Reconfigure();
+
+            EnsureSingleInstance(false, startupContext, singleInstancePolicy);
+
+            // instantiate the databases to initialize/migrate them
+            _ = mainDatabaseFactory.Value;
+
+            if (configFileProvider.LogDbEnabled)
+            {
+                _ = logDatabaseFactory.Value;
+                dbTarget.Register();
+            }
+
+            SchemaBuilder.Initialize(container);
+
+            if (OsInfo.IsNotWindows)
+            {
+                Console.CancelKeyPress += (sender, eventArgs) => NLog.LogManager.Configuration = null;
+            }
+
+            eventAggregator.PublishEvent(new ApplicationStartingEvent());
+
+            if (OsInfo.IsWindows && runtimeInfo.IsAdmin)
+            {
+                firewallAdapter.MakeAccessible();
+            }
+
+            app.UseForwardedHeaders();
+            app.UseMiddleware<SecurityHeadersMiddleware>();  // Anidarr: security headers (CSP, HSTS, etc.)
+            app.UseMiddleware<LoggingMiddleware>();
+            app.UsePathBase(new PathString(configFileProvider.UrlBase));
+            app.UseExceptionHandler(new ExceptionHandlerOptions
+            {
+                AllowStatusCode404Response = true,
+                ExceptionHandler = errorHandler.HandleException
+            });
+
+            app.UseRouting();
+            app.UseCors();
+            app.UseRateLimiter();  // Anidarr: apply rate limiting policies
+            app.UseAuthentication();
+            app.UseAuthorization();
+            app.UseResponseCompression();
+            app.Properties["host.AppName"] = BuildInfo.AppName;
+
+            app.UseMiddleware<VersionMiddleware>();
+            app.UseMiddleware<UrlBaseMiddleware>(configFileProvider.UrlBase);
+            app.UseMiddleware<StartingUpMiddleware>();
+            app.UseMiddleware<CacheHeaderMiddleware>();
+            app.UseMiddleware<IfModifiedMiddleware>();
+            app.UseMiddleware<BufferingMiddleware>(new List<string> { "/api/v3/command", "/api/v5/command" });
+
+            app.UseWebSockets();
+            app.UseMiniProfiler();
+
+            // Enable middleware to serve generated Swagger as a JSON endpoint.
+            if (BuildInfo.IsDebug)
+            {
+                app.UseSwagger(c =>
+                {
+                    c.RouteTemplate = "docs/{documentName}/openapi.json";
+                });
+            }
+
+            app.UseEndpoints(x =>
+            {
+                x.MapHub<MessageHub>("/signalr/messages").RequireAuthorization("SignalR");
+                x.MapPost("/profiler/results", context => Task.CompletedTask).RequireAuthorization("UI");
+                x.MapControllers();
+            });
+        }
+
+        private void EnsureSingleInstance(bool isService, IStartupContext startupContext, ISingleInstancePolicy instancePolicy)
+        {
+            if (startupContext.Flags.Contains(StartupContext.NO_SINGLE_INSTANCE_CHECK))
+            {
+                return;
+            }
+
+            if (startupContext.Flags.Contains(StartupContext.TERMINATE))
+            {
+                instancePolicy.KillAllOtherInstance();
+            }
+            else if (startupContext.Args.ContainsKey(StartupContext.APPDATA))
+            {
+                instancePolicy.WarnIfAlreadyRunning();
+            }
+            else if (isService)
+            {
+                instancePolicy.KillAllOtherInstance();
+            }
+            else
+            {
+                instancePolicy.PreventStartIfAlreadyRunning();
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net10.0</TargetFrameworks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="9.5.4" />
+    <PackageReference Include="ImpromptuInterface" Version="8.0.6" />
+    <PackageReference Include="MiniProfiler.AspNetCore" Version="4.5.4" />
+    <PackageReference Include="NLog" Version="5.5.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NzbDrone.Core\Sonarr.Core.csproj" />
+    <ProjectReference Include="..\NzbDrone.SignalR\Sonarr.SignalR.csproj" />
+  </ItemGroup>
+</Project>

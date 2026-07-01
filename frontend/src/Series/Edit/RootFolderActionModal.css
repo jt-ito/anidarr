@@ -1,0 +1,56 @@
+.pathInfo {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--textColorSecondary, #aaa);
+  word-break: break-all;
+}
+
+.question {
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--borderColor, #3a3a3a);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.option:has(.radio:checked) {
+  border-color: var(--colorPrimary, #35c5f4);
+  background: rgba(53, 197, 244, 0.07);
+}
+
+.radio {
+  margin-top: 3px;
+  accent-color: var(--colorPrimary, #35c5f4);
+  flex-shrink: 0;
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.optionLabel {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.optionDescription {
+  font-size: 12px;
+  color: var(--textColorSecondary, #999);
+  line-height: 1.4;
+}

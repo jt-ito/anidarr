@@ -1,0 +1,155 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using NzbDrone.Common.Extensions;
+using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Qualities;
+
+namespace NzbDrone.Core.SeriesStats
+{
+    public class SeasonStatistics : ResultSet
+    {
+        public int SeriesId { get; set; }
+        public int SeasonNumber { get; set; }
+        public string NextAiringString { get; set; }
+        public string PreviousAiringString { get; set; }
+        public string LastAiredString { get; set; }
+        public int EpisodeFileCount { get; set; }
+        public int EpisodeCount { get; set; }
+        public int AvailableEpisodeCount { get; set; }
+        public int TotalEpisodeCount { get; set; }
+        public int MonitoredEpisodeCount { get; set; }
+        public long SizeOnDisk { get; set; }
+        public string ReleaseGroupsString { get; set; }
+        public string ReleaseTypesString { get; set; }
+        public string EpisodeFileQualitiesString { get; set; }
+
+        public DateTime? NextAiring
+        {
+            get
+            {
+                DateTime nextAiring;
+
+                try
+                {
+                    if (!DateTime.TryParse(NextAiringString, DateTimeFormatInfo.InvariantInfo, DateTimeStyles.AssumeUniversal, out nextAiring))
+                    {
+                        return null;
+                    }
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // GHI 3518: Can throw on mono (6.x?) despite being a Try*
+                    return null;
+                }
+
+                return nextAiring;
+            }
+        }
+
+        public DateTime? PreviousAiring
+        {
+            get
+            {
+                DateTime previousAiring;
+
+                try
+                {
+                    if (!DateTime.TryParse(PreviousAiringString, DateTimeFormatInfo.InvariantInfo, DateTimeStyles.AssumeUniversal, out previousAiring))
+                    {
+                        return null;
+                    }
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // GHI 3518: Can throw on mono (6.x?) despite being a Try*
+                    return null;
+                }
+
+                return previousAiring;
+            }
+        }
+
+        public DateTime? LastAired
+        {
+            get
+            {
+                DateTime lastAired;
+
+                try
+                {
+                    if (!DateTime.TryParse(LastAiredString, DateTimeFormatInfo.InvariantInfo, DateTimeStyles.AssumeUniversal, out lastAired))
+                    {
+                        return null;
+                    }
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // GHI 3518: Can throw on mono (6.x?) despite being a Try*
+                    return null;
+                }
+
+                return lastAired;
+            }
+        }
+
+        public List<string> ReleaseGroups
+        {
+            get
+            {
+                var releasegroups = new List<string>();
+
+                if (ReleaseGroupsString.IsNotNullOrWhiteSpace())
+                {
+                    releasegroups = ReleaseGroupsString
+                        .Split('|')
+                        .Distinct()
+                        .Where(rg => rg.IsNotNullOrWhiteSpace())
+                        .OrderBy(rg => rg)
+                        .ToList();
+                }
+
+                return releasegroups;
+            }
+        }
+
+        public List<ReleaseType> ReleaseTypes
+        {
+            get
+            {
+                if (ReleaseTypesString.IsNullOrWhiteSpace())
+                {
+                    return [];
+                }
+
+                return ReleaseTypesString
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(int.Parse)
+                    .Distinct()
+                    .Where(type => Enum.IsDefined(typeof(ReleaseType), type))
+                    .Select(type => (ReleaseType)type)
+                    .ToList();
+            }
+        }
+
+        public List<Quality> EpisodeFileQualities
+        {
+            get
+            {
+                if (EpisodeFileQualitiesString.IsNullOrWhiteSpace())
+                {
+                    return new List<Quality>();
+                }
+
+                return EpisodeFileQualitiesString
+                    .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(int.Parse)
+                    .Distinct()
+                    .Select(Quality.FindById)
+                    .ToList();
+            }
+        }
+    }
+}

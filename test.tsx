@@ -1,0 +1,1 @@
+const series = { data: {} }; const { ratings } = series.data; const x = ratings?.value ? 1 : 0;
