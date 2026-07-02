@@ -21,7 +21,7 @@ Anidarr is a specialized fork of [Sonarr](https://github.com/Sonarr/Sonarr) desi
 Anidarr brings several anime-first features that aren't available in standard Sonarr:
 
 ### 🎭 Multi-Provider Metadata
-Why rely on just one source? Anidarr supports **AniDB**, **AniList**, **MyAnimeList (MAL)**, and **Simkl** as primary metadata providers. You can easily select your preferred source in the settings, allowing you to fetch the absolute best metadata for your collection without relying on error-prone community-maintained mapping databases.
+Why rely on just one source? Anidarr supports **AniDB** and **Simkl** as primary metadata providers. You can easily select your preferred source in the settings, allowing you to fetch the absolute best metadata for your collection without relying on error-prone community-maintained mapping databases.
 
 ### ⚡ Lightning-Fast Local Search
 By integrating the [Anime Offline Database](https://github.com/manami-project/anime-offline-database), searches for new anime happen locally via a cached SQLite database. This means zero API delays, no rate limits, and instant results when adding new series. Search results are automatically deduplicated across all supported providers so you always get a clean list.
@@ -81,7 +81,7 @@ Anidarr is built using .NET and React (via Yarn).
 
 ## ⚙️ Configuration
 
-Once installed, head over to **Settings > Metadata** to select your preferred primary metadata provider (AniDB, AniList, MAL, or Simkl). The UI is custom-tailored to link directly to your chosen provider's pages instead of TVDB.
+Once installed, head over to **Settings > Metadata** to select your preferred primary metadata provider (AniDB or Simkl). The UI is custom-tailored to link directly to your chosen provider's pages instead of TVDB.
 
 ---
 
