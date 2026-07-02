@@ -18,6 +18,7 @@ import { ImportListModel } from 'Settings/ImportLists/ImportLists/useImportLists
 import { IndexerModel } from 'Settings/Indexers/useIndexers';
 import { NotificationModel } from 'Settings/Notifications/useConnections';
 import { updateItem } from 'Store/Actions/baseActions';
+import Health from 'typings/Health';
 import { repopulatePage } from 'Utilities/pagePopulator';
 import SignalRLogger from 'Utilities/SignalRLogger';
 
@@ -197,6 +198,18 @@ function SignalRListener() {
       }
 
       queryClient.invalidateQueries({ queryKey: ['/health'] });
+
+      // Check if the AniDB ban health check just fired
+      queryClient
+        .fetchQuery<Health[]>({ queryKey: ['/health'] })
+        .then((items) => {
+          const banned = items.some((h) => h.reason === 'AniDbBanActive');
+          setAppValue({ isAniDbBanned: banned });
+        })
+        .catch(() => {
+          /* non-critical */
+        });
+
       return;
     }
 

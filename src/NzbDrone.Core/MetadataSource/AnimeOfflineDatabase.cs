@@ -163,15 +163,10 @@ namespace NzbDrone.Core.MetadataSource
             return results;
         }
 
-        private static bool _wiped;
         private void EnsureCache()
         {
-            if (!_wiped)
-            {
-                _animeOfflineTitleRepository.Purge();
-                _wiped = true;
-            }
-
+            // ponytail: no Purge() — incremental upsert in ParseAndSyncDumps keeps data fresh.
+            // Only download if the table is empty (first run or migration reset).
             if (_animeOfflineTitleRepository.HasItems())
             {
                 return;
@@ -185,9 +180,14 @@ namespace NzbDrone.Core.MetadataSource
             var datPath = Path.Combine(_appFolderInfo.AppDataFolder, "anidb_titles.json");
             var officialDatPath = Path.Combine(_appFolderInfo.AppDataFolder, "anime-titles.dat.gz");
 
-            if (File.Exists(datPath) && File.GetLastWriteTimeUtc(datPath) > DateTime.UtcNow.AddHours(-24))
+            // ponytail: skip re-download if both files are fresh (< 24h old)
+            if (File.Exists(datPath) && File.Exists(officialDatPath) &&
+                File.GetLastWriteTimeUtc(datPath) > DateTime.UtcNow.AddHours(-24) &&
+                File.GetLastWriteTimeUtc(officialDatPath) > DateTime.UtcNow.AddHours(-24))
             {
-                // throw new NzbDrone.Core.Exceptions.NzbDroneClientException(System.Net.HttpStatusCode.TooManyRequests, "Cannot fetch Anime Offline Database more than once every 24 hours to prevent rate limits.");
+                _logger.Debug("Anime title dumps are fresh (< 24h), parsing existing files.");
+                ParseAndSyncDumps(datPath, officialDatPath);
+                return;
             }
 
             DownloadDump(DumpUrl, datPath);

@@ -84,7 +84,7 @@ function AddNewSeries() {
 
         {/* Anidarr: Provider selector tabs */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          {['', 'Tvdb', 'AniDb', 'AniList', 'Simkl', 'Mal'].map((p) => {
+          {['', 'Tvdb', 'AniDb', 'Simkl'].map((p) => {
             const handlePress = () => setProvider(p);
             return (
               <Button

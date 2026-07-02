@@ -50,6 +50,20 @@ namespace NzbDrone.Core.Tv
             _logger = logger;
         }
 
+        private static string GetProviderDisplay(Series series)
+        {
+            var provider = series.PrimaryMetadataProvider?.ToLowerInvariant() ?? "tvdb";
+            var id = provider switch
+            {
+                "anidb" => series.AniDbId?.ToString(),
+                "simkl" => series.SimklId?.ToString(),
+                "anilist" => series.AniListIds?.FirstOrDefault().ToString(),
+                "mal" => series.MalIds?.FirstOrDefault().ToString(),
+                _ => series.TvdbId.ToString()
+            };
+            return $"provider: {provider}, id: {id}";
+        }
+
         private Series RefreshSeriesInfo(int seriesId)
         {
             // Get the series before updating, that way any changes made to the series after the refresh started,
@@ -80,7 +94,7 @@ namespace NzbDrone.Core.Tv
                 throw;
             }
 
-            if (series.TvdbId != seriesInfo.TvdbId)
+            if (seriesInfo.TvdbId != 0 && series.TvdbId != seriesInfo.TvdbId)
             {
                 _logger.Warn("Series '{0}' (tvdbid {1}) was replaced with '{2}' (tvdbid {3}), because the original was a duplicate.", series.Title, series.TvdbId, seriesInfo.Title, seriesInfo.TvdbId);
                 series.TvdbId = seriesInfo.TvdbId;
@@ -220,15 +234,26 @@ namespace NzbDrone.Core.Tv
                 {
                     var series = _seriesService.GetSeries(seriesId);
 
+                    // If this is a new series that was just added and already has a recent LastInfoSync
+                    // (because AddSeriesService already fetched and persisted the data), skip the API call
+                    // and go straight to disk scan. This prevents a double API hit on add.
+                    var alreadyFresh = isNew &&
+                                      series.LastInfoSync.HasValue &&
+                                      series.LastInfoSync.Value >= DateTime.UtcNow.AddMinutes(-5);
+
                     try
                     {
-                        series = RefreshSeriesInfo(seriesId);
+                        if (!alreadyFresh)
+                        {
+                            series = RefreshSeriesInfo(seriesId);
+                        }
+
                         UpdateTags(series);
                         RescanSeries(series, isNew, trigger);
                     }
                     catch (SeriesNotFoundException)
                     {
-                        _logger.Error("Series '{0}' (tvdbid {1}) was not found, it may have been removed from TheTVDB.", series.Title, series.TvdbId);
+                        _logger.Error("Series '{0}' ({1}) was not found on its metadata provider, it may have been removed.", series.Title, GetProviderDisplay(series));
 
                         // Mark the result as indeterminate so it's not marked as a full success,
                         // but we can still process other series if needed.
@@ -261,7 +286,7 @@ namespace NzbDrone.Core.Tv
                         }
                         catch (SeriesNotFoundException)
                         {
-                            _logger.Error("Series '{0}' (tvdbid {1}) was not found, it may have been removed from TheTVDB.", seriesLocal.Title, seriesLocal.TvdbId);
+                            _logger.Error("Series '{0}' ({1}) was not found on its metadata provider, it may have been removed.", seriesLocal.Title, GetProviderDisplay(seriesLocal));
                             continue;
                         }
                         catch (Exception e)

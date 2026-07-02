@@ -23,9 +23,19 @@ namespace NzbDrone.Core.MetadataSource
 
         public List<AnimeOfflineTitle> FindSearchMatches(string cleanQuery, string providerKey)
         {
+            // ponytail: load by CleanTitle match from DB, then check synonyms in-memory
+            // with exact equality. Using Contains() on a serialized JSON list column would
+            // be a substring match on raw JSON and produce false positives.
             IEnumerable<AnimeOfflineTitle> results = Query(c =>
-                (c.CleanTitle != null && c.CleanTitle.Contains(cleanQuery)) ||
-                (c.SearchSynonyms != null && c.SearchSynonyms.Contains(cleanQuery)));
+                c.CleanTitle != null && c.CleanTitle.Contains(cleanQuery));
+
+            // Add synonym matches that weren't caught by the CleanTitle query
+            var synonymMatches = Query(c =>
+                    (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
+                    c.SearchSynonyms != null && c.SearchSynonyms.Contains(cleanQuery))
+                .Where(c => c.SearchSynonyms.Any(s => s == cleanQuery));
+
+            results = results.Union(synonymMatches);
 
             if (providerKey == "anidb")
             {

@@ -35,6 +35,7 @@ interface AppState {
   isDisconnected: boolean;
   isRestarting: boolean;
   isSidebarVisible: boolean;
+  isAniDbBanned: boolean;
 }
 
 // Variables for ping functionality
@@ -53,6 +54,7 @@ const useAppStore = create<AppState>()(() => {
     isDisconnected: false,
     isRestarting: false,
     isSidebarVisible: !dimensions.isSmallScreen,
+    isAniDbBanned: false,
   };
 });
 

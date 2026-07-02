@@ -85,6 +85,10 @@ function MetadataSourceSettings() {
                   helpText={translate('AniDbClientNameHelpText')}
                   onChange={handleInputChange}
                 />
+              </FormGroup>
+
+              <FormGroup>
+                <FormLabel>{translate('AniDbClientVersion')}</FormLabel>
                 <FormInputGroup
                   type={inputTypes.NUMBER}
                   name="aniDbClientVersion"
@@ -92,7 +96,10 @@ function MetadataSourceSettings() {
                   helpText={translate('AniDbClientVersionHelpText')}
                   onChange={handleInputChange}
                 />
+              </FormGroup>
 
+              <FormGroup>
+                <FormLabel>AniDB Offline Database</FormLabel>
                 <div style={{ marginTop: '10px' }}>
                   <Button
                     title="Fetch AniDB Dump"

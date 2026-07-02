@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { saveDimensions, useAppValue } from 'App/appStore';
+import AniDbBannedModal from 'App/AniDbBannedModal';
 import AppUpdatedModal from 'App/AppUpdatedModal';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import ConnectionLostModal from 'App/ConnectionLostModal';
@@ -21,12 +22,14 @@ interface PageProps {
 function Page({ children }: PageProps) {
   const isUpdated = useAppValue('isUpdated');
   const isDisconnected = useAppValue('isDisconnected');
+  const isAniDbBanned = useAppValue('isAniDbBanned');
   const version = useAppValue('version');
   const { hasError, errors, isPopulated, isLocalStorageSupported } =
     useAppPage();
   const [isUpdatedModalOpen, setIsUpdatedModalOpen] = useState(false);
   const [isConnectionLostModalOpen, setIsConnectionLostModalOpen] =
     useState(false);
+  const [isAniDbBannedModalOpen, setIsAniDbBannedModalOpen] = useState(false);
 
   const { enableColorImpairedMode } = useUiSettingsValues();
   const { authentication } = useSystemStatusData();
@@ -35,6 +38,10 @@ function Page({ children }: PageProps) {
 
   const handleUpdatedModalClose = useCallback(() => {
     setIsUpdatedModalOpen(false);
+  }, []);
+
+  const handleAniDbBannedModalClose = useCallback(() => {
+    setIsAniDbBannedModalOpen(false);
   }, []);
 
   const handleResize = useCallback(() => {
@@ -57,6 +64,12 @@ function Page({ children }: PageProps) {
       setIsConnectionLostModalOpen(true);
     }
   }, [isDisconnected]);
+
+  useEffect(() => {
+    if (isAniDbBanned) {
+      setIsAniDbBannedModalOpen(true);
+    }
+  }, [isAniDbBanned]);
 
   useEffect(() => {
     if (isUpdated) {
@@ -94,6 +107,11 @@ function Page({ children }: PageProps) {
         <AppUpdatedModal
           isOpen={isUpdatedModalOpen}
           onModalClose={handleUpdatedModalClose}
+        />
+
+        <AniDbBannedModal
+          isOpen={isAniDbBannedModalOpen}
+          onModalClose={handleAniDbBannedModalClose}
         />
 
         <ConnectionLostModal isOpen={isConnectionLostModalOpen} />

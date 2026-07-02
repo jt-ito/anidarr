@@ -186,7 +186,7 @@ query ($search: String) {
         private static object BuildPayload(string query, object variables) =>
             new { query, variables };
 
-        private string CleanDescription(string description)
+        private static string CleanDescription(string description)
         {
             if (string.IsNullOrWhiteSpace(description))
             {
@@ -194,10 +194,7 @@ query ($search: String) {
             }
 
             var decoded = System.Net.WebUtility.HtmlDecode(description);
-            while (decoded != System.Net.WebUtility.HtmlDecode(decoded))
-            {
-                decoded = System.Net.WebUtility.HtmlDecode(decoded);
-            }
+            decoded = System.Net.WebUtility.HtmlDecode(decoded);
 
             // Replace all variants of <br> with newline
             var desc = System.Text.RegularExpressions.Regex.Replace(decoded, @"&lt;\s*br\s*/?\s*&gt;", "\n", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -229,7 +226,7 @@ query ($search: String) {
             };
 
             // AniList ID
-            if (media.AniListId > 0)
+            if (media.Id > 0)
             {
                 series.AniListIds = new HashSet<int> { media.Id };
             }
@@ -354,9 +351,6 @@ query ($search: String) {
         public string BannerImage { get; set; }
         public AniListStudios Studios { get; set; }
         public AniListAiringSchedule AiringSchedule { get; set; }
-
-        // Alias for clarity inside mapper
-        public int AniListId => Id;
     }
 
     public class AniListTitle

@@ -81,6 +81,8 @@ namespace NzbDrone.Core.MetadataSource
                 {
                     "anidb" => $"anidb:{s.AniDbId}",
                     "simkl" => $"simkl:{s.SimklId}",
+                    "anilist" => $"anilist:{s.AniListIds?.FirstOrDefault()}",
+                    "mal" => $"mal:{s.MalIds?.FirstOrDefault()}",
                     "tvdb" => s.TvdbId > 0 ? $"tvdb:{s.TvdbId}" : $"title:{s.CleanTitle}",
                     _ => $"title:{s.CleanTitle}"
                 })

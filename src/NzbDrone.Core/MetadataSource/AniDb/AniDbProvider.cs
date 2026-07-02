@@ -88,14 +88,32 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var slug = lower.Split(':')[1].Trim();
                 if (int.TryParse(slug, out var id) && id > 0)
                 {
-                    try
+                    // ponytail: resolve from local DB — never hit the AniDB HTTP API during search.
+                    // The full API call happens only when the user actually adds the series.
+                    var local = _titleSearch.GetSeriesById("anidb", id);
+                    if (local != null)
                     {
-                        return new List<Series> { GetSeriesInfo(id.ToString()).Item1 };
+                        var title = local.Title ?? $"AniDB {id}";
+                        return new List<Series>
+                        {
+                            new Series
+                            {
+                                Title = title,
+                                CleanTitle = title.CleanSeriesTitle(),
+                                SortTitle = SeriesTitleNormalizer.Normalize(title, id),
+                                TitleSlug = $"{title.ToUrlSlug()}-anidb-{id}",
+                                AniDbId = id,
+                                PrimaryMetadataProvider = "anidb",
+                                SeriesType = SeriesTypes.Anime,
+                                Status = local.Status ?? SeriesStatusType.Continuing,
+                                Year = local.Year ?? 0,
+                                Genres = local.Genres ?? new List<string>(),
+                                Monitored = true
+                            }
+                        };
                     }
-                    catch
-                    {
-                        return new List<Series>();
-                    }
+
+                    return new List<Series>();
                 }
 
                 return new List<Series>();
@@ -130,7 +148,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             if (!response.Content.Contains("<error"))
             {
-                _cache.Set(url, response.Content, TimeSpan.FromHours(1));
+                _cache.Set(url, response.Content, TimeSpan.FromHours(24));
             }
 
             return response.Content;
