@@ -43,7 +43,7 @@ function ImportSeriesSelectSeries({
 }: ImportSeriesSelectSeriesProps) {
   const importSeriesItem = useImportSeriesItem(id);
   const { selectedSeries, name } = importSeriesItem ?? {};
-  const isExistingSeries = useExistingSeries({
+  const isExistingSeries = !!useExistingSeries({
     tvdbId: selectedSeries?.tvdbId,
   });
 

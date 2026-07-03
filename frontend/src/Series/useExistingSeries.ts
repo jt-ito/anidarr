@@ -7,10 +7,10 @@ function useExistingSeries(seriesToCheck?: Partial<Series>) {
 
   return useMemo(() => {
     if (!seriesToCheck) {
-      return false;
+      return undefined;
     }
 
-    return series.some((s) => {
+    return series.find((s) => {
       if (
         seriesToCheck.tvdbId &&
         seriesToCheck.tvdbId > 0 &&

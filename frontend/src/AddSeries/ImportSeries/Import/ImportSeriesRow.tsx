@@ -34,7 +34,7 @@ function ImportSeriesRow({ unmappedFolder }: ImportSeriesRowProps) {
     selectedSeries,
   } = item ?? {};
 
-  const isExistingSeries = useExistingSeries({
+  const isExistingSeries = !!useExistingSeries({
     tvdbId: selectedSeries?.tvdbId,
   });
 

@@ -37,7 +37,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
     isExcluded,
   } = series;
 
-  const isExistingSeries = useExistingSeries(series);
+  const existingSeries = useExistingSeries(series);
   const isSmallScreen = useAppDimension('isSmallScreen');
   const [isNewAddSeriesModalOpen, setIsNewAddSeriesModalOpen] = useState(false);
 
@@ -54,8 +54,8 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
     event.stopPropagation();
   }, []);
 
-  const linkProps = isExistingSeries
-    ? { to: `/series/${titleSlug}` }
+  const linkProps = existingSeries
+    ? { to: `/series/${existingSeries.titleSlug}` }
     : { onPress: handlePress };
   let seasons = translate('OneSeason');
 
@@ -68,7 +68,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
       <Link
         className={styles.underlay}
         aria-label={
-          isExistingSeries ? title : translate('AddSeriesWithTitle', { title })
+          existingSeries ? title : translate('AddSeriesWithTitle', { title })
         }
         {...linkProps}
       />
@@ -98,7 +98,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
             </div>
 
             <div className={styles.icons}>
-              {isExistingSeries ? (
+              {existingSeries ? (
                 <Icon
                   className={styles.alreadyExistsIcon}
                   name={icons.CHECK_CIRCLE}
@@ -240,7 +240,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
       </div>
 
       <AddNewSeriesModal
-        isOpen={isNewAddSeriesModalOpen && !isExistingSeries}
+        isOpen={isNewAddSeriesModalOpen && !existingSeries}
         series={series}
         initialSeriesType={seriesType}
         onModalClose={handleAddSeriesModalClose}
