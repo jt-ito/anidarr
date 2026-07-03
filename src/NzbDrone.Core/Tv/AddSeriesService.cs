@@ -229,6 +229,19 @@ namespace NzbDrone.Core.Tv
                 }
             }
 
+            var isDuplicateSlug = _seriesService.GetAllSeries().Any(s => s.Id != newSeries.Id && s.TitleSlug == newSeries.TitleSlug && s.TvdbId != newSeries.TvdbId);
+            if (isDuplicateSlug)
+            {
+                newSeries.TitleSlug = $"{newSeries.Title.ToUrlSlug()}-{newSeries.Year}";
+                isDuplicateSlug = _seriesService.GetAllSeries().Any(s => s.Id != newSeries.Id && s.TitleSlug == newSeries.TitleSlug && s.TvdbId != newSeries.TvdbId);
+
+                if (isDuplicateSlug)
+                {
+                    var providerId = newSeries.AniDbId > 0 ? newSeries.AniDbId.Value : newSeries.TvdbId;
+                    newSeries.TitleSlug = $"{newSeries.Title.ToUrlSlug()}-{newSeries.PrimaryMetadataProvider}-{providerId}";
+                }
+            }
+
             newSeries.Added = DateTime.UtcNow;
 
             if (newSeries.AddOptions != null && newSeries.AddOptions.Monitor == MonitorTypes.None)

@@ -117,9 +117,7 @@ namespace NzbDrone.Core.MetadataSource
                     Title = title,
                     CleanTitle = match.CleanTitle ?? title.CleanSeriesTitle(),
                     SortTitle = SeriesTitleNormalizer.Normalize(title, match.AniDbId ?? 0),
-                    TitleSlug = providerKey == "anidb" && match.AniDbId > 0
-                        ? $"{title.ToUrlSlug()}-anidb-{match.AniDbId}"
-                        : title.ToUrlSlug(),
+                    TitleSlug = title.ToUrlSlug(),
                     AniDbId = match.AniDbId,
                     PrimaryMetadataProvider = providerKey,
                     SeriesType = SeriesTypes.Anime,
