@@ -247,6 +247,12 @@ namespace NzbDrone.Core.Tv
                         {
                             series = RefreshSeriesInfo(seriesId);
                         }
+                        else
+                        {
+                            // Even though we're skipping the full API refresh, publish
+                            // SeriesUpdatedEvent so MediaCoverService downloads the poster.
+                            _eventAggregator.PublishEvent(new SeriesUpdatedEvent(series));
+                        }
 
                         UpdateTags(series);
                         RescanSeries(series, isNew, trigger);

@@ -78,6 +78,8 @@ namespace NzbDrone.Core.Configuration
         string MalClientId { get; }
         string AniDbClientName { get; }
         int AniDbClientVersion { get; }
+        DateTime? AniDbBanExpiration { get; }
+        void SetAniDbBanExpiration(DateTime? expiration);
     }
 
     public class ConfigFileProvider : IConfigFileProvider
@@ -337,6 +339,31 @@ namespace NzbDrone.Core.Configuration
         public string MalClientId => GetValue("MalClientId", string.Empty);
         public string AniDbClientName => GetValue("AniDbClientName", "anidarr");
         public int AniDbClientVersion => GetValueInt("AniDbClientVersion", 1);
+        public DateTime? AniDbBanExpiration
+        {
+            get
+            {
+                var value = GetValue("AniDbBanExpiration", string.Empty);
+                if (DateTime.TryParse(value, out var parsed))
+                {
+                    return parsed.ToUniversalTime();
+                }
+
+                return null;
+            }
+        }
+
+        public void SetAniDbBanExpiration(DateTime? expiration)
+        {
+            if (expiration.HasValue)
+            {
+                SetValue("AniDbBanExpiration", expiration.Value.ToString("O"));
+            }
+            else
+            {
+                SetValue("AniDbBanExpiration", string.Empty);
+            }
+        }
 
         public int GetValueInt(string key, int defaultValue, bool persist = true)
         {

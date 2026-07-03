@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Linq;
 using NLog;
-using NzbDrone.Common.Cache;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
@@ -24,23 +25,21 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private readonly IHttpClient _httpClient;
         private readonly IConfigFileProvider _configService;
         private readonly IAnimeOfflineDatabase _titleSearch;
-        private readonly ICached<string> _cache;
+        private readonly IAppFolderInfo _appFolderInfo;
         private readonly Logger _logger;
 
         private static readonly SemaphoreSlim _rateSemaphore = new SemaphoreSlim(1, 1);
         private static readonly TimeSpan MinRequestInterval = TimeSpan.FromSeconds(2);
         private static DateTime _lastRequestTime = DateTime.MinValue;
 
-        public static DateTime? BanExpiration { get; set; }
-
         public MetadataProviderType ProviderType => MetadataProviderType.AniDb;
 
-        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, ICacheManager cacheManager, Logger logger)
+        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, Logger logger)
         {
             _httpClient = httpClient;
             _configService = configService;
             _titleSearch = titleSearch;
-            _cache = cacheManager.GetCache<string>(GetType());
+            _appFolderInfo = appFolderInfo;
             _logger = logger;
         }
 
@@ -61,20 +60,20 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             {
                 if (doc.Root.Value.ToLowerInvariant().Contains("banned"))
                 {
-                    BanExpiration = DateTime.UtcNow.AddHours(24);
+                    _configService.SetAniDbBanExpiration(DateTime.UtcNow.AddHours(24));
                 }
 
                 throw new Exception($"AniDB error for ID {aniDbId}: {doc.Root.Value}");
             }
 
-            BanExpiration = null;
+            _configService.SetAniDbBanExpiration(null);
 
             var series = MapSeries(doc.Root, aniDbId);
             var episodes = MapEpisodes(doc.Root);
 
             series.Seasons = episodes.Select(e => e.SeasonNumber)
                 .Distinct()
-                .Select(s => new Season { SeasonNumber = s })
+                .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
                 .ToList();
 
             return Tuple.Create(series, episodes);
@@ -94,23 +93,31 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     if (local != null)
                     {
                         var title = local.Title ?? $"AniDB {id}";
-                        return new List<Series>
+                        var series = new Series
                         {
-                            new Series
-                            {
-                                Title = title,
-                                CleanTitle = title.CleanSeriesTitle(),
-                                SortTitle = SeriesTitleNormalizer.Normalize(title, id),
-                                TitleSlug = $"{title.ToUrlSlug()}-anidb-{id}",
-                                AniDbId = id,
-                                PrimaryMetadataProvider = "anidb",
-                                SeriesType = SeriesTypes.Anime,
-                                Status = local.Status ?? SeriesStatusType.Continuing,
-                                Year = local.Year ?? 0,
-                                Genres = local.Genres ?? new List<string>(),
-                                Monitored = true
-                            }
+                            Title = title,
+                            CleanTitle = title.CleanSeriesTitle(),
+                            SortTitle = SeriesTitleNormalizer.Normalize(title, id),
+                            TitleSlug = $"{title.ToUrlSlug()}-anidb-{id}",
+                            AniDbId = id,
+                            PrimaryMetadataProvider = "anidb",
+                            SeriesType = SeriesTypes.Anime,
+                            Status = local.Status ?? SeriesStatusType.Continuing,
+                            Year = local.Year ?? 0,
+                            Genres = local.Genres ?? new List<string>(),
+                            Overview = local.Overview,
+                            Monitored = true
                         };
+
+                        if (!string.IsNullOrWhiteSpace(local.PictureUrl))
+                        {
+                            series.Images = new List<MediaCover.MediaCover>
+                            {
+                                new MediaCover.MediaCover(MediaCoverTypes.Poster, local.PictureUrl)
+                            };
+                        }
+
+                        return new List<Series> { series };
                     }
 
                     return new List<Series>();
@@ -136,10 +143,23 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var clientVersion = _configService.AniDbClientVersion;
             var url = $"{AniDbApiBase}?request={request}&client={clientName}&clientver={clientVersion}&protover=1&{extraParams}";
 
-            var cached = _cache.Find(url);
-            if (cached != null)
+            var cacheDir = Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache");
+            if (!Directory.Exists(cacheDir))
             {
-                return cached;
+                Directory.CreateDirectory(cacheDir);
+            }
+
+            var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
+            var cacheFile = Path.Combine(cacheDir, $"{request}_{safeParams}.xml");
+
+            if (File.Exists(cacheFile))
+            {
+                var lastModified = File.GetLastWriteTimeUtc(cacheFile);
+                if (lastModified > DateTime.UtcNow.AddHours(-24))
+                {
+                    _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
+                    return File.ReadAllText(cacheFile);
+                }
             }
 
             ThrottleRequest();
@@ -148,7 +168,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             if (!response.Content.Contains("<error"))
             {
-                _cache.Set(url, response.Content, TimeSpan.FromHours(24));
+                File.WriteAllText(cacheFile, response.Content);
             }
 
             return response.Content;
