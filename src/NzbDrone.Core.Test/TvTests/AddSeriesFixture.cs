@@ -32,8 +32,8 @@ namespace NzbDrone.Core.Test.TvTests
 
         private void GivenValidSeries(int tvdbId)
         {
-            Mocker.GetMock<IProvideSeriesInfo>()
-                  .Setup(s => s.GetSeriesInfo(tvdbId))
+            Mocker.GetMock<IMetadataDispatcher>()
+                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
                   .Returns(new Tuple<Series, List<Episode>>(_fakeSeries, new List<Episode>()));
         }
 
@@ -112,8 +112,8 @@ namespace NzbDrone.Core.Test.TvTests
                 Path = @"C:\Test\TV\Title1"
             };
 
-            Mocker.GetMock<IProvideSeriesInfo>()
-                  .Setup(s => s.GetSeriesInfo(newSeries.TvdbId))
+            Mocker.GetMock<IMetadataDispatcher>()
+                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
                   .Throws(new SeriesNotFoundException(newSeries.TvdbId));
 
             Mocker.GetMock<IAddSeriesValidator>()

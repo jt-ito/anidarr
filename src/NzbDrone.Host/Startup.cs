@@ -80,17 +80,15 @@ namespace NzbDrone.Host
 
             services.AddCors(options =>
             {
-                // Anidarr: restrict CORS to same origin only — no wildcard in production
                 options.AddPolicy(VersionedApiControllerAttribute.API_CORS_POLICY,
                     builder =>
-                    builder.SetIsOriginAllowed(_ => false) // block cross-origin by default; override with reverse proxy
+                    builder.AllowAnyOrigin()
                     .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials());
+                    .AllowAnyHeader());
 
                 options.AddPolicy("AllowGet",
                     builder =>
-                    builder.SetIsOriginAllowed(_ => false)
+                    builder.AllowAnyOrigin()
                     .WithMethods("GET", "OPTIONS")
                     .AllowAnyHeader());
             });
