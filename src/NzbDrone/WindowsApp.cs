@@ -1,10 +1,12 @@
 using System;
 using System.Windows.Forms;
-using NzbDrone.Host;
-using NzbDrone.SysTray;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NLog;
+using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Instrumentation;
+using NzbDrone.Host;
+using NzbDrone.SysTray;
 
 namespace NzbDrone
 {
