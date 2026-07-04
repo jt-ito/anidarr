@@ -22,7 +22,6 @@ interface AddNewSeriesSearchResultProps {
 function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
   const {
     tvdbId,
-    titleSlug,
     title,
     year,
     network,

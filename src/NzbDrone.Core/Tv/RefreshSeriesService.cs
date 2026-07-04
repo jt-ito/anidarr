@@ -87,7 +87,7 @@ namespace NzbDrone.Core.Tv
                 {
                     series.Status = SeriesStatusType.Deleted;
                     _seriesService.UpdateSeries(series, publishUpdatedEvent: false);
-                    _logger.Debug("Series marked as deleted on tvdb for {0}", series.Title);
+                    _logger.Debug("Series marked as deleted on its metadata provider for {0}", series.Title);
                     _eventAggregator.PublishEvent(new SeriesUpdatedEvent(series));
                 }
 

@@ -210,30 +210,9 @@ namespace NzbDrone.Core.MetadataSource
 
                 File.WriteAllBytes(targetPath, response.ResponseData);
             }
-            catch (HttpException ex) when (ex.Response?.StatusCode == System.Net.HttpStatusCode.Forbidden)
-            {
-                _logger.Warn($"HttpClient forbidden from {url}, attempting curl fallback...");
-                DownloadWithCurl(url, targetPath);
-            }
             catch (Exception ex)
             {
                 _logger.Error(ex, $"Failed to download anime title dump from {url}.");
-            }
-        }
-
-        private void DownloadWithCurl(string url, string targetPath)
-        {
-            var process = new System.Diagnostics.Process();
-            process.StartInfo.FileName = "curl";
-            process.StartInfo.Arguments = $"-sL -H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" -H \"Accept-Encoding: gzip, deflate, br\" -H \"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\" \"{url}\" -o \"{targetPath}\"";
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.CreateNoWindow = true;
-            process.Start();
-            process.WaitForExit();
-
-            if (process.ExitCode != 0 || !File.Exists(targetPath) || new FileInfo(targetPath).Length < 100000)
-            {
-                throw new Exception($"Curl fallback failed to download {url}");
             }
         }
 

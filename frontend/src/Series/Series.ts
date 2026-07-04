@@ -110,6 +110,7 @@ interface Series extends ModelBase {
   malIds?: number[];
   aniListIds?: number[];
   primaryMetadataProvider?: string;
+  fansubGroup?: string;
   useSceneNumbering: boolean;
   year: number;
   addOptions: SeriesAddOptions;

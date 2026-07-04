@@ -23,7 +23,6 @@ namespace NzbDrone.Core.MetadataSource.AniList
         private const int RateLimitPerMinute = 90;
 
         private readonly IHttpClient _httpClient;
-        private readonly ISeriesService _seriesService;
         private readonly Logger _logger;
 
         public MetadataProviderType ProviderType => MetadataProviderType.AniList;
@@ -32,11 +31,9 @@ namespace NzbDrone.Core.MetadataSource.AniList
         private readonly System.Collections.Generic.Queue<DateTime> _requestTimestamps = new();
 
         public AniListProvider(IHttpClient httpClient,
-                               ISeriesService seriesService,
                                Logger logger)
         {
             _httpClient = httpClient;
-            _seriesService = seriesService;
             _logger = logger;
         }
 
@@ -69,7 +66,7 @@ query ($id: Int) {
     coverImage { extraLarge large }
     bannerImage
     studios { nodes { name isAnimationStudio } }
-    airingSchedule(notYetAired: false, page: 1, perPage: 50) {
+    airingSchedule(notYetAired: false, page: 1, perPage: 150) {
       nodes { episode airingAt timeUntilAiring }
     }
   }

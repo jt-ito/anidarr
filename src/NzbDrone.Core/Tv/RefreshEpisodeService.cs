@@ -170,7 +170,7 @@ namespace NzbDrone.Core.Tv
             {
                 if (hasExisting)
                 {
-                    _logger.Warn("Show {0} ({1}) had {2} old episodes appear, please check monitored status.", series.TvdbId, series.Title, oldEpisodes.Count);
+                    _logger.Warn("Show {0} ({1}) had {2} old episodes appear, please check monitored status.", GetProviderDisplay(series), series.Title, oldEpisodes.Count);
                 }
                 else
                 {
@@ -184,7 +184,7 @@ namespace NzbDrone.Core.Tv
                         }
                     }
 
-                    _logger.Warn("Show {0} ({1}) had {2} old episodes appear, unmonitored aired episodes to prevent unexpected downloads.", series.TvdbId, series.Title, oldEpisodes.Count);
+                    _logger.Warn("Show {0} ({1}) had {2} old episodes appear, unmonitored aired episodes to prevent unexpected downloads.", GetProviderDisplay(series), series.Title, oldEpisodes.Count);
                 }
             }
         }
@@ -234,6 +234,19 @@ namespace NzbDrone.Core.Tv
                                  .DistinctBy(e => e.AbsoluteEpisodeNumber.Value)
                                  .Concat(remoteEpisodes.Where(e => !e.AbsoluteEpisodeNumber.HasValue))
                                  .ToList();
+        }
+
+        private static string GetProviderDisplay(Series series)
+        {
+            var provider = series.PrimaryMetadataProvider?.ToLowerInvariant() ?? "tvdb";
+            return provider switch
+            {
+                "anidb" => $"anidb:{series.AniDbId}",
+                "simkl" => $"simkl:{series.SimklId}",
+                "anilist" => $"anilist:{series.AniListIds?.FirstOrDefault()}",
+                "mal" => $"mal:{series.MalIds?.FirstOrDefault()}",
+                _ => $"tvdb:{series.TvdbId}"
+            };
         }
 
         private IEnumerable<Episode> OrderEpisodes(Series series, List<Episode> episodes)

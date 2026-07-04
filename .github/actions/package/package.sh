@@ -13,7 +13,7 @@ do
   name="${runtime##*/}"
   folderName="$runtime/$framework"
   sonarrFolder="$folderName/Sonarr"
-  archiveName="Sonarr.$BRANCH.$SONARR_VERSION.$name"
+  archiveName="Anidarr.$BRANCH.$SONARR_VERSION.$name"
 
   if [[ "$name" == 'UI' ]]; then
     continue
@@ -38,17 +38,17 @@ do
     rm -rf $packageFolder
     mkdir $packageFolder
       
-    cp -r distribution/macOS/Sonarr.app $packageFolder
-    mkdir -p $packageFolder/Sonarr.app/Contents/MacOS
+    cp -r distribution/macOS/Sonarr.app $packageFolder/Anidarr.app
+    mkdir -p $packageFolder/Anidarr.app/Contents/MacOS
       
     echo "Copying Binaries"
-    cp -r $sonarrFolder/* $packageFolder/Sonarr.app/Contents/MacOS
+    cp -r $sonarrFolder/* $packageFolder/Anidarr.app/Contents/MacOS
       
     echo "Removing Update Folder"
-    rm -r $packageFolder/Sonarr.app/Contents/MacOS/Sonarr.Update
+    rm -r $packageFolder/Anidarr.app/Contents/MacOS/Sonarr.Update
               
     echo "Packaging macOS app Artifact"
-    (cd $packageFolder; zip -rq "../../$artifactsFolder/$archiveName-app.zip" ./Sonarr.app)
+    (cd $packageFolder; zip -rq "../../$artifactsFolder/$archiveName-app.zip" ./Anidarr.app)
   fi
 
   echo "Packaging Artifact"

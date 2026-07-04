@@ -23,19 +23,16 @@ namespace NzbDrone.Core.MetadataSource.Simkl
 
         private readonly IHttpClient _httpClient;
         private readonly IConfigFileProvider _configService;
-        private readonly ISeriesService _seriesService;
         private readonly Logger _logger;
 
         public MetadataProviderType ProviderType => MetadataProviderType.Simkl;
 
         public SimklProvider(IHttpClient httpClient,
                              IConfigFileProvider configService,
-                             ISeriesService seriesService,
                              Logger logger)
         {
             _httpClient = httpClient;
             _configService = configService;
-            _seriesService = seriesService;
             _logger = logger;
         }
 

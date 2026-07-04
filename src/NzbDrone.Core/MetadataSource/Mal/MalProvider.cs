@@ -23,19 +23,16 @@ namespace NzbDrone.Core.MetadataSource.Mal
 
         private readonly IHttpClient _httpClient;
         private readonly IConfigFileProvider _configService;
-        private readonly ISeriesService _seriesService;
         private readonly Logger _logger;
 
         public MetadataProviderType ProviderType => MetadataProviderType.Mal;
 
         public MalProvider(IHttpClient httpClient,
                            IConfigFileProvider configService,
-                           ISeriesService seriesService,
                            Logger logger)
         {
             _httpClient = httpClient;
             _configService = configService;
-            _seriesService = seriesService;
             _logger = logger;
         }
 
@@ -69,8 +66,8 @@ namespace NzbDrone.Core.MetadataSource.Mal
             var series = MapSeries(response.Resource);
 
             // MAL API v2 doesn't expose individual episode details without OAuth.
-            // Generate placeholders from episode count.
-            var episodes = GenerateEpisodes(response.Resource);
+            // Generate placeholders with approximate weekly air dates from the series start_date.
+            var episodes = GenerateEpisodes(response.Resource, series.FirstAired);
 
             return Tuple.Create(series, episodes);
         }
@@ -177,14 +174,14 @@ namespace NzbDrone.Core.MetadataSource.Mal
             return series;
         }
 
-        private static List<Episode> GenerateEpisodes(MalAnimeResponse data)
+        private static List<Episode> GenerateEpisodes(MalAnimeResponse data, DateTime? firstAired)
         {
             var count = data.NumEpisodes ?? 0;
             var episodes = new List<Episode>(count);
 
             for (var i = 1; i <= count; i++)
             {
-                episodes.Add(new Episode
+                var episode = new Episode
                 {
                     SeasonNumber = 1,
                     EpisodeNumber = i,
@@ -194,7 +191,17 @@ namespace NzbDrone.Core.MetadataSource.Mal
                         ? (int)Math.Round(data.AverageEpisodeDuration.Value / 60.0)
                         : 0,
                     Monitored = true
-                });
+                };
+
+                // Approximate weekly cadence — good enough for the missing-episode scheduler
+                if (firstAired.HasValue)
+                {
+                    var airDate = firstAired.Value.AddDays(7 * (i - 1));
+                    episode.AirDateUtc = airDate;
+                    episode.AirDate = airDate.ToString("yyyy-MM-dd");
+                }
+
+                episodes.Add(episode);
             }
 
             return episodes;
