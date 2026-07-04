@@ -20,9 +20,8 @@ function AniDbBannedModal({ isOpen, onModalClose }: AniDbBannedModalProps) {
 
         <ModalBody>
           <div>
-            Anidarr has been temporarily rate-limited by AniDB. Metadata
-            lookups will be skipped until the ban expires (usually within 24
-            hours).
+            Anidarr has been temporarily rate-limited by AniDB. Metadata lookups
+            will be skipped until the ban expires (usually within 24 hours).
           </div>
 
           <div style={{ marginTop: '20px' }}>

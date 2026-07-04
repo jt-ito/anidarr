@@ -423,7 +423,9 @@ function SeriesIndexRow(props: SeriesIndexRowProps) {
         if (name === 'ratings') {
           return (
             <VirtualTableRowCell key={name} className={styles[name]}>
-              {ratings && ratings.value ? <HeartRating rating={ratings.value} votes={ratings.votes} /> : null}
+              {ratings && ratings.value ? (
+                <HeartRating rating={ratings.value} votes={ratings.votes} />
+              ) : null}
             </VirtualTableRowCell>
           );
         }

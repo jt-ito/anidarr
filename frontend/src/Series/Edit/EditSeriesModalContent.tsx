@@ -52,6 +52,26 @@ function EditSeriesModalContent({
     return <LoadingIndicator />;
   }
 
+  return (
+    <EditSeriesModalContentInner
+      series={series}
+      onModalClose={onModalClose}
+      onDeleteSeriesPress={onDeleteSeriesPress}
+    />
+  );
+}
+
+interface EditSeriesModalContentInnerProps {
+  series: Series;
+  onModalClose: () => void;
+  onDeleteSeriesPress: () => void;
+}
+
+function EditSeriesModalContentInner({
+  series,
+  onModalClose,
+  onDeleteSeriesPress,
+}: EditSeriesModalContentInnerProps) {
   const {
     title,
     monitored,
@@ -250,8 +270,6 @@ function EditSeriesModalContent({
             />
           </FormGroup>
 
-
-
           <FormGroup size={sizes.MEDIUM}>
             <FormLabel>{translate('Path')}</FormLabel>
 
@@ -309,7 +327,7 @@ function EditSeriesModalContent({
 
       <RootFolderModal
         isOpen={isRootFolderModalOpen}
-        seriesId={seriesId}
+        seriesId={series.id}
         rootFolderPath={rootFolderPath}
         onSavePress={handleRootFolderChange}
         onModalClose={handleRootFolderModalClose}

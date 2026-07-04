@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { saveDimensions, useAppValue } from 'App/appStore';
 import AniDbBannedModal from 'App/AniDbBannedModal';
+import { saveDimensions, useAppValue } from 'App/appStore';
 import AppUpdatedModal from 'App/AppUpdatedModal';
 import ColorImpairedContext from 'App/ColorImpairedContext';
 import ConnectionLostModal from 'App/ConnectionLostModal';

@@ -229,8 +229,6 @@ function AddNewSeriesModalContent({
                 />
               </FormGroup>
 
-
-
               <FormGroup>
                 <FormLabel>{translate('SeasonFolder')}</FormLabel>
 
