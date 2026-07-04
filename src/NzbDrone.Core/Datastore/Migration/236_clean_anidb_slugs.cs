@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Datastore.Migration
                 while (reader.Read())
                 {
                     var id = reader.GetInt32(0);
+
                     // TitleSlug can theoretically be null, although unlikely
                     var titleSlug = reader.IsDBNull(1) ? null : reader.GetString(1);
                     if (titleSlug != null)
