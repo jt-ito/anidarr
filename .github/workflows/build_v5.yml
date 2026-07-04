@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches:
+      - master
       - v5-develop
       - v5-main
     paths-ignore:
