@@ -228,6 +228,11 @@ namespace NzbDrone.Core.Tv
             var isNew = message.IsNewSeries;
             _eventAggregator.PublishEvent(new SeriesRefreshStartingEvent(trigger == CommandTrigger.Manual));
 
+            if (trigger == CommandTrigger.Manual)
+            {
+                NzbDrone.Core.MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
+            }
+
             if (message.SeriesIds.Any())
             {
                 foreach (var seriesId in message.SeriesIds)

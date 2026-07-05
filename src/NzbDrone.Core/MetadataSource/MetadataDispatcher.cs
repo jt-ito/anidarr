@@ -31,27 +31,61 @@ namespace NzbDrone.Core.MetadataSource
 
         public Tuple<Series, List<Episode>> GetSeriesInfo(Series series)
         {
-            var providerKey = series.PrimaryMetadataProvider?.ToLowerInvariant() ?? "tvdb";
-            var provider = _providers.FirstOrDefault(p => p.CanHandleId(providerKey));
+            var isAniDbFallback = series.PrimaryMetadataProvider?.ToLowerInvariant() == "anidb";
+            var tvdbProvider = _providers.First(p => p.ProviderType == MetadataProviderType.Tvdb);
 
-            if (provider == null)
+            try
             {
-                _logger.Warn("No metadata provider found for key '{0}', falling back to TVDB", providerKey);
-                provider = _providers.First(p => p.ProviderType == MetadataProviderType.Tvdb);
+                if (series.TvdbId > 0 || !isAniDbFallback)
+                {
+                    var tvdbId = series.TvdbId > 0 ? series.TvdbId.ToString() : ResolveExternalId(series, MetadataProviderType.Tvdb);
+                    _logger.Debug("Fetching series info for '{0}' from Tvdb (id={1})", series.Title, tvdbId);
+
+                    var result = tvdbProvider.GetSeriesInfo(tvdbId);
+
+                    if (result.Item1 != null)
+                    {
+                        result.Item1.PrimaryMetadataProvider = "tvdb"; // Ensure it's marked as TVDB
+                        _animeOfflineDatabase.UpdateMetadata(result.Item1);
+                    }
+
+                    return result;
+                }
+            }
+            catch (NzbDrone.Core.Exceptions.SeriesNotFoundException)
+            {
+                _logger.Debug("Series '{0}' not found on TVDB. Will attempt AniDB fallback if applicable.", series.Title);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Error fetching from TVDB for '{0}'", series.Title);
             }
 
-            // Resolve the right external ID for the selected provider
-            var externalId = ResolveExternalId(series, provider.ProviderType);
-
-            _logger.Debug("Fetching series info for '{0}' from {1} (id={2})", series.Title, provider.ProviderType, externalId);
-            var result = provider.GetSeriesInfo(externalId);
-
-            if (result.Item1 != null)
+            // Fallback to AniDB if it was already AniDB or we couldn't find it on TVDB and it has an AniDB ID
+            var anidbProvider = _providers.FirstOrDefault(p => p.ProviderType == MetadataProviderType.AniDb);
+            if (anidbProvider != null && series.AniDbId.HasValue && series.AniDbId.Value > 0)
             {
-                _animeOfflineDatabase.UpdateMetadata(result.Item1);
+                var anidbId = series.AniDbId.Value.ToString();
+                _logger.Debug("Fetching series info for '{0}' from AniDb fallback (id={1})", series.Title, anidbId);
+
+                var result = anidbProvider.GetSeriesInfo(anidbId);
+
+                if (result.Item1 != null)
+                {
+                    result.Item1.PrimaryMetadataProvider = "anidb"; // Tag as AniDB fallback
+                    _animeOfflineDatabase.UpdateMetadata(result.Item1);
+                }
+
+                return result;
             }
 
-            return result;
+            // If it fails on both or AniDB isn't available, we just let the original TVDB exception bubble up or throw a new one
+            if (series.TvdbId > 0)
+            {
+                return tvdbProvider.GetSeriesInfo(series.TvdbId.ToString()); // Will throw the appropriate exception
+            }
+
+            throw new NzbDrone.Core.Exceptions.SeriesNotFoundException(series.TvdbId, "Series not found on TVDB and no AniDB fallback available.");
         }
 
         public List<Series> Search(string query, MetadataProviderType? filter = null)

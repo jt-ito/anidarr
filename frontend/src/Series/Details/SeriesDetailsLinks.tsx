@@ -5,12 +5,20 @@ import Link from 'Components/Link/Link';
 import { kinds, sizes } from 'Helpers/Props';
 import Series from 'Series/Series';
 import translate from 'Utilities/String/translate';
+import { useAniDbMappings } from '../AniDbMappings/AniDbMappingsModal';
 import styles from './SeriesDetailsLinks.css';
 
 type SeriesDetailsLinksProps = Pick<
   Series,
-  'tvdbId' | 'tvMazeId' | 'imdbId' | 'tmdbId' | 'aniDbId'
->;
+  | 'tvdbId'
+  | 'tvMazeId'
+  | 'imdbId'
+  | 'tmdbId'
+  | 'aniDbId'
+  | 'simklId'
+  | 'malIds'
+  | 'aniListIds'
+> & { seriesId: number };
 
 interface SeriesDetailsLink {
   externalId?: string | number;
@@ -19,16 +27,55 @@ interface SeriesDetailsLink {
 }
 
 function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
-  const { tvdbId, tvMazeId, imdbId, tmdbId, aniDbId } = props;
+  const { seriesId, tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds } = props;
+
+  const { data: mappings } = useAniDbMappings(seriesId);
 
   const links = useMemo(() => {
     const validLinks: SeriesDetailsLink[] = [];
 
-    if (aniDbId) {
+    if (mappings && mappings.length > 0) {
+      mappings.forEach((m) => {
+        const name = m.relationType === 'Hub' ? 'AniDB (Hub)' : `AniDB (Season ${m.seasonNumber})`;
+        validLinks.push({
+          externalId: m.aniDbId,
+          name,
+          url: `https://anidb.net/anime/${m.aniDbId}`,
+        });
+      });
+    } else if (aniDbId) {
       validLinks.push({
         externalId: aniDbId,
         name: 'AniDB',
         url: `https://anidb.net/anime/${aniDbId}`,
+      });
+    }
+
+    if (simklId) {
+      validLinks.push({
+        externalId: simklId,
+        name: 'Simkl',
+        url: `https://simkl.com/tv/${simklId}`,
+      });
+    }
+
+    if (malIds) {
+      malIds.forEach((id) => {
+        validLinks.push({
+          externalId: id,
+          name: 'MyAnimeList',
+          url: `https://myanimelist.net/anime/${id}`,
+        });
+      });
+    }
+
+    if (aniListIds) {
+      aniListIds.forEach((id) => {
+        validLinks.push({
+          externalId: id,
+          name: 'AniList',
+          url: `https://anilist.co/anime/${id}`,
+        });
       });
     }
 
@@ -77,7 +124,7 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
     return validLinks.sort(
       (a, b) => Number(!a.externalId) - Number(!b.externalId)
     );
-  }, [tvdbId, tvMazeId, imdbId, tmdbId, aniDbId]);
+  }, [tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, mappings]);
 
   return (
     <div className={styles.links}>

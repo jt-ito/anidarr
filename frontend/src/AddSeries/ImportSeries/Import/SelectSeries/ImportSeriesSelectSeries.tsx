@@ -49,13 +49,31 @@ function ImportSeriesSelectSeries({
 
   const [term, setTerm] = useState(name);
   const [isOpen, setIsOpen] = useState(false);
+  const [provider, setProvider] = useState<string | undefined>(undefined);
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number} | null>(null);
+
   const query = useDebounce(term, term ? 300 : 0);
   const isCurrentLookupQueueItem = useIsCurrentLookupQueueItem(id);
   const isQueued = useIsCurrentedItemQueued(id);
 
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleGlobalClick = () => setContextMenu(null);
+    
+    // Defer adding the event listener so the current click doesn't trigger it
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleGlobalClick);
+    }, 0);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, [contextMenu]);
+
   const { isFetching, isFetched, error, data, refetch } = useLookupSeries(
     query,
-    undefined,
+    provider,
     isCurrentLookupQueueItem
   );
 
@@ -69,20 +87,28 @@ function ImportSeriesSelectSeries({
   const handleSearchInputChange = useCallback(
     ({ value }: InputChanged<string>) => {
       setTerm(value);
+      setProvider(undefined);
       addToLookupQueue(id);
     },
     [id]
   );
 
   const handleRefreshPress = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    if (provider !== undefined) setProvider(undefined);
+    else refetch();
+  }, [provider, refetch]);
+
+  const handleAniDbScan = useCallback(() => {
+    if (provider !== 'anidb') setProvider('anidb');
+    else refetch();
+    setContextMenu(null);
+  }, [provider, refetch]);
 
   const handleSeriesSelect = useCallback(
-    (tvdbId: number) => {
+    (index: number) => {
       setIsOpen(false);
 
-      const selectedSeries = data.find((item) => item.tvdbId === tvdbId)!;
+      const selectedSeries = data[index];
 
       updateImportSeriesItem({
         id,
@@ -114,6 +140,12 @@ function ImportSeriesSelectSeries({
   useEffect(() => {
     setTerm(name);
   }, [name]);
+
+  useEffect(() => {
+    const handleGlobalClick = () => setContextMenu(null);
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const { refs, context, floatingStyles } = useFloating({
     middleware: [
@@ -214,23 +246,62 @@ function ImportSeriesSelectSeries({
                     onChange={handleSearchInputChange}
                   />
 
-                  <FormInputButton
-                    kind={kinds.DEFAULT}
-                    spinnerIcon={icons.REFRESH}
-                    canSpin={true}
-                    isSpinning={isFetching}
-                    onPress={handleRefreshPress}
+                  <div 
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({ x: e.clientX, y: e.clientY });
+                    }}
                   >
-                    <Icon name={icons.REFRESH} />
-                  </FormInputButton>
+                    <FormInputButton
+                      kind={kinds.DEFAULT}
+                      spinnerIcon={icons.REFRESH}
+                      canSpin={true}
+                      isSpinning={isFetching}
+                      onPress={handleRefreshPress}
+                    >
+                      <Icon name={icons.REFRESH} />
+                    </FormInputButton>
+                  </div>
+                  
+                  {contextMenu && (
+                    <FloatingPortal>
+                      <div
+                        style={{
+                          position: 'fixed',
+                          top: Math.min(contextMenu.y, window.innerHeight - 50),
+                          left: Math.min(contextMenu.x, window.innerWidth - 150),
+                          zIndex: 99999,
+                          background: 'var(--cardBackgroundColor)',
+                          border: '1px solid var(--inputBorderColor)',
+                          borderRadius: '4px',
+                          boxShadow: '0 2px 10px rgba(0,0,0,0.5)',
+                          padding: '4px 0',
+                          color: 'var(--textColor)'
+                        }}
+                      >
+                        <div 
+                          style={{ padding: '8px 16px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          onClick={handleAniDbScan}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--menuItemHoverBackgroundColor)')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          Scan with AniDB
+                        </div>
+                      </div>
+                    </FloatingPortal>
+                  )}
                 </div>
 
                 <div className={styles.results}>
-                  {data.map((item) => {
+                  {data.map((item, index) => {
+                    const key = item.tvdbId || item.aniDbId || index;
                     return (
                       <ImportSeriesSearchResult
-                        key={item.tvdbId}
+                        key={key}
+                        index={index}
                         tvdbId={item.tvdbId}
+                        aniDbId={item.aniDbId}
+                        primaryMetadataProvider={item.primaryMetadataProvider}
                         title={item.title}
                         year={item.year}
                         network={item.network}

@@ -28,5 +28,5 @@ COPY debian-start.sh /debian-start.sh
 RUN  fromdos /debian-start.sh
 
 WORKDIR /data
-VOLUME [ "/data/anidarr_bin", "/data/build", "/data/output" ]
+VOLUME [ "/data/sonarr_bin", "/data/build", "/data/output" ]
 CMD /debian-start.sh

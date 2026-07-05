@@ -41,9 +41,9 @@ namespace NzbDrone.Core.Test.TvTests
                   .Setup(s => s.GetSeries(_series.Id))
                   .Returns(_series);
 
-            Mocker.GetMock<IMetadataDispatcher>()
-                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
-                  .Callback<Series>(s => { throw new SeriesNotFoundException(s?.TvdbId ?? 0); });
+            Mocker.GetMock<IProvideSeriesInfo>()
+                  .Setup(s => s.GetSeriesInfo(It.IsAny<int>()))
+                  .Callback<int>(p => { throw new SeriesNotFoundException(p); });
 
             Mocker.GetMock<IAutoTaggingService>()
                 .Setup(s => s.GetTagChanges(_series))
@@ -52,8 +52,8 @@ namespace NzbDrone.Core.Test.TvTests
 
         private void GivenNewSeriesInfo(Series series)
         {
-            Mocker.GetMock<IMetadataDispatcher>()
-                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
+            Mocker.GetMock<IProvideSeriesInfo>()
+                  .Setup(s => s.GetSeriesInfo(_series.TvdbId))
                   .Returns(new Tuple<Series, List<Episode>>(series, new List<Episode>()));
         }
 
@@ -249,8 +249,8 @@ namespace NzbDrone.Core.Test.TvTests
         [Test]
         public void should_rescan_series_if_updating_fails()
         {
-            Mocker.GetMock<IMetadataDispatcher>()
-                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
+            Mocker.GetMock<IProvideSeriesInfo>()
+                  .Setup(s => s.GetSeriesInfo(_series.Id))
                   .Throws(new IOException());
 
             Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }));
@@ -264,8 +264,8 @@ namespace NzbDrone.Core.Test.TvTests
         [Test]
         public void should_not_rescan_series_if_updating_fails_with_series_not_found()
         {
-            Mocker.GetMock<IMetadataDispatcher>()
-                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
+            Mocker.GetMock<IProvideSeriesInfo>()
+                  .Setup(s => s.GetSeriesInfo(_series.Id))
                   .Throws(new SeriesNotFoundException(_series.Id));
 
             Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }));

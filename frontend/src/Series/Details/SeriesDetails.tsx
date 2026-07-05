@@ -61,6 +61,7 @@ import SeriesDetailsProvider from './SeriesDetailsProvider';
 import SeriesDetailsSeason from './SeriesDetailsSeason';
 import SeriesProgressLabel from './SeriesProgressLabel';
 import SeriesTags from './SeriesTags';
+import AniDbMappingsModal from '../AniDbMappings/AniDbMappingsModal';
 import styles from './SeriesDetails.css';
 
 function getFanartUrl(images: Image[]) {
@@ -218,6 +219,7 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
     useState(false);
   const [isMonitorOptionsModalOpen, setIsMonitorOptionsModalOpen] =
     useState(false);
+  const [isAniDbMappingsModalOpen, setIsAniDbMappingsModalOpen] = useState(false);
   const [expandedState, setExpandedState] = useState<ExpandedState>({
     allExpanded: false,
     allCollapsed: false,
@@ -285,6 +287,14 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
 
   const handleMonitorOptionsClose = useCallback(() => {
     setIsMonitorOptionsModalOpen(false);
+  }, []);
+
+  const handleAniDbMappingsPress = useCallback(() => {
+    setIsAniDbMappingsModalOpen(true);
+  }, []);
+
+  const handleAniDbMappingsClose = useCallback(() => {
+    setIsAniDbMappingsModalOpen(false);
   }, []);
 
   const handleExpandAllPress = useCallback(() => {
@@ -392,6 +402,9 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
     imdbId,
     tmdbId,
     aniDbId,
+    simklId,
+    malIds,
+    aniListIds,
     title,
     runtime,
     ratings,
@@ -494,6 +507,14 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
               iconName={icons.MONITORED}
               onPress={handleMonitorOptionsPress}
             />
+
+            {series.primaryMetadataProvider === 'anidb' ? (
+              <PageToolbarButton
+                label="AniDB Mappings"
+                iconName={icons.EXTERNAL_LINK}
+                onPress={handleAniDbMappingsPress}
+              />
+            ) : null}
 
             <PageToolbarButton
               label={translate('Edit')}
@@ -753,11 +774,15 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
                     }
                     tooltip={
                       <SeriesDetailsLinks
+                        seriesId={series.id}
                         tvdbId={tvdbId}
                         tvMazeId={tvMazeId}
                         imdbId={imdbId}
                         tmdbId={tmdbId}
                         aniDbId={aniDbId}
+                        simklId={simklId}
+                        malIds={malIds}
+                        aniListIds={aniListIds}
                       />
                     }
                     kind={kinds.INVERSE}
@@ -899,6 +924,12 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
             isOpen={isMonitorOptionsModalOpen}
             seriesId={seriesId}
             onModalClose={handleMonitorOptionsClose}
+          />
+
+          <AniDbMappingsModal
+            isOpen={isAniDbMappingsModalOpen}
+            seriesId={seriesId}
+            onModalClose={handleAniDbMappingsClose}
           />
         </PageContentBody>
       </PageContent>

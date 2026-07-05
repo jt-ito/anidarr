@@ -158,7 +158,7 @@ namespace NzbDrone.Core.MetadataSource
                 results.Add(series);
             }
 
-            return results;
+            return results.GroupBy(s => s.TitleSlug + "-" + s.Year).Select(g => g.First()).ToList();
         }
 
         private void EnsureCache()

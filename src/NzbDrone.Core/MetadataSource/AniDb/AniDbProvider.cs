@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
+
 using System.Xml.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
@@ -27,20 +27,20 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private readonly IAnimeOfflineDatabase _titleSearch;
         private readonly IAppFolderInfo _appFolderInfo;
         private readonly Logger _logger;
-
-        private static readonly SemaphoreSlim _rateSemaphore = new SemaphoreSlim(1, 1);
-        private static readonly TimeSpan MinRequestInterval = TimeSpan.FromSeconds(2);
-        private static DateTime _lastRequestTime = DateTime.MinValue;
+        private readonly IAniDbRateLimiter _rateLimiter;
+        private readonly IAniDbSeriesMappingService _mappingService;
 
         public MetadataProviderType ProviderType => MetadataProviderType.AniDb;
 
-        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, Logger logger)
+        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, IAniDbRateLimiter rateLimiter, Logger logger, IAniDbSeriesMappingService mappingService)
         {
             _httpClient = httpClient;
             _configService = configService;
             _titleSearch = titleSearch;
             _appFolderInfo = appFolderInfo;
+            _rateLimiter = rateLimiter;
             _logger = logger;
+            _mappingService = mappingService;
         }
 
         public bool CanHandleId(string externalIdKey) =>
@@ -53,7 +53,115 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 throw new ArgumentException($"Invalid AniDB ID: {externalId}");
             }
 
-            var xml = FetchXml("anime", $"aid={aniDbId}");
+            var hubId = FindHubId(aniDbId);
+            var chainIds = GetLinearChain(hubId);
+
+            Series hubSeries = null;
+            var allEpisodes = new List<Episode>();
+            var mappings = new List<AniDbSeriesMapping>();
+            var seasonNumber = 1;
+            var absoluteEpisodeOffset = 0;
+
+            foreach (var id in chainIds)
+            {
+                var doc = GetAnimeXml(id);
+
+                if (hubSeries == null)
+                {
+                    hubSeries = MapSeries(doc.Root, id);
+                }
+
+                var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+                var animeType = doc.Root?.Element(ns + "type")?.Value;
+
+                var existingMapping = _mappingService.GetMappingByAniDbId(id);
+                int assignedSeasonNumber;
+
+                if (existingMapping != null)
+                {
+                    assignedSeasonNumber = existingMapping.SeasonNumber;
+
+                    if (assignedSeasonNumber > 0 && assignedSeasonNumber >= seasonNumber)
+                    {
+                        seasonNumber = assignedSeasonNumber + 1; // update counter to prevent collisions
+                    }
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(animeType) || animeType.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                    {
+                        assignedSeasonNumber = -1; // Flag for manual review
+                    }
+                    else if (animeType.Equals("TV Series", StringComparison.OrdinalIgnoreCase) || animeType.Equals("Web", StringComparison.OrdinalIgnoreCase))
+                    {
+                        assignedSeasonNumber = seasonNumber;
+                        seasonNumber++;
+                    }
+                    else
+                    {
+                        // OVA, Movie, Special, Music Video, etc.
+                        assignedSeasonNumber = 0;
+                    }
+                }
+
+                mappings.Add(new AniDbSeriesMapping
+                {
+                    AniDbId = id,
+                    SeasonNumber = assignedSeasonNumber,
+                    RelationType = id == hubId ? "Hub" : "Auto-Sequel"
+                });
+
+                if (assignedSeasonNumber != -1)
+                {
+                    var episodes = MapEpisodes(doc.Root);
+                    var maxEpisodeNumber = 0;
+                    foreach (var ep in episodes)
+                    {
+                        if (ep.SeasonNumber == 1)
+                        {
+                            ep.SeasonNumber = assignedSeasonNumber;
+                            if (assignedSeasonNumber > 0)
+                            {
+                                ep.AbsoluteEpisodeNumber = absoluteEpisodeOffset + ep.EpisodeNumber;
+                                maxEpisodeNumber = Math.Max(maxEpisodeNumber, ep.EpisodeNumber);
+                            }
+                            else
+                            {
+                                ep.AbsoluteEpisodeNumber = null; // Specials shouldn't have absolute numbers
+                            }
+                        }
+                        else if (ep.SeasonNumber == 0)
+                        {
+                            ep.SeasonNumber = 0;
+                        }
+
+                        allEpisodes.Add(ep);
+                    }
+
+                    if (assignedSeasonNumber > 0)
+                    {
+                        absoluteEpisodeOffset += maxEpisodeNumber;
+                    }
+                }
+            }
+
+            if (hubSeries != null)
+            {
+                hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
+                    .Distinct()
+                    .OrderBy(s => s)
+                    .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
+                    .ToList();
+
+                hubSeries.AniDbMappings = mappings;
+            }
+
+            return Tuple.Create(hubSeries, allEpisodes);
+        }
+
+        private XDocument GetAnimeXml(int id)
+        {
+            var xml = FetchXml("anime", $"aid={id}");
             var doc = XDocument.Parse(xml);
 
             if (doc.Root?.Name.LocalName == "error")
@@ -63,20 +171,110 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     _configService.SetAniDbBanExpiration(DateTime.UtcNow.AddHours(24));
                 }
 
-                throw new Exception($"AniDB error for ID {aniDbId}: {doc.Root.Value}");
+                throw new Exception($"AniDB error for ID {id}: {doc.Root.Value}");
             }
 
             _configService.SetAniDbBanExpiration(null);
+            return doc;
+        }
 
-            var series = MapSeries(doc.Root, aniDbId);
-            var episodes = MapEpisodes(doc.Root);
+        private int FindHubId(int startId)
+        {
+            var currentId = startId;
+            var visited = new HashSet<int> { currentId };
 
-            series.Seasons = episodes.Select(e => e.SeasonNumber)
-                .Distinct()
-                .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
-                .ToList();
+            while (true)
+            {
+                var doc = GetAnimeXml(currentId);
+                var prequels = GetRelations(doc, "Prequel");
+                if (prequels.Count == 1)
+                {
+                    var nextId = prequels[0];
+                    if (visited.Contains(nextId))
+                    {
+                        _logger.Warn("Circular relation detected in AniDB chain at ID {0}", nextId);
+                        break;
+                    }
 
-            return Tuple.Create(series, episodes);
+                    currentId = nextId;
+                    visited.Add(currentId);
+                }
+                else if (prequels.Count > 1)
+                {
+                    _logger.Warn("Branching prequels detected for AniDB ID {0}. Stopping traversal.", currentId);
+                    break;
+                }
+                else
+                {
+                    break; // No prequels, found the hub
+                }
+            }
+
+            return currentId;
+        }
+
+        private List<int> GetLinearChain(int hubId)
+        {
+            var chain = new List<int>();
+            var currentId = hubId;
+            var visited = new HashSet<int> { currentId };
+
+            while (true)
+            {
+                chain.Add(currentId);
+                var doc = GetAnimeXml(currentId);
+                var sequels = GetRelations(doc, "Sequel");
+
+                if (sequels.Count == 1)
+                {
+                    var nextId = sequels[0];
+                    if (visited.Contains(nextId))
+                    {
+                        _logger.Warn("Circular relation detected in AniDB chain at ID {0}", nextId);
+                        break;
+                    }
+
+                    currentId = nextId;
+                    visited.Add(currentId);
+                }
+                else if (sequels.Count > 1)
+                {
+                    _logger.Warn("Branching sequels detected for AniDB ID {0}. Stopping traversal.", currentId);
+                    break;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return chain;
+        }
+
+        private List<int> GetRelations(XDocument doc, string relationType)
+        {
+            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+            var related = doc.Root?.Element(ns + "relatedanime");
+            if (related == null)
+            {
+                return new List<int>();
+            }
+
+            var results = new List<int>();
+            foreach (var anime in related.Elements(ns + "anime"))
+            {
+                var type = (string)anime.Attribute("type");
+                if (string.Equals(type, relationType, StringComparison.OrdinalIgnoreCase))
+                {
+                    var idStr = (string)anime.Attribute("id");
+                    if (int.TryParse(idStr, out var id) && id > 0)
+                    {
+                        results.Add(id);
+                    }
+                }
+            }
+
+            return results;
         }
 
         public List<Series> Search(string query)
@@ -162,37 +360,18 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            ThrottleRequest();
-            var httpRequest = new HttpRequest(url);
-            var response = _httpClient.Execute(httpRequest);
-
-            if (!response.Content.Contains("<error"))
+            return _rateLimiter.ExecuteAsync(() =>
             {
-                File.WriteAllText(cacheFile, response.Content);
-            }
+                var httpRequest = new HttpRequest(url);
+                var response = _httpClient.Execute(httpRequest);
 
-            return response.Content;
-        }
-
-        private void ThrottleRequest()
-        {
-            _rateSemaphore.Wait();
-            try
-            {
-                var elapsed = DateTime.UtcNow - _lastRequestTime;
-                if (elapsed < MinRequestInterval)
+                if (!response.Content.Contains("<error"))
                 {
-                    var delay = MinRequestInterval - elapsed;
-                    _logger.Debug("AniDB rate limit: sleeping {0}ms", delay.TotalMilliseconds);
-                    Thread.Sleep(delay);
+                    File.WriteAllText(cacheFile, response.Content);
                 }
 
-                _lastRequestTime = DateTime.UtcNow;
-            }
-            finally
-            {
-                _rateSemaphore.Release();
-            }
+                return response.Content;
+            }).GetAwaiter().GetResult();
         }
 
         private static Series MapSeries(XElement root, int aniDbId)
@@ -256,6 +435,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var epno = ep.Element(ns + "epno")?.Value ?? string.Empty;
                 var type = (string)ep.Element(ns + "epno")?.Attribute("type") ?? "1";
 
+                if (type != "1" && type != "2")
+                {
+                    continue;
+                }
+
                 if (!int.TryParse(epno.TrimStart('S', 'C', 'T', 'P', 'O'), out var epNum))
                 {
                     continue;
@@ -267,7 +451,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 {
                     SeasonNumber = type == "2" ? 0 : 1,
                     EpisodeNumber = epNum,
-                    AbsoluteEpisodeNumber = type == "1" ? epNum : (int?)null,
+                    AbsoluteEpisodeNumber = null,
                     Title = titleEn,
                     Overview = CleanDescription(ep.Element(ns + "summary")?.Value),
                     Runtime = int.TryParse(ep.Element(ns + "length")?.Value, out var epRt) ? epRt : 0,

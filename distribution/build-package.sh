@@ -2,6 +2,6 @@
 
 mkdir -p /${PWD}/../_output_debian
 
-docker build -f docker-build/Dockerfile -t anidarr-packager ./docker-build
+docker build -f docker-build/Dockerfile -t sonarr-packager ./docker-build
 
-docker run --rm -v /${PWD}/../_output_linux:/data/anidarr_bin:ro -v /${PWD}:/data/build -v /${PWD}/../_output_debian:/data/output anidarr-packager
+docker run --rm -v /${PWD}/../_output_linux:/data/sonarr_bin:ro -v /${PWD}:/data/build -v /${PWD}/../_output_debian:/data/output sonarr-packager

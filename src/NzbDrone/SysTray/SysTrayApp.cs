@@ -2,9 +2,6 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using Microsoft.Extensions.Hosting;
-using NzbDrone.Common.EnvironmentInfo;
-using NzbDrone.Core.Lifecycle;
 using NzbDrone.Host;
 
 namespace NzbDrone.SysTray

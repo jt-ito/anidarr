@@ -43,6 +43,7 @@ namespace NzbDrone.Core.Tv
         private readonly IEpisodeService _episodeService;
         private readonly IBuildSeriesPaths _seriesPathBuilder;
         private readonly IAutoTaggingService _autoTaggingService;
+        private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
         private readonly Logger _logger;
 
         public SeriesService(ISeriesRepository seriesRepository,
@@ -50,6 +51,7 @@ namespace NzbDrone.Core.Tv
                              IEpisodeService episodeService,
                              IBuildSeriesPaths seriesPathBuilder,
                              IAutoTaggingService autoTaggingService,
+                             IAniDbSeriesMappingService aniDbSeriesMappingService,
                              Logger logger)
         {
             _seriesRepository = seriesRepository;
@@ -57,6 +59,7 @@ namespace NzbDrone.Core.Tv
             _episodeService = episodeService;
             _seriesPathBuilder = seriesPathBuilder;
             _autoTaggingService = autoTaggingService;
+            _aniDbSeriesMappingService = aniDbSeriesMappingService;
             _logger = logger;
         }
 
@@ -73,6 +76,12 @@ namespace NzbDrone.Core.Tv
         public Series AddSeries(Series newSeries)
         {
             _seriesRepository.Insert(newSeries);
+
+            if (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any())
+            {
+                _aniDbSeriesMappingService.UpdateMappings(newSeries.Id, newSeries.AniDbMappings);
+            }
+
             _eventAggregator.PublishEvent(new SeriesAddedEvent(GetSeries(newSeries.Id)));
 
             return newSeries;
@@ -225,6 +234,12 @@ namespace NzbDrone.Core.Tv
             UpdateTags(series);
 
             var updatedSeries = _seriesRepository.Update(series);
+
+            if (series.AniDbMappings != null && series.AniDbMappings.Any())
+            {
+                _aniDbSeriesMappingService.UpdateMappings(series.Id, series.AniDbMappings);
+            }
+
             if (publishUpdatedEvent)
             {
                 _eventAggregator.PublishEvent(new SeriesEditedEvent(updatedSeries, storedSeries, episodeMonitoredChanged));

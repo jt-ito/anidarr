@@ -40,6 +40,11 @@ public class SeriesLookupController : Controller
         if (!string.IsNullOrWhiteSpace(provider) &&
             Enum.TryParse<MetadataProviderType>(provider, ignoreCase: true, out var providerType))
         {
+            if (providerType == MetadataProviderType.AniDb)
+            {
+                NzbDrone.Core.MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
+            }
+
             results = _metadataDispatcher.Search(term, providerType);
         }
         else

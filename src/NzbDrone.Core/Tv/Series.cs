@@ -72,6 +72,9 @@ namespace NzbDrone.Core.Tv
         public HashSet<int> Tags { get; set; }
         public AddSeriesOptions AddOptions { get; set; }
 
+        // Transient property to pass AniDB mapping data from MetadataSource to SeriesService
+        public List<AniDbSeriesMapping> AniDbMappings { get; set; } = new List<AniDbSeriesMapping>();
+
         public override string ToString()
         {
             return string.Format("[{0}][{1}]", TvdbId, Title.NullSafe());
