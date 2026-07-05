@@ -48,6 +48,7 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
   <titles>
     <title xml:lang=""en"" type=""main"">{title}</title>
   </titles>
+  <type>TV Series</type>
   <relatedanime>
     {relatedAnimeXml}
   </relatedanime>

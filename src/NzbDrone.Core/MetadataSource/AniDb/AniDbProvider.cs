@@ -61,6 +61,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var mappings = new List<AniDbSeriesMapping>();
             var seasonNumber = 1;
             var absoluteEpisodeOffset = 0;
+            var specialEpisodeCounter = 1;
 
             foreach (var id in chainIds)
             {
@@ -128,11 +129,14 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                             else
                             {
                                 ep.AbsoluteEpisodeNumber = null; // Specials shouldn't have absolute numbers
+                                ep.EpisodeNumber = specialEpisodeCounter++;
                             }
                         }
                         else if (ep.SeasonNumber == 0)
                         {
                             ep.SeasonNumber = 0;
+                            ep.EpisodeNumber = specialEpisodeCounter++;
+                            ep.AbsoluteEpisodeNumber = null;
                         }
 
                         allEpisodes.Add(ep);
@@ -435,11 +439,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var epno = ep.Element(ns + "epno")?.Value ?? string.Empty;
                 var type = (string)ep.Element(ns + "epno")?.Attribute("type") ?? "1";
 
-                if (type != "1" && type != "2")
-                {
-                    continue;
-                }
-
                 if (!int.TryParse(epno.TrimStart('S', 'C', 'T', 'P', 'O'), out var epNum))
                 {
                     continue;
@@ -449,7 +448,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                 var episode = new Episode
                 {
-                    SeasonNumber = type == "2" ? 0 : 1,
+                    SeasonNumber = type == "1" ? 1 : 0,
                     EpisodeNumber = epNum,
                     AbsoluteEpisodeNumber = null,
                     Title = titleEn,
