@@ -65,7 +65,16 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             foreach (var id in chainIds)
             {
-                var doc = GetAnimeXml(id);
+                XDocument doc;
+                try
+                {
+                    doc = GetAnimeXml(id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0} while parsing series. Skipping.", id);
+                    continue;
+                }
 
                 if (hubSeries == null)
                 {
@@ -186,10 +195,21 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         {
             var currentId = startId;
             var visited = new HashSet<int> { currentId };
+            var lastValidId = startId;
 
             while (true)
             {
-                var doc = GetAnimeXml(currentId);
+                XDocument doc;
+                try
+                {
+                    doc = GetAnimeXml(currentId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0}. Falling back to earliest available entry {1} as hub.", currentId, lastValidId);
+                    return lastValidId;
+                }
+
                 var prequels = GetRelations(doc, "Prequel");
                 if (prequels.Count == 1)
                 {
@@ -200,6 +220,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         break;
                     }
 
+                    lastValidId = currentId;
                     currentId = nextId;
                     visited.Add(currentId);
                 }
@@ -225,8 +246,18 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             while (true)
             {
+                XDocument doc;
+                try
+                {
+                    doc = GetAnimeXml(currentId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0} while building chain. Stopping traversal.", currentId);
+                    break;
+                }
+
                 chain.Add(currentId);
-                var doc = GetAnimeXml(currentId);
                 var sequels = GetRelations(doc, "Sequel");
 
                 if (sequels.Count == 1)

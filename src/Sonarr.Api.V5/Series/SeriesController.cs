@@ -47,6 +47,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
     private readonly IRootFolderService _rootFolderService;
     private readonly IHardlinkSeriesFiles _hardlinkSeriesService; // Anidarr
     private readonly IAnimeOfflineTitleRepository _animeOfflineTitleRepository;
+    private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
 
     private readonly LockByIdPool _seriesLockPool = new();
 
@@ -60,6 +61,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                         IRootFolderService rootFolderService,
                         IHardlinkSeriesFiles hardlinkSeriesService, // Anidarr
                         IAnimeOfflineTitleRepository animeOfflineTitleRepository,
+                        IAniDbSeriesMappingService aniDbSeriesMappingService,
                         RootFolderValidator rootFolderValidator,
                         MappedNetworkDriveValidator mappedNetworkDriveValidator,
                         SeriesPathValidator seriesPathValidator,
@@ -81,6 +83,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         _rootFolderService = rootFolderService;
         _hardlinkSeriesService = hardlinkSeriesService; // Anidarr
         _animeOfflineTitleRepository = animeOfflineTitleRepository;
+        _aniDbSeriesMappingService = aniDbSeriesMappingService;
 
         SharedValidator.RuleFor(s => s.Path).Cascade(CascadeMode.Stop)
             .IsValidPath()
@@ -136,6 +139,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         MapCoversToLocal(seriesResources.ToArray());
         LinkSeriesStatistics(seriesResources, seriesStats.ToDictionary(x => x.SeriesId));
         PopulateAlternateTitles(seriesResources);
+        PopulateAniDbMappings(seriesResources);
         seriesResources.ForEach(LinkRootFolderPath);
 
         return TypedResults.Ok(seriesResources);
@@ -298,6 +302,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         MapCoversToLocal(resource);
         FetchAndLinkSeriesStatistics(resource);
         PopulateAlternateTitles(resource);
+        PopulateAniDbMappings(resource);
         LinkRootFolderPath(resource);
 
         return resource;
@@ -378,6 +383,26 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                         resource.AlternateTitles.Add(new AlternateTitleResource { Title = synonym, Comment = "AniDB" });
                     }
                 }
+            }
+        }
+    }
+
+    private void PopulateAniDbMappings(List<SeriesResource> resources)
+    {
+        foreach (var resource in resources)
+        {
+            PopulateAniDbMappings(resource);
+        }
+    }
+
+    private void PopulateAniDbMappings(SeriesResource resource)
+    {
+        if (resource.AniDbId.HasValue && resource.AniDbId.Value > 0)
+        {
+            var mappings = _aniDbSeriesMappingService.GetMappingsForSeries(resource.Id);
+            if (mappings != null && mappings.Any())
+            {
+                resource.MappedAniDbIds = mappings.Select(m => m.AniDbId).Distinct().ToList();
             }
         }
     }

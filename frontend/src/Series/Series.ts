@@ -106,6 +106,7 @@ interface Series extends ModelBase {
   tvRageId: number;
   tmdbId: number;
   aniDbId?: number;
+  mappedAniDbIds?: number[];
   simklId?: number;
   malIds?: number[];
   aniListIds?: number[];

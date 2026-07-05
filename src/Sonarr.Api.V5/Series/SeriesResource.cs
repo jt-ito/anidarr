@@ -65,6 +65,7 @@ public class SeriesResource : RestResource
     public int? SimklId { get; set; }
     public string? PrimaryMetadataProvider { get; set; }
     public string? FansubGroup { get; set; }
+    public List<int>? MappedAniDbIds { get; set; }
 
     // Anidarr: specifies what to do with files when RootFolderPath is changed.
     // Null = legacy MoveFiles behavior for backward compatibility.

@@ -20,7 +20,8 @@ function useExistingSeries(seriesToCheck?: Partial<Series>) {
       if (
         seriesToCheck.aniDbId &&
         seriesToCheck.aniDbId > 0 &&
-        s.aniDbId === seriesToCheck.aniDbId
+        (s.aniDbId === seriesToCheck.aniDbId ||
+          s.mappedAniDbIds?.includes(seriesToCheck.aniDbId))
       )
         return true;
       if (
