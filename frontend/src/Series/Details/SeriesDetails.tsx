@@ -774,7 +774,6 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
                     }
                     tooltip={
                       <SeriesDetailsLinks
-                        seriesId={series.id}
                         tvdbId={tvdbId}
                         tvMazeId={tvMazeId}
                         imdbId={imdbId}
@@ -783,6 +782,7 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
                         simklId={simklId}
                         malIds={malIds}
                         aniListIds={aniListIds}
+                        aniDbMappings={series.aniDbMappings}
                       />
                     }
                     kind={kinds.INVERSE}

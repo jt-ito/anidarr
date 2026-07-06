@@ -5,7 +5,6 @@ import Link from 'Components/Link/Link';
 import { kinds, sizes } from 'Helpers/Props';
 import Series from 'Series/Series';
 import translate from 'Utilities/String/translate';
-import { useAniDbMappings } from '../AniDbMappings/AniDbMappingsModal';
 import styles from './SeriesDetailsLinks.css';
 
 type SeriesDetailsLinksProps = Pick<
@@ -18,7 +17,8 @@ type SeriesDetailsLinksProps = Pick<
   | 'simklId'
   | 'malIds'
   | 'aniListIds'
-> & { seriesId: number };
+  | 'aniDbMappings'
+>;
 
 interface SeriesDetailsLink {
   externalId?: string | number;
@@ -27,16 +27,16 @@ interface SeriesDetailsLink {
 }
 
 function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
-  const { seriesId, tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds } = props;
-
-  const { data: mappings } = useAniDbMappings(seriesId);
+  const { tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, aniDbMappings } = props;
 
   const links = useMemo(() => {
     const validLinks: SeriesDetailsLink[] = [];
 
-    if (mappings && mappings.length > 0) {
-      mappings.forEach((m) => {
-        const name = m.relationType === 'Hub' ? 'AniDB (Hub)' : `AniDB (Season ${m.seasonNumber})`;
+    if (aniDbMappings && aniDbMappings.length > 0) {
+      const sortedMappings = [...aniDbMappings].sort((a, b) => a.seasonNumber - b.seasonNumber);
+      sortedMappings.forEach((m) => {
+        if (!m.aniDbId || m.seasonNumber === 0) return;
+        const name = `AniDB (Season ${m.seasonNumber})`;
         validLinks.push({
           externalId: m.aniDbId,
           name,
@@ -124,7 +124,7 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
     return validLinks.sort(
       (a, b) => Number(!a.externalId) - Number(!b.externalId)
     );
-  }, [tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, mappings]);
+  }, [tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, aniDbMappings]);
 
   return (
     <div className={styles.links}>

@@ -403,6 +403,14 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             if (mappings != null && mappings.Any())
             {
                 resource.MappedAniDbIds = mappings.Select(m => m.AniDbId).Distinct().ToList();
+                resource.AniDbMappings = mappings.Select(m => new AniDbMappingResource
+                {
+                    Id = m.Id,
+                    SeriesId = m.SeriesId,
+                    AniDbId = m.AniDbId,
+                    SeasonNumber = m.SeasonNumber,
+                    RelationType = m.RelationType
+                }).ToList();
             }
         }
     }

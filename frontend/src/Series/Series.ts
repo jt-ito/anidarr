@@ -107,6 +107,13 @@ interface Series extends ModelBase {
   tmdbId: number;
   aniDbId?: number;
   mappedAniDbIds?: number[];
+  aniDbMappings?: {
+    id: number;
+    seriesId: number;
+    aniDbId: number;
+    seasonNumber: number;
+    relationType: string;
+  }[];
   simklId?: number;
   malIds?: number[];
   aniListIds?: number[];

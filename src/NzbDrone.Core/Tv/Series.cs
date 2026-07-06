@@ -97,6 +97,7 @@ namespace NzbDrone.Core.Tv
             Tags = otherSeries.Tags;
             AddOptions = otherSeries.AddOptions;
             FansubGroup = otherSeries.FansubGroup;
+            AniDbMappings = otherSeries.AniDbMappings;
         }
     }
 }
