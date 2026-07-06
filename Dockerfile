@@ -18,7 +18,7 @@ RUN yarn build
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release -f net10.0 -o /app/publish -r linux-x64 --self-contained false -p:NuGetAudit=false
 
 # Copy the built UI to the publish directory so the backend can serve it
-RUN cp -r _output/net10.0/UI /app/publish/UI
+RUN cp -r _output/UI /app/publish/UI
 
 # Use the ASP.NET runtime image for the final stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime

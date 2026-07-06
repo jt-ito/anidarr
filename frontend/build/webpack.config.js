@@ -15,7 +15,7 @@ module.exports = (env) => {
   const isProduction = !!env.production;
   const isProfiling = isProduction && !!env.profile;
 
-  const distFolder = path.resolve(frontendFolder, '..', '_output', 'net10.0', uiFolder);
+  const distFolder = path.resolve(frontendFolder, '..', '_output', uiFolder);
 
   console.log('Source Folder:', srcFolder);
   console.log('Output Folder:', distFolder);

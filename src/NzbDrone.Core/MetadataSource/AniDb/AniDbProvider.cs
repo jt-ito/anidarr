@@ -98,7 +98,19 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
                 else
                 {
+                    var hasQualifyingHubRelation = id != hubId;
+                    var isAmbiguousHubRelation = false;
+
+                    if (!hasQualifyingHubRelation && GetRelations(doc, "Prequel").Any())
+                    {
+                        isAmbiguousHubRelation = true;
+                    }
+
                     if (string.IsNullOrWhiteSpace(animeType) || animeType.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                    {
+                        assignedSeasonNumber = -1; // Flag for manual review
+                    }
+                    else if (isAmbiguousHubRelation)
                     {
                         assignedSeasonNumber = -1; // Flag for manual review
                     }
@@ -110,7 +122,15 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     else
                     {
                         // OVA, Movie, Special, Music Video, etc.
-                        assignedSeasonNumber = 0;
+                        if (hasQualifyingHubRelation)
+                        {
+                            assignedSeasonNumber = 0;
+                        }
+                        else
+                        {
+                            assignedSeasonNumber = seasonNumber;
+                            seasonNumber++;
+                        }
                     }
                 }
 

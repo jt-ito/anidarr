@@ -42,6 +42,7 @@
   <PropertyGroup>
     <Configuration Condition="'$(Configuration)'==''">Release</Configuration>
     <!-- Centralize intermediate and default outputs -->
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <BaseIntermediateOutputPath>$(SonarrRootDir)_temp\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
     <IntermediateOutputPath>$(SonarrRootDir)_temp\obj\$(MSBuildProjectName)\$(Configuration)\</IntermediateOutputPath>
     <OutputPath>$(SonarrRootDir)_temp\bin\$(Configuration)\$(MSBuildProjectName)\</OutputPath>

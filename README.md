@@ -64,7 +64,7 @@ Anidarr is built using .NET and React (via Yarn).
 
 3. **Start the Backend Server:**
    ```bash
-   ./_output/net10.0/Sonarr.Console.exe
+   ./_output/Sonarr.Console.exe
    ```
 
 4. **Install Frontend Dependencies & Start the Dev Server** (in a new terminal):
