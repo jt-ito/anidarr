@@ -12,10 +12,11 @@ COPY . .
 
 # Build frontend
 RUN yarn install
-RUN yarn build
+RUN yarn build --env production
 
 # Build backend
 RUN dotnet publish src/NzbDrone.Console/Sonarr.Console.csproj -c Release -f net10.0 -o /app/publish -r linux-x64 --self-contained false -p:NuGetAudit=false
+RUN dotnet publish src/NzbDrone.Mono/Sonarr.Mono.csproj -c Release -f net10.0 -o /app/publish -r linux-x64 --self-contained false -p:NuGetAudit=false
 
 # Copy the built UI to the publish directory so the backend can serve it
 RUN cp -r _output/UI /app/publish/UI
@@ -31,10 +32,15 @@ RUN apt-get update && apt-get install -y \
     sqlite3 \
     libcurl4 \
     tzdata \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the published backend and frontend from the build stage
 COPY --from=build /app/publish .
+
+# Setup entrypoint script
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 # Data volume for config and database
 VOLUME /config
@@ -42,4 +48,5 @@ VOLUME /config
 # Default Sonarr port
 EXPOSE 8989
 
-ENTRYPOINT ["./Sonarr", "-nobrowser", "-data=/config"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["./Sonarr", "-nobrowser", "-data=/config"]

@@ -25,10 +25,10 @@ namespace Sonarr.Http.Middleware
             headers["X-XSS-Protection"] = "0"; // Tells modern browsers to use built-in protection
             headers["Content-Security-Policy"] =
                 "default-src 'self'; " +
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +  // unsafe-inline and unsafe-eval needed for React in dev
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://static.cloudflareinsights.com; " +  // unsafe-inline and unsafe-eval needed for React in dev
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
                 "font-src 'self' https://fonts.gstatic.com; " +
-                "connect-src 'self' wss:; " +
+                "connect-src 'self' wss: https://sentry.sonarr.tv https://cloudflareinsights.com; " +
                 "img-src 'self' data: https:; " +
                 "media-src 'none'; " +
                 "object-src 'none'; " +

@@ -87,6 +87,17 @@ namespace NzbDrone.Core.Indexers.Newznab
             }
         }
 
+        private bool SupportsAniDbSearch
+        {
+            get
+            {
+                var capabilities = _capabilitiesProvider.GetCapabilities(Settings);
+
+                return capabilities.SupportedTvSearchParameters != null &&
+                       capabilities.SupportedTvSearchParameters.Contains("anidbid");
+            }
+        }
+
         private bool SupportsImdbSearch
         {
             get
@@ -136,7 +147,7 @@ namespace NzbDrone.Core.Indexers.Newznab
         {
             get
             {
-                return SupportsTvdbSearch || SupportsImdbSearch || SupportsTvRageSearch || SupportsTvMazeSearch || SupportsTmdbSearch;
+                return SupportsTvdbSearch || SupportsImdbSearch || SupportsTvRageSearch || SupportsTvMazeSearch || SupportsTmdbSearch || SupportsAniDbSearch;
             }
         }
 
@@ -501,8 +512,9 @@ namespace NzbDrone.Core.Indexers.Newznab
             var includeTvRageSearch = SupportsTvRageSearch && searchCriteria.Series.TvRageId > 0;
             var includeTvMazeSearch = SupportsTvMazeSearch && searchCriteria.Series.TvMazeId > 0;
             var includeTmdbSearch = SupportsTmdbSearch && searchCriteria.Series.TmdbId > 0;
+            var includeAniDbSearch = SupportsAniDbSearch && searchCriteria.Series.AniDbId > 0;
 
-            if (SupportsAggregatedIdSearch && (includeTvdbSearch || includeTvRageSearch || includeTvMazeSearch || includeTmdbSearch))
+            if (SupportsAggregatedIdSearch && (includeTvdbSearch || includeTvRageSearch || includeTvMazeSearch || includeTmdbSearch || includeAniDbSearch))
             {
                 var ids = "";
 
@@ -529,6 +541,11 @@ namespace NzbDrone.Core.Indexers.Newznab
                 if (includeTmdbSearch)
                 {
                     ids += "&tmdbid=" + searchCriteria.Series.TmdbId;
+                }
+
+                if (includeAniDbSearch)
+                {
+                    ids += "&anidbid=" + searchCriteria.Series.AniDbId;
                 }
 
                 chain.Add(GetPagedRequests(MaxPages, categories, "tvsearch", ids + parameters));
@@ -569,6 +586,13 @@ namespace NzbDrone.Core.Indexers.Newznab
                         categories,
                         "tvsearch",
                         $"&tmdbid={searchCriteria.Series.TmdbId}{parameters}"));
+                }
+                else if (includeAniDbSearch)
+                {
+                    chain.Add(GetPagedRequests(MaxPages,
+                        categories,
+                        "tvsearch",
+                        $"&anidbid={searchCriteria.Series.AniDbId}{parameters}"));
                 }
             }
         }

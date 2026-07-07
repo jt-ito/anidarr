@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Parser.Model
         public int TvdbId { get; set; }
         public int TvRageId { get; set; }
         public string ImdbId { get; set; }
+        public int AniDbId { get; set; }
         public DateTime PublishDate { get; set; }
 
         public string Origin { get; set; }
@@ -104,6 +105,7 @@ namespace NzbDrone.Core.Parser.Model
                     stringBuilder.AppendLine("TvdbId: " + TvdbId ?? "Empty");
                     stringBuilder.AppendLine("TvRageId: " + TvRageId ?? "Empty");
                     stringBuilder.AppendLine("ImdbId: " + ImdbId ?? "Empty");
+                    stringBuilder.AppendLine("AniDbId: " + AniDbId ?? "Empty");
                     stringBuilder.AppendLine("PublishDate: " + PublishDate ?? "Empty");
                     return stringBuilder.ToString();
                 default:

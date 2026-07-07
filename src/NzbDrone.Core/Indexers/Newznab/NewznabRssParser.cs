@@ -91,6 +91,7 @@ namespace NzbDrone.Core.Indexers.Newznab
             releaseInfo.TvdbId = GetTvdbId(item);
             releaseInfo.TvRageId = GetTvRageId(item);
             releaseInfo.ImdbId = GetImdbId(item);
+            releaseInfo.AniDbId = GetAniDbId(item);
             releaseInfo.IndexerFlags = GetFlags(item);
 
             return releaseInfo;
@@ -167,6 +168,18 @@ namespace NzbDrone.Core.Indexers.Newznab
             if (!tvdbIdString.IsNullOrWhiteSpace() && int.TryParse(tvdbIdString, out var tvdbId))
             {
                 return tvdbId;
+            }
+
+            return 0;
+        }
+
+        protected virtual int GetAniDbId(XElement item)
+        {
+            var aniDbIdString = TryGetNewznabAttribute(item, "anidbid");
+
+            if (!aniDbIdString.IsNullOrWhiteSpace() && int.TryParse(aniDbIdString, out var aniDbId))
+            {
+                return aniDbId;
             }
 
             return 0;

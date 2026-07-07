@@ -14,6 +14,7 @@ import FormGroup from 'Components/Form/FormGroup';
 import FormInputGroup from 'Components/Form/FormInputGroup';
 import FormLabel from 'Components/Form/FormLabel';
 import Icon from 'Components/Icon';
+import Alert from 'Components/Alert';
 import SpinnerButton from 'Components/Link/SpinnerButton';
 import ModalBody from 'Components/Modal/ModalBody';
 import ModalContent from 'Components/Modal/ModalContent';
@@ -25,6 +26,7 @@ import { icons, inputTypes, kinds, tooltipPositions } from 'Helpers/Props';
 import { SeriesType } from 'Series/Series';
 import SeriesPoster from 'Series/SeriesPoster';
 import selectSettings from 'Store/Selectors/selectSettings';
+import useRootFolders from 'RootFolder/useRootFolders';
 import { useIsWindows } from 'System/Status/useSystemStatus';
 import { InputChanged } from 'typings/inputs';
 import translate from 'Utilities/String/translate';
@@ -118,6 +120,9 @@ function AddNewSeriesModalContent({
     setSeriesType(seriesTypeSetting.value);
   }, [seriesTypeSetting]);
 
+  const { data: rootFolders } = useRootFolders();
+  const hasRootFolders = rootFolders && rootFolders.length > 0;
+
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
@@ -129,6 +134,11 @@ function AddNewSeriesModalContent({
       </ModalHeader>
 
       <ModalBody>
+        {!hasRootFolders && (
+          <Alert kind="danger">
+            No Root Folders configured. Please go to Settings -&gt; Media Management to configure a root folder before adding a series.
+          </Alert>
+        )}
         <div className={styles.container}>
           {isSmallScreen ? null : (
             <div className={styles.poster}>
@@ -291,6 +301,7 @@ function AddNewSeriesModalContent({
           kind={kinds.SUCCESS}
           isSpinning={isAdding}
           onPress={handleAddSeriesPress}
+          disabled={!hasRootFolders}
         >
           {translate('AddSeriesWithTitle', { title })}
         </SpinnerButton>

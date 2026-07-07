@@ -84,6 +84,7 @@ namespace NzbDrone.Core.Indexers.Torznab
                 torrentInfo.TvdbId = GetTvdbId(item);
                 torrentInfo.TvRageId = GetTvRageId(item);
                 releaseInfo.ImdbId = GetImdbId(item);
+                torrentInfo.AniDbId = GetAniDbId(item);
                 torrentInfo.IndexerFlags = GetFlags(item);
             }
 
@@ -161,6 +162,18 @@ namespace NzbDrone.Core.Indexers.Torznab
             if (!tvdbIdString.IsNullOrWhiteSpace() && int.TryParse(tvdbIdString, out var tvdbId))
             {
                 return tvdbId;
+            }
+
+            return 0;
+        }
+
+        protected virtual int GetAniDbId(XElement item)
+        {
+            var aniDbIdString = TryGetTorznabAttribute(item, "anidbid");
+
+            if (!aniDbIdString.IsNullOrWhiteSpace() && int.TryParse(aniDbIdString, out var aniDbId))
+            {
+                return aniDbId;
             }
 
             return 0;

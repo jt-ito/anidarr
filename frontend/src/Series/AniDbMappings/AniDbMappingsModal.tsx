@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import fetchJson from 'Utilities/Fetch/fetchJson';
 import Alert from 'Components/Alert';
 import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
@@ -22,9 +23,7 @@ export function useAniDbMappings(seriesId: number) {
   return useQuery<AniDbMappingResource[]>({
     queryKey: ['anidbmappings', seriesId],
     queryFn: async () => {
-      const response = await fetch(`/api/v5/series/anidb-mapping?seriesId=${seriesId}`);
-      if (!response.ok) throw new Error('Network response was not ok');
-      return response.json();
+      return await fetchJson<AniDbMappingResource[], void>({ path: `/series/anidb-mapping?seriesId=${seriesId}` });
     },
     enabled: !!seriesId,
   });
@@ -34,13 +33,11 @@ export function useCreateAniDbMapping() {
   const queryClient = useQueryClient();
   const { mutate: createMapping, isPending: isCreating } = useMutation({
     mutationFn: async (mapping: Partial<AniDbMappingResource>) => {
-      const response = await fetch('/api/v5/series/anidb-mapping', {
+      return await fetchJson<AniDbMappingResource, Partial<AniDbMappingResource>>({
+        path: '/series/anidb-mapping',
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mapping)
+        body: mapping
       });
-      if (!response.ok) throw new Error('Network response was not ok');
-      return response.json();
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['anidbmappings', variables.seriesId] });
@@ -54,10 +51,10 @@ export function useDeleteAniDbMapping() {
   const queryClient = useQueryClient();
   const { mutate: deleteMapping, isPending: isDeleting } = useMutation({
     mutationFn: async ({ seriesId, aniDbId }: { seriesId: number; aniDbId: number }) => {
-      const response = await fetch(`/api/v5/series/anidb-mapping?seriesId=${seriesId}&aniDbId=${aniDbId}`, {
+      await fetchJson<void, void>({
+        path: `/series/anidb-mapping?seriesId=${seriesId}&aniDbId=${aniDbId}`,
         method: 'DELETE'
       });
-      if (!response.ok) throw new Error('Network response was not ok');
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['anidbmappings', variables.seriesId] });

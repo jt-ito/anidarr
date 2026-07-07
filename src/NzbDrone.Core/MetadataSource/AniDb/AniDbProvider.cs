@@ -178,16 +178,18 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            if (hubSeries != null)
+            if (hubSeries == null)
             {
-                hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
-                    .Distinct()
-                    .OrderBy(s => s)
-                    .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
-                    .ToList();
-
-                hubSeries.AniDbMappings = mappings;
+                throw new Exception($"Could not fetch primary series data for AniDB ID {externalId}");
             }
+
+            hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
+                .Distinct()
+                .OrderBy(s => s)
+                .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
+                .ToList();
+
+            hubSeries.AniDbMappings = mappings;
 
             return Tuple.Create(hubSeries, allEpisodes);
         }
