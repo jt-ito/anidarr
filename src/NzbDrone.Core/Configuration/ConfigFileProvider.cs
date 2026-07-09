@@ -337,8 +337,8 @@ namespace NzbDrone.Core.Configuration
         public string TvdbApiKey => GetValue("TvdbApiKey", string.Empty);
         public string SimklClientId => GetValue("SimklClientId", string.Empty);
         public string MalClientId => GetValue("MalClientId", string.Empty);
-        public string AniDbClientName => GetValue("AniDbClientName", "anidarr");
-        public int AniDbClientVersion => GetValueInt("AniDbClientVersion", 1);
+        public string AniDbClientName => GetValue("AniDbClientName", string.Empty);
+        public int AniDbClientVersion => GetValueInt("AniDbClientVersion", 0);
         public DateTime? AniDbBanExpiration
         {
             get

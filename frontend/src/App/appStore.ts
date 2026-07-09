@@ -143,9 +143,7 @@ function pingServerAfterTimeout() {
       pingTimeout = null;
 
       if ((error as { status?: number }).status === 401) {
-        setAppValue({
-          isRestarting: false,
-        });
+        window.location.reload();
       } else if (!abortController.signal.aborted) {
         pingServerAfterTimeout();
       }

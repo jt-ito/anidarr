@@ -68,6 +68,10 @@ async function fetchJson<T, TData>({
     clearTimeout(timeoutID);
   }
 
+  if (response.status === 401) {
+    window.location.reload();
+  }
+
   if (!response.ok) {
     // eslint-disable-next-line init-declarations
     let body;
