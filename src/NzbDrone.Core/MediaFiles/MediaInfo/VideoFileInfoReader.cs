@@ -50,7 +50,7 @@ namespace NzbDrone.Core.MediaFiles.MediaInfo
                 }
                 catch (Exception e)
                 {
-                    _logger.Warn(e, "Failed to set execute permissions on ffprobe.");
+                    _logger.Debug(e, "Failed to set execute permissions on ffprobe.");
                 }
             }
         }

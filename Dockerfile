@@ -42,6 +42,7 @@ COPY --from=build /app/publish .
 # Setup entrypoint script
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/ffprobe || true
 
 # Data volume for config and database
 VOLUME /config
