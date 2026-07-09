@@ -11,6 +11,7 @@ using NzbDrone.Core.MediaFiles.Commands;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 
@@ -31,6 +32,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         private readonly IHistoryService _historyService;
         private readonly IEventAggregator _eventAggregator;
         private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IBuildFileNames _buildFileNames;
         private readonly Logger _logger;
 
         public ImportApprovedEpisodes(IUpgradeMediaFiles episodeFileUpgrader,
@@ -41,6 +43,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                                       IHistoryService historyService,
                                       IEventAggregator eventAggregator,
                                       IManageCommandQueue commandQueueManager,
+                                      IBuildFileNames buildFileNames,
                                       Logger logger)
         {
             _episodeFileUpgrader = episodeFileUpgrader;
@@ -51,6 +54,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             _historyService = historyService;
             _eventAggregator = eventAggregator;
             _commandQueueManager = commandQueueManager;
+            _buildFileNames = buildFileNames;
             _logger = logger;
         }
 
@@ -130,6 +134,42 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                             if (outputDirectory.IsParentPath(localEpisode.Path))
                             {
                                 episodeFile.OriginalFilePath = outputDirectory.GetRelativePath(localEpisode.Path);
+                            }
+                        }
+
+                        var destinationFilePath = _buildFileNames.BuildFilePath(localEpisode.Episodes, localEpisode.Series, episodeFile, System.IO.Path.GetExtension(localEpisode.Path), null, localEpisode.CustomFormats);
+
+                        if (_diskProvider.FileExists(destinationFilePath))
+                        {
+                            var existingDbFiles = localEpisode.Episodes
+                                                              .Where(e => e.EpisodeFileId > 0)
+                                                              .Select(e => e.EpisodeFile.Value)
+                                                              .ToList();
+
+                            var fileMatchesDbRecord = existingDbFiles.Any(f =>
+                                System.IO.Path.Combine(localEpisode.Series.Path, f.RelativePath).PathEquals(destinationFilePath, StringComparison.OrdinalIgnoreCase));
+
+                            if (fileMatchesDbRecord)
+                            {
+                                if (_diskProvider.GetFileSize(destinationFilePath) == _diskProvider.GetFileSize(localEpisode.Path))
+                                {
+                                    _logger.Info("Destination file {0} already exists and satisfies this episode correctly. Treating as already-imported.", destinationFilePath);
+                                    importResults.Add(new ImportResult(importDecision, "Episode has already been imported"));
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                if (_diskProvider.GetFileSize(destinationFilePath) == _diskProvider.GetFileSize(localEpisode.Path))
+                                {
+                                     _logger.Info("Destination file {0} already exists, is untracked, but matches the new file size. Treating as already-imported.", destinationFilePath);
+                                     importResults.Add(new ImportResult(importDecision, "Episode has already been imported"));
+                                     continue;
+                                }
+
+                                _logger.Warn("Destination file {0} already exists but does not match the expected file record (untracked). Skipping import to require manual intervention.", destinationFilePath);
+                                importResults.Add(new ImportResult(importDecision, "Destination file already exists"));
+                                continue;
                             }
                         }
 
