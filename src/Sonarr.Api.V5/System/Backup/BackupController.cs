@@ -132,4 +132,53 @@ public class BackupController : Controller
     {
         return _backupService.GetBackups().SingleOrDefault(b => GetBackupId(b) == id);
     }
+
+    [HttpGet("download/sonarr-compatible/{id:int}")]
+    public IActionResult DownloadSonarrCompatible([FromRoute] int id, [FromServices] ISonarrCompatibleBackupScrubber scrubber, [FromServices] NzbDrone.Common.IArchiveService archiveService)
+    {
+        var backup = GetBackupById(id);
+        if (backup == null)
+        {
+            return NotFound();
+        }
+
+        var path = GetBackupPath(backup);
+        if (!_diskProvider.FileExists(path))
+        {
+            return NotFound();
+        }
+
+        var guidStr = global::System.Guid.NewGuid().ToString("N");
+        var tempWorkDir = Path.Combine(_appFolderInfo.TempFolder, $"sonarr_compatible_backup_{guidStr}");
+        _diskProvider.EnsureFolder(tempWorkDir);
+
+        try
+        {
+            archiveService.Extract(path, tempWorkDir);
+
+            var dbPath = Path.Combine(tempWorkDir, "sonarr.db");
+            if (_diskProvider.FileExists(dbPath))
+            {
+                scrubber.ScrubDatabase(dbPath);
+            }
+
+            var outputPath = Path.Combine(_appFolderInfo.TempFolder, $"sonarr-compatible_{backup.Name}");
+            if (_diskProvider.FileExists(outputPath))
+            {
+                _diskProvider.DeleteFile(outputPath);
+            }
+
+            archiveService.CreateZip(outputPath, _diskProvider.GetFiles(tempWorkDir, true));
+
+            var fileStream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose);
+            return File(fileStream, "application/zip", backup.Name.Replace("sonarr_backup_", "sonarr-compatible_backup_"));
+        }
+        finally
+        {
+            if (_diskProvider.FolderExists(tempWorkDir))
+            {
+                _diskProvider.DeleteFolder(tempWorkDir, true);
+            }
+        }
+    }
 }

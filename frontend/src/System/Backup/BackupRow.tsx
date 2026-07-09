@@ -11,6 +11,7 @@ import { BackupType } from 'typings/Backup';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
 import RestoreBackupModal from './RestoreBackupModal';
+import DownloadBackupModal from './DownloadBackupModal';
 import { useDeleteBackup } from './useBackups';
 import styles from './BackupRow.css';
 
@@ -26,6 +27,7 @@ interface BackupRowProps {
 function BackupRow({ id, type, name, path, size, time }: BackupRowProps) {
   const { deleteBackup } = useDeleteBackup(id);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] =
     useState(false);
 
@@ -58,6 +60,15 @@ function BackupRow({ id, type, name, path, size, time }: BackupRowProps) {
     setIsRestoreModalOpen(false);
   }, []);
 
+  const handleDownloadPress = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDownloadModalOpen(true);
+  }, []);
+
+  const handleDownloadModalClose = useCallback(() => {
+    setIsDownloadModalOpen(false);
+  }, []);
+
   const handleDeletePress = useCallback(() => {
     setIsConfirmDeleteModalOpen(true);
   }, []);
@@ -84,7 +95,7 @@ function BackupRow({ id, type, name, path, size, time }: BackupRowProps) {
       </TableRowCell>
 
       <TableRowCell>
-        <Link to={`${window.Sonarr.urlBase}${path}`} noRouter={true}>
+        <Link to={`${window.Sonarr.urlBase}${path}`} noRouter={true} onClick={handleDownloadPress}>
           {name}
         </Link>
       </TableRowCell>
@@ -114,6 +125,13 @@ function BackupRow({ id, type, name, path, size, time }: BackupRowProps) {
         id={id}
         name={name}
         onModalClose={handleRestoreModalClose}
+      />
+
+      <DownloadBackupModal
+        isOpen={isDownloadModalOpen}
+        id={id}
+        path={path}
+        onModalClose={handleDownloadModalClose}
       />
 
       <ConfirmModal

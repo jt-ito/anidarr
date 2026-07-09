@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using FFMpegCore;
 using NLog;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 
 namespace NzbDrone.Core.MediaFiles.MediaInfo
@@ -36,6 +37,22 @@ namespace NzbDrone.Core.MediaFiles.MediaInfo
 
             // We bundle ffprobe for all platforms
             GlobalFFOptions.Configure(options => options.BinaryFolder = AppDomain.CurrentDomain.BaseDirectory);
+
+            if (OsInfo.IsLinux || OsInfo.IsOsx)
+            {
+                try
+                {
+                    var ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe");
+                    if (_diskProvider.FileExists(ffprobePath))
+                    {
+                        _diskProvider.SetFilePermissions(ffprobePath, "755", null);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.Warn(e, "Failed to set execute permissions on ffprobe.");
+                }
+            }
         }
 
         public MediaInfoModel GetMediaInfo(string filename)

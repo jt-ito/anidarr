@@ -29,10 +29,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private readonly Logger _logger;
         private readonly IAniDbRateLimiter _rateLimiter;
         private readonly IAniDbSeriesMappingService _mappingService;
+        private readonly AniList.IAniListEnricher _aniListEnricher;
 
         public MetadataProviderType ProviderType => MetadataProviderType.AniDb;
 
-        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, IAniDbRateLimiter rateLimiter, Logger logger, IAniDbSeriesMappingService mappingService)
+        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, IAniDbRateLimiter rateLimiter, Logger logger, IAniDbSeriesMappingService mappingService, AniList.IAniListEnricher aniListEnricher)
         {
             _httpClient = httpClient;
             _configService = configService;
@@ -41,6 +42,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             _rateLimiter = rateLimiter;
             _logger = logger;
             _mappingService = mappingService;
+            _aniListEnricher = aniListEnricher;
         }
 
         public bool CanHandleId(string externalIdKey) =>
@@ -181,6 +183,37 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             if (hubSeries == null)
             {
                 throw new Exception($"Could not fetch primary series data for AniDB ID {externalId}");
+            }
+
+            if (hubSeries.AniListIds != null && hubSeries.AniListIds.Any())
+            {
+                var aniListId = hubSeries.AniListIds.First();
+                try
+                {
+                    _logger.Debug("Enriching AniDB series {0} with time-of-day data from AniList ID {1}", hubSeries.Title, aniListId);
+                    var airingTimes = _aniListEnricher.GetAiringTimes(aniListId);
+                    if (airingTimes.Any())
+                    {
+                        foreach (var ep in allEpisodes)
+                        {
+                            // Note: AniList enrichment targets AbsoluteEpisodeNumber if present (continuous numbering),
+                            // otherwise falls back to EpisodeNumber (for single season series).
+                            var episodeNumberForMatch = ep.AbsoluteEpisodeNumber ?? ep.EpisodeNumber;
+                            if (ep.AirDateUtc.HasValue && airingTimes.TryGetValue(episodeNumberForMatch, out var timeOfDay))
+                            {
+                                // AniDb's AirDateUtc was parsed as JST date -> 15:00 UTC previous day.
+                                // We want to restore the JST Date, add the precise timeOfDay, and convert back to UTC.
+                                var jstDate = ep.AirDateUtc.Value.AddHours(9).Date;
+                                var preciseJstTime = jstDate.Add(timeOfDay);
+                                ep.AirDateUtc = preciseJstTime.AddHours(-9); // Back to UTC
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Failed to enrich AniDB series {0} with AniList time data. Falling back to default date-only calendar behavior.", hubSeries.Title);
+                }
             }
 
             hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
@@ -513,7 +546,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var airDate = ep.Element(ns + "airdate")?.Value;
                 if (airDate.IsNotNullOrWhiteSpace() && DateTime.TryParse(airDate, out var aired))
                 {
-                    episode.AirDateUtc = aired.ToUniversalTime();
+                    // Treat the AniDB YYYY-MM-DD string as 00:00 JST (Japan Standard Time, UTC+09:00).
+                    // This converts it to 15:00 UTC of the previous day, aligning AniDB calendar entries with TVDB logic.
+                    var jstOffset = new TimeSpan(9, 0, 0);
+                    var airedJst = new DateTimeOffset(aired.Year, aired.Month, aired.Day, 0, 0, 0, jstOffset);
+                    episode.AirDateUtc = airedJst.UtcDateTime;
                     episode.AirDate = aired.ToString("yyyy-MM-dd");
                 }
 
