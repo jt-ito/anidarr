@@ -12,6 +12,7 @@ using NzbDrone.Core.Download.Aggregation;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
+using NzbDrone.Core.Profiles.Qualities;
 
 namespace NzbDrone.Core.DecisionEngine
 {
@@ -28,6 +29,8 @@ namespace NzbDrone.Core.DecisionEngine
         private readonly ICustomFormatCalculationService _formatCalculator;
         private readonly IRemoteEpisodeAggregationService _aggregationService;
         private readonly ISceneMappingService _sceneMappingService;
+        private readonly IReleaseRuleEvaluator _releaseRuleEvaluator;
+        private readonly IQualityProfileService _qualityProfileService;
         private readonly Logger _logger;
 
         public DownloadDecisionMaker(IEnumerable<IDownloadDecisionEngineSpecification> specifications,
@@ -35,6 +38,8 @@ namespace NzbDrone.Core.DecisionEngine
                                      ICustomFormatCalculationService formatService,
                                      IRemoteEpisodeAggregationService aggregationService,
                                      ISceneMappingService sceneMappingService,
+                                     IReleaseRuleEvaluator releaseRuleEvaluator,
+                                     IQualityProfileService qualityProfileService,
                                      Logger logger)
         {
             _specifications = specifications;
@@ -42,6 +47,8 @@ namespace NzbDrone.Core.DecisionEngine
             _formatCalculator = formatService;
             _aggregationService = aggregationService;
             _sceneMappingService = sceneMappingService;
+            _releaseRuleEvaluator = releaseRuleEvaluator;
+            _qualityProfileService = qualityProfileService;
             _logger = logger;
         }
 
@@ -116,7 +123,33 @@ namespace NzbDrone.Core.DecisionEngine
                             _aggregationService.Augment(remoteEpisode);
 
                             remoteEpisode.CustomFormats = _formatCalculator.ParseCustomFormat(remoteEpisode, remoteEpisode.Release.Size);
-                            remoteEpisode.CustomFormatScore = remoteEpisode?.Series?.QualityProfile?.Value.CalculateCustomFormatScore(remoteEpisode.CustomFormats) ?? 0;
+                            var profile = remoteEpisode.Series?.QualityProfile?.Value;
+
+                            if (profile != null && profile.UseRuleListMode)
+                            {
+                                remoteEpisode.CustomFormatScore = 0; // Default if no fallback
+                                for (var i = 0; i < profile.ReleaseRules.Count; i++)
+                                {
+                                    if (_releaseRuleEvaluator.IsMatch(profile.ReleaseRules[i], remoteEpisode))
+                                    {
+                                        remoteEpisode.ReleaseRuleIndex = i;
+                                        break;
+                                    }
+                                }
+
+                                if (profile.FallbackQualityProfileId.HasValue)
+                                {
+                                    var fallbackProfile = _qualityProfileService.Get(profile.FallbackQualityProfileId.Value);
+                                    if (fallbackProfile != null)
+                                    {
+                                        remoteEpisode.CustomFormatScore = fallbackProfile.CalculateCustomFormatScore(remoteEpisode.CustomFormats);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                remoteEpisode.CustomFormatScore = profile?.CalculateCustomFormatScore(remoteEpisode.CustomFormats) ?? 0;
+                            }
 
                             _logger.Trace("Custom Format Score of '{0}' [{1}] calculated for '{2}'", remoteEpisode.CustomFormatScore, remoteEpisode.CustomFormats?.ConcatToString(), report.Title);
 

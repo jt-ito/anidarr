@@ -27,13 +27,25 @@ interface SeriesDetailsLink {
 }
 
 function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
-  const { tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, aniDbMappings } = props;
+  const {
+    tvdbId,
+    tvMazeId,
+    imdbId,
+    tmdbId,
+    aniDbId,
+    simklId,
+    malIds,
+    aniListIds,
+    aniDbMappings,
+  } = props;
 
   const links = useMemo(() => {
     const validLinks: SeriesDetailsLink[] = [];
 
     if (aniDbMappings && aniDbMappings.length > 0) {
-      const sortedMappings = [...aniDbMappings].sort((a, b) => a.seasonNumber - b.seasonNumber);
+      const sortedMappings = [...aniDbMappings].sort(
+        (a, b) => a.seasonNumber - b.seasonNumber
+      );
       sortedMappings.forEach((m) => {
         if (!m.aniDbId || m.seasonNumber === 0) return;
         const name = `AniDB (Season ${m.seasonNumber})`;
@@ -124,7 +136,17 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
     return validLinks.sort(
       (a, b) => Number(!a.externalId) - Number(!b.externalId)
     );
-  }, [tvdbId, tvMazeId, imdbId, tmdbId, aniDbId, simklId, malIds, aniListIds, aniDbMappings]);
+  }, [
+    tvdbId,
+    tvMazeId,
+    imdbId,
+    tmdbId,
+    aniDbId,
+    simklId,
+    malIds,
+    aniListIds,
+    aniDbMappings,
+  ]);
 
   return (
     <div className={styles.links}>

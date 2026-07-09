@@ -29,6 +29,7 @@ namespace NzbDrone.Core.DecisionEngine
         {
             var comparers = new List<CompareDelegate>
             {
+                CompareReleaseRuleIndex,
                 CompareQuality,
                 CompareCustomFormatScore,
                 CompareProtocol,
@@ -61,6 +62,31 @@ namespace NzbDrone.Core.DecisionEngine
         private int CompareAll(params int[] comparers)
         {
             return comparers.Select(comparer => comparer).FirstOrDefault(result => result != 0);
+        }
+
+        private int CompareReleaseRuleIndex(DownloadDecision x, DownloadDecision y)
+        {
+            // Lower index is better (Rule 0 > Rule 1).
+            // null means it didn't match any rule (fallback).
+            var xIndex = x.RemoteEpisode.ReleaseRuleIndex;
+            var yIndex = y.RemoteEpisode.ReleaseRuleIndex;
+
+            if (xIndex.HasValue && !yIndex.HasValue)
+            {
+                return -1; // x is better
+            }
+
+            if (!xIndex.HasValue && yIndex.HasValue)
+            {
+                return 1;  // y is better
+            }
+
+            if (xIndex.HasValue && yIndex.HasValue)
+            {
+                return xIndex.Value.CompareTo(yIndex.Value);
+            }
+
+            return 0; // Both are fallback (null), so tie
         }
 
         private int CompareIndexerPriority(DownloadDecision x, DownloadDecision y)

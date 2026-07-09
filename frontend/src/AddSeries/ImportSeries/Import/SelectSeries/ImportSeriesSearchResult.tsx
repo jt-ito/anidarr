@@ -33,11 +33,12 @@ function ImportSeriesSearchResult({
     onPress(index);
   }, [index, onPress]);
 
-  const isAniDb = primaryMetadataProvider === 'anidb' || (tvdbId === 0 && !!aniDbId);
+  const isAniDb =
+    primaryMetadataProvider === 'anidb' || (tvdbId === 0 && !!aniDbId);
   const linkUrl = isAniDb
     ? `https://anidb.net/anime/${aniDbId}`
     : `https://www.thetvdb.com/?tab=series&id=${tvdbId}`;
-  
+
   const linkTitle = isAniDb ? 'AniDB' : 'TheTVDB';
 
   return (
@@ -56,11 +57,7 @@ function ImportSeriesSearchResult({
         )}
       </Link>
 
-      <Link
-        className={styles.tvdbLink}
-        to={linkUrl}
-        title={linkTitle}
-      >
+      <Link className={styles.tvdbLink} to={linkUrl} title={linkTitle}>
         <Icon
           className={styles.tvdbLinkIcon}
           name={icons.EXTERNAL_LINK}

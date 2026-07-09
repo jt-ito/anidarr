@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4 \
     tzdata \
     gosu \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the published backend and frontend from the build stage

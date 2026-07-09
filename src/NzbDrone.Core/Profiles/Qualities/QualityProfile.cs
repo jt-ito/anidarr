@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.Profiles.Rules;
 using NzbDrone.Core.Qualities;
 
 namespace NzbDrone.Core.Profiles.Qualities
@@ -11,6 +12,7 @@ namespace NzbDrone.Core.Profiles.Qualities
         public QualityProfile()
         {
             FormatItems = new List<ProfileFormatItem>();
+            ReleaseRules = new List<ReleaseRule>();
         }
 
         public string Name { get; set; }
@@ -19,6 +21,11 @@ namespace NzbDrone.Core.Profiles.Qualities
         public int MinFormatScore { get; set; }
         public int CutoffFormatScore { get; set; }
         public int MinUpgradeFormatScore { get; set; }
+
+        public bool UseRuleListMode { get; set; }
+        public int? FallbackQualityProfileId { get; set; }
+        public List<ReleaseRule> ReleaseRules { get; set; }
+
         public List<ProfileFormatItem> FormatItems { get; set; }
         public List<QualityProfileQualityItem> Items { get; set; }
 

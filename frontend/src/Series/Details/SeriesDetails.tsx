@@ -55,13 +55,13 @@ import {
 import filterAlternateTitles from 'Utilities/Series/filterAlternateTitles';
 import translate from 'Utilities/String/translate';
 import toggleSelected from 'Utilities/Table/toggleSelected';
+import AniDbMappingsModal from '../AniDbMappings/AniDbMappingsModal';
 import SeriesAlternateTitles from './SeriesAlternateTitles';
 import SeriesDetailsLinks from './SeriesDetailsLinks';
 import SeriesDetailsProvider from './SeriesDetailsProvider';
 import SeriesDetailsSeason from './SeriesDetailsSeason';
 import SeriesProgressLabel from './SeriesProgressLabel';
 import SeriesTags from './SeriesTags';
-import AniDbMappingsModal from '../AniDbMappings/AniDbMappingsModal';
 import styles from './SeriesDetails.css';
 
 function getFanartUrl(images: Image[]) {
@@ -219,7 +219,8 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
     useState(false);
   const [isMonitorOptionsModalOpen, setIsMonitorOptionsModalOpen] =
     useState(false);
-  const [isAniDbMappingsModalOpen, setIsAniDbMappingsModalOpen] = useState(false);
+  const [isAniDbMappingsModalOpen, setIsAniDbMappingsModalOpen] =
+    useState(false);
   const [expandedState, setExpandedState] = useState<ExpandedState>({
     allExpanded: false,
     allCollapsed: false,

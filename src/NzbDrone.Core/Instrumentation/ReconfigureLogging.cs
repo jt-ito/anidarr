@@ -5,7 +5,7 @@ using NLog.Config;
 using NLog.Targets;
 using NLog.Targets.Syslog;
 using NLog.Targets.Syslog.Settings;
-using NzbDrone.Common.EnvironmentInfo;
+
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Sentry;
@@ -107,7 +107,7 @@ namespace NzbDrone.Core.Instrumentation
             var sentryTarget = LogManager.Configuration.AllTargets.OfType<SentryTarget>().FirstOrDefault();
             if (sentryTarget != null)
             {
-                sentryTarget.SentryEnabled = (RuntimeInfo.IsProduction && _configFileProvider.AnalyticsEnabled) || RuntimeInfo.IsDevelopment;
+                sentryTarget.SentryEnabled = false;
                 sentryTarget.FilterEvents = _configFileProvider.FilterSentryEvents;
             }
         }

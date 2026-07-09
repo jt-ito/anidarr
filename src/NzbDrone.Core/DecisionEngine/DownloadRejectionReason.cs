@@ -39,6 +39,7 @@ public enum DownloadRejectionReason
     IndexerDisabled,
     Blocklisted,
     CustomFormatMinimumScore,
+    ReleaseRuleMismatch,
     MinimumFreeSpace,
     FullSeasonNotAired,
     MaximumSizeExceeded,

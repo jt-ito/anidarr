@@ -250,8 +250,6 @@ function EditSeriesModalContent({
             />
           </FormGroup>
 
-
-
           <FormGroup size={sizes.MEDIUM}>
             <FormLabel>{translate('Path')}</FormLabel>
 

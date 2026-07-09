@@ -27,10 +27,12 @@ import QualityProfileItems, {
   EditQualityProfileMode,
 } from './QualityProfileItems';
 import { SizeChanged } from './QualityProfileItemSize';
+import QualityProfileReleaseRules from './QualityProfileReleaseRules';
 import {
   QualityProfileGroup,
   QualityProfileQualityItem,
   useManageQualityProfile,
+  useQualityProfilesData,
 } from './useQualityProfiles';
 import styles from './EditQualityProfileModalContent.css';
 
@@ -81,6 +83,7 @@ function EditQualityProfileModalContent({
 
   const { seriesCount, importListCount } = useQualityProfileInUse(id);
   const isInUse = seriesCount !== 0 || importListCount !== 0;
+  const allProfiles = useQualityProfilesData();
 
   const [measureHeaderRef, { height: headerHeight }] = useMeasure();
   const [measureBodyRef, { height: bodyHeight }] = useMeasure();
@@ -108,6 +111,9 @@ function EditQualityProfileModalContent({
     cutoffFormatScore,
     items,
     formatItems,
+    useRuleListMode,
+    fallbackQualityProfileId,
+    releaseRules,
   } = item;
 
   const qualities = useMemo(() => {
@@ -592,7 +598,7 @@ function EditQualityProfileModalContent({
                     </FormGroup>
                   ) : null}
 
-                  {formatItems.value.length > 0 ? (
+                  {formatItems.value.length > 0 && !useRuleListMode?.value ? (
                     <FormGroup size={sizes.EXTRA_SMALL}>
                       <FormLabel size={sizes.SMALL}>
                         {translate('MinimumCustomFormatScore')}
@@ -608,7 +614,9 @@ function EditQualityProfileModalContent({
                     </FormGroup>
                   ) : null}
 
-                  {upgradeAllowed.value && formatItems.value.length > 0 ? (
+                  {upgradeAllowed.value &&
+                  formatItems.value.length > 0 &&
+                  !useRuleListMode?.value ? (
                     <FormGroup size={sizes.EXTRA_SMALL}>
                       <FormLabel size={sizes.SMALL}>
                         {translate('UpgradeUntilCustomFormatScore')}
@@ -626,7 +634,9 @@ function EditQualityProfileModalContent({
                     </FormGroup>
                   ) : null}
 
-                  {upgradeAllowed.value && formatItems.value.length > 0 ? (
+                  {upgradeAllowed.value &&
+                  formatItems.value.length > 0 &&
+                  !useRuleListMode?.value ? (
                     <FormGroup size={sizes.EXTRA_SMALL}>
                       <FormLabel size={sizes.SMALL}>
                         {translate('MinimumCustomFormatScoreIncrement')}
@@ -645,16 +655,61 @@ function EditQualityProfileModalContent({
                     </FormGroup>
                   ) : null}
 
-                  <div className={styles.formatItemLarge}>
-                    <QualityProfileFormatItems
-                      profileFormatItems={formatItems.value}
-                      errors={formatItems.errors}
-                      warnings={formatItems.warnings}
-                      onQualityProfileFormatItemScoreChange={
-                        handleFormatItemScoreChange
+                  <FormGroup size={sizes.EXTRA_SMALL}>
+                    <FormLabel size={sizes.SMALL}>Use Rule List Mode</FormLabel>
+
+                    <FormInputGroup
+                      type={inputTypes.CHECK}
+                      name="useRuleListMode"
+                      {...useRuleListMode}
+                      value={useRuleListMode?.value || false}
+                      helpText="Uses a priority-ordered rule list instead of a points-based system for release selection."
+                      onChange={handleInputChange}
+                    />
+                  </FormGroup>
+
+                  {useRuleListMode?.value ? (
+                    <FormGroup size={sizes.EXTRA_SMALL}>
+                      <FormLabel size={sizes.SMALL}>
+                        Fallback Quality Profile
+                      </FormLabel>
+
+                      <FormInputGroup
+                        type={inputTypes.SELECT}
+                        name="fallbackQualityProfileId"
+                        {...fallbackQualityProfileId}
+                        value={fallbackQualityProfileId?.value || 0}
+                        values={allProfiles.map((p) => ({
+                          key: p.id,
+                          value: p.name,
+                        }))}
+                        onChange={handleInputChange}
+                      />
+                    </FormGroup>
+                  ) : null}
+
+                  {useRuleListMode?.value ? (
+                    <QualityProfileReleaseRules
+                      rules={releaseRules?.value || []}
+                      // eslint-disable-next-line react/jsx-no-bind
+                      onChange={(newRules) =>
+                        updateValue('releaseRules', newRules)
                       }
                     />
-                  </div>
+                  ) : null}
+
+                  {useRuleListMode?.value ? null : (
+                    <div className={styles.formatItemLarge}>
+                      <QualityProfileFormatItems
+                        profileFormatItems={formatItems.value}
+                        errors={formatItems.errors}
+                        warnings={formatItems.warnings}
+                        onQualityProfileFormatItemScoreChange={
+                          handleFormatItemScoreChange
+                        }
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className={styles.formGroupWrapper}>
@@ -679,16 +734,18 @@ function EditQualityProfileModalContent({
                   />
                 </div>
 
-                <div className={styles.formatItemSmall}>
-                  <QualityProfileFormatItems
-                    profileFormatItems={formatItems.value}
-                    errors={formatItems.errors}
-                    warnings={formatItems.warnings}
-                    onQualityProfileFormatItemScoreChange={
-                      handleFormatItemScoreChange
-                    }
-                  />
-                </div>
+                {useRuleListMode?.value ? null : (
+                  <div className={styles.formatItemSmall}>
+                    <QualityProfileFormatItems
+                      profileFormatItems={formatItems.value}
+                      errors={formatItems.errors}
+                      warnings={formatItems.warnings}
+                      onQualityProfileFormatItemScoreChange={
+                        handleFormatItemScoreChange
+                      }
+                    />
+                  </div>
+                )}
               </div>
             </Form>
           ) : null}

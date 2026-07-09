@@ -461,21 +461,32 @@ namespace NzbDrone.Core.Indexers.Newznab
         {
             var pageableRequests = new IndexerPageableRequestChain();
 
-            if (SupportsSearch && Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
+            if (SupportsSearch)
             {
-                AddTvIdPageableRequests(pageableRequests,
-                    Settings.AnimeCategories,
-                    searchCriteria,
-                    $"&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}");
-
                 var queryTitles = TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles;
 
                 foreach (var queryTitle in queryTitles)
                 {
                     pageableRequests.Add(GetPagedRequests(MaxPages,
                         Settings.AnimeCategories,
-                        "tvsearch",
-                        $"&q={NewsnabifyTitle(queryTitle)}&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}"));
+                        "search",
+                        $"&q={NewsnabifyTitle(queryTitle)}"));
+                }
+
+                if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
+                {
+                    AddTvIdPageableRequests(pageableRequests,
+                        Settings.AnimeCategories,
+                        searchCriteria,
+                        $"&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}");
+
+                    foreach (var queryTitle in queryTitles)
+                    {
+                        pageableRequests.Add(GetPagedRequests(MaxPages,
+                            Settings.AnimeCategories,
+                            "tvsearch",
+                            $"&q={NewsnabifyTitle(queryTitle)}&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}"));
+                    }
                 }
             }
 
@@ -604,7 +615,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                 foreach (var searchTerm in searchCriteria.SceneTitles)
                 {
                     chain.Add(GetPagedRequests(MaxPages,
-                        Settings.Categories,
+                        categories,
                         "tvsearch",
                         $"&title={Uri.EscapeDataString(searchTerm)}{parameters}"));
                 }
@@ -615,7 +626,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                 foreach (var queryTitle in queryTitles)
                 {
                     chain.Add(GetPagedRequests(MaxPages,
-                        Settings.Categories,
+                        categories,
                         "tvsearch",
                         $"&q={NewsnabifyTitle(queryTitle)}{parameters}"));
                 }
@@ -641,13 +652,17 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (PageSize == 0)
             {
-                yield return new IndexerRequest($"{baseUrl}{parameters}", HttpAccept.Rss);
+                var url = $"{baseUrl}{parameters}";
+                _logger.Debug("Generating indexer request URL: {url}", url);
+                yield return new IndexerRequest(url, HttpAccept.Rss);
             }
             else
             {
                 for (var page = 0; page < maxPages; page++)
                 {
-                    yield return new IndexerRequest($"{baseUrl}&offset={page * PageSize}&limit={PageSize}{parameters}", HttpAccept.Rss);
+                    var url = $"{baseUrl}&offset={page * PageSize}&limit={PageSize}{parameters}";
+                    _logger.Debug("Generating indexer paged request URL: {url}", url);
+                    yield return new IndexerRequest(url, HttpAccept.Rss);
                 }
             }
         }

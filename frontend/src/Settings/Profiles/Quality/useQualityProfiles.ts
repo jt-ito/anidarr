@@ -14,6 +14,30 @@ export interface QualityProfileFormatItem {
   score: number;
 }
 
+export enum ReleaseRuleConditionType {
+  ReleaseGroup = 1,
+  AudioType = 2,
+  CustomFormat = 3,
+  Quality = 4,
+  ReleaseTitle = 5,
+}
+
+export enum ReleaseRuleConditionOperator {
+  Exact = 1,
+  Contains = 2,
+}
+
+export interface ReleaseRuleCondition {
+  conditionType: ReleaseRuleConditionType;
+  operator: ReleaseRuleConditionOperator;
+  value: string;
+}
+
+export interface ReleaseRule {
+  name?: string;
+  conditions: ReleaseRuleCondition[];
+}
+
 export interface QualityProfileQualityItem {
   quality: Quality;
   allowed: boolean;
@@ -43,6 +67,9 @@ export interface QualityProfileModel extends ModelBase {
   cutoffFormatScore: number;
   minUpgradeFormatScore: number;
   formatItems: QualityProfileFormatItem[];
+  useRuleListMode: boolean;
+  fallbackQualityProfileId?: number;
+  releaseRules: ReleaseRule[];
 }
 
 const PATH = '/qualityprofile';

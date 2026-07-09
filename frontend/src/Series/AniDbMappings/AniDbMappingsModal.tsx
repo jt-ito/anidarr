@@ -1,6 +1,5 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import fetchJson from 'Utilities/Fetch/fetchJson';
 import Alert from 'Components/Alert';
 import Button from 'Components/Link/Button';
 import IconButton from 'Components/Link/IconButton';
@@ -10,6 +9,7 @@ import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { icons, kinds, sizes } from 'Helpers/Props';
+import fetchJson from 'Utilities/Fetch/fetchJson';
 
 export interface AniDbMappingResource {
   id: number;
@@ -23,7 +23,9 @@ export function useAniDbMappings(seriesId: number) {
   return useQuery<AniDbMappingResource[]>({
     queryKey: ['anidbmappings', seriesId],
     queryFn: async () => {
-      return await fetchJson<AniDbMappingResource[], void>({ path: `/series/anidb-mapping?seriesId=${seriesId}` });
+      return await fetchJson<AniDbMappingResource[], void>({
+        path: `/series/anidb-mapping?seriesId=${seriesId}`,
+      });
     },
     enabled: !!seriesId,
   });
@@ -33,15 +35,22 @@ export function useCreateAniDbMapping() {
   const queryClient = useQueryClient();
   const { mutate: createMapping, isPending: isCreating } = useMutation({
     mutationFn: async (mapping: Partial<AniDbMappingResource>) => {
-      return await fetchJson<AniDbMappingResource, Partial<AniDbMappingResource>>({
+      return await fetchJson<
+        AniDbMappingResource,
+        Partial<AniDbMappingResource>
+      >({
         path: '/series/anidb-mapping',
         method: 'POST',
-        body: mapping
+        body: mapping,
       });
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['anidbmappings', variables.seriesId] });
-      queryClient.invalidateQueries({ queryKey: ['series', variables.seriesId] });
+      queryClient.invalidateQueries({
+        queryKey: ['anidbmappings', variables.seriesId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['series', variables.seriesId],
+      });
     },
   });
   return { createMapping, isCreating };
@@ -50,15 +59,25 @@ export function useCreateAniDbMapping() {
 export function useDeleteAniDbMapping() {
   const queryClient = useQueryClient();
   const { mutate: deleteMapping, isPending: isDeleting } = useMutation({
-    mutationFn: async ({ seriesId, aniDbId }: { seriesId: number; aniDbId: number }) => {
+    mutationFn: async ({
+      seriesId,
+      aniDbId,
+    }: {
+      seriesId: number;
+      aniDbId: number;
+    }) => {
       await fetchJson<void, void>({
         path: `/series/anidb-mapping?seriesId=${seriesId}&aniDbId=${aniDbId}`,
-        method: 'DELETE'
+        method: 'DELETE',
       });
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['anidbmappings', variables.seriesId] });
-      queryClient.invalidateQueries({ queryKey: ['series', variables.seriesId] });
+      queryClient.invalidateQueries({
+        queryKey: ['anidbmappings', variables.seriesId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['series', variables.seriesId],
+      });
     },
   });
   return { deleteMapping, isDeleting };
@@ -70,7 +89,11 @@ interface AniDbMappingsModalProps {
   onModalClose: () => void;
 }
 
-export default function AniDbMappingsModal({ isOpen, seriesId, onModalClose }: AniDbMappingsModalProps) {
+export default function AniDbMappingsModal({
+  isOpen,
+  seriesId,
+  onModalClose,
+}: AniDbMappingsModalProps) {
   const { data: mappings, isFetching } = useAniDbMappings(seriesId);
   const { deleteMapping, isDeleting } = useDeleteAniDbMapping();
   const { createMapping, isCreating } = useCreateAniDbMapping();
@@ -85,6 +108,7 @@ export default function AniDbMappingsModal({ isOpen, seriesId, onModalClose }: A
   const handleAdd = () => {
     const id = parseInt(newAniDbId, 10);
     const season = parseInt(newSeason, 10);
+
     if (!isNaN(id) && !isNaN(season)) {
       createMapping({
         seriesId,
@@ -97,16 +121,19 @@ export default function AniDbMappingsModal({ isOpen, seriesId, onModalClose }: A
     }
   };
 
-  const inputStyle = { width: '100%', padding: '4px', boxSizing: 'border-box' as const };
+  const inputStyle = {
+    width: '100%',
+    padding: '4px',
+    boxSizing: 'border-box' as const,
+  };
 
   return (
-    <Modal isOpen={isOpen} onModalClose={onModalClose} size={sizes.LARGE}>
+    <Modal isOpen={isOpen} size={sizes.LARGE} onModalClose={onModalClose}>
       <ModalContent onModalClose={onModalClose}>
-        <ModalHeader>
-          AniDB Mappings
-        </ModalHeader>
+        <ModalHeader>AniDB Mappings</ModalHeader>
         <Alert kind={kinds.INFO}>
-          This series is an AniDB hub. AniDB entries representing seasons or sequels are merged into this series.
+          This series is an AniDB hub. AniDB entries representing seasons or
+          sequels are merged into this series.
         </Alert>
 
         {isFetching && !mappings ? (
@@ -131,8 +158,8 @@ export default function AniDbMappingsModal({ isOpen, seriesId, onModalClose }: A
                     <IconButton
                       name={icons.DELETE}
                       title="Unmerge"
-                      onClick={() => handleDelete(m.aniDbId)}
                       disabled={isDeleting}
+                      onClick={() => handleDelete(m.aniDbId)}
                     />
                   </td>
                 </tr>
@@ -142,31 +169,34 @@ export default function AniDbMappingsModal({ isOpen, seriesId, onModalClose }: A
                   <input
                     type="number"
                     value={newAniDbId}
-                    onChange={(e) => setNewAniDbId(e.target.value)}
                     placeholder="AniDB ID"
                     style={inputStyle}
+                    onChange={(e) => setNewAniDbId(e.target.value)}
                   />
                 </td>
                 <td style={{ padding: '8px' }}>
                   <input
                     type="number"
                     value={newSeason}
-                    onChange={(e) => setNewSeason(e.target.value)}
                     placeholder="Season"
                     style={inputStyle}
+                    onChange={(e) => setNewSeason(e.target.value)}
                   />
                 </td>
                 <td style={{ padding: '8px' }}>
                   <input
                     type="text"
                     value={newRelation}
-                    onChange={(e) => setNewRelation(e.target.value)}
                     placeholder="Relation"
                     style={inputStyle}
+                    onChange={(e) => setNewRelation(e.target.value)}
                   />
                 </td>
                 <td style={{ padding: '8px' }}>
-                  <Button onClick={handleAdd} disabled={isCreating || !newAniDbId || !newSeason}>
+                  <Button
+                    disabled={isCreating || !newAniDbId || !newSeason}
+                    onClick={handleAdd}
+                  >
                     Add
                   </Button>
                 </td>

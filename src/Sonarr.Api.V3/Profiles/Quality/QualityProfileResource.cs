@@ -3,6 +3,7 @@ using System.Linq;
 using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Profiles;
 using NzbDrone.Core.Profiles.Qualities;
+using NzbDrone.Core.Profiles.Rules;
 using Sonarr.Http.REST;
 
 namespace Sonarr.Api.V3.Profiles.Quality
@@ -17,6 +18,9 @@ namespace Sonarr.Api.V3.Profiles.Quality
         public int CutoffFormatScore { get; set; }
         public int MinUpgradeFormatScore { get; set; }
         public List<ProfileFormatItemResource> FormatItems { get; set; }
+        public bool UseRuleListMode { get; set; }
+        public int? FallbackQualityProfileId { get; set; }
+        public List<ReleaseRuleResource> ReleaseRules { get; set; }
     }
 
     public class QualityProfileQualityItemResource : RestResource
@@ -42,6 +46,24 @@ namespace Sonarr.Api.V3.Profiles.Quality
         public int Score { get; set; }
     }
 
+    public class ReleaseRuleResource : RestResource
+    {
+        public string Name { get; set; }
+        public List<ReleaseRuleConditionResource> Conditions { get; set; }
+
+        public ReleaseRuleResource()
+        {
+            Conditions = new List<ReleaseRuleConditionResource>();
+        }
+    }
+
+    public class ReleaseRuleConditionResource : RestResource
+    {
+        public ReleaseRuleConditionType ConditionType { get; set; }
+        public ReleaseRuleConditionOperator Operator { get; set; }
+        public string Value { get; set; }
+    }
+
     public static class ProfileResourceMapper
     {
         public static QualityProfileResource ToResource(this QualityProfile model)
@@ -61,7 +83,10 @@ namespace Sonarr.Api.V3.Profiles.Quality
                 MinFormatScore = model.MinFormatScore,
                 CutoffFormatScore = model.CutoffFormatScore,
                 MinUpgradeFormatScore = model.MinUpgradeFormatScore,
-                FormatItems = model.FormatItems.ConvertAll(ToResource)
+                FormatItems = model.FormatItems.ConvertAll(ToResource),
+                UseRuleListMode = model.UseRuleListMode,
+                FallbackQualityProfileId = model.FallbackQualityProfileId,
+                ReleaseRules = model.ReleaseRules?.ConvertAll(ToResource) ?? new List<ReleaseRuleResource>()
             };
         }
 
@@ -95,6 +120,25 @@ namespace Sonarr.Api.V3.Profiles.Quality
             };
         }
 
+        public static ReleaseRuleResource ToResource(this ReleaseRule model)
+        {
+            return new ReleaseRuleResource
+            {
+                Name = model.Name,
+                Conditions = model.Conditions?.ConvertAll(ToResource) ?? new List<ReleaseRuleConditionResource>()
+            };
+        }
+
+        public static ReleaseRuleConditionResource ToResource(this ReleaseRuleCondition model)
+        {
+            return new ReleaseRuleConditionResource
+            {
+                ConditionType = model.ConditionType,
+                Operator = model.Operator,
+                Value = model.Value
+            };
+        }
+
         public static QualityProfile ToModel(this QualityProfileResource resource)
         {
             if (resource == null)
@@ -112,7 +156,10 @@ namespace Sonarr.Api.V3.Profiles.Quality
                 MinFormatScore = resource.MinFormatScore,
                 CutoffFormatScore = resource.CutoffFormatScore,
                 MinUpgradeFormatScore = resource.MinUpgradeFormatScore,
-                FormatItems = resource.FormatItems.ConvertAll(ToModel)
+                FormatItems = resource.FormatItems.ConvertAll(ToModel),
+                UseRuleListMode = resource.UseRuleListMode,
+                FallbackQualityProfileId = resource.FallbackQualityProfileId,
+                ReleaseRules = resource.ReleaseRules?.ConvertAll(ToModel) ?? new List<ReleaseRule>()
             };
         }
 
@@ -142,6 +189,25 @@ namespace Sonarr.Api.V3.Profiles.Quality
             {
                 Format = new CustomFormat { Id = resource.Format },
                 Score = resource.Score
+            };
+        }
+
+        public static ReleaseRule ToModel(this ReleaseRuleResource resource)
+        {
+            return new ReleaseRule
+            {
+                Name = resource.Name,
+                Conditions = resource.Conditions?.ConvertAll(ToModel) ?? new List<ReleaseRuleCondition>()
+            };
+        }
+
+        public static ReleaseRuleCondition ToModel(this ReleaseRuleConditionResource resource)
+        {
+            return new ReleaseRuleCondition
+            {
+                ConditionType = resource.ConditionType,
+                Operator = resource.Operator,
+                Value = resource.Value
             };
         }
 
