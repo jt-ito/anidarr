@@ -5,7 +5,6 @@ import { InputChanged } from 'typings/inputs';
 export interface MetadataSourceSettings {
   id: number;
   tvdbApiKey: string;
-  simklClientId: string;
   malClientId: string;
   aniDbClientName: string;
   aniDbClientVersion: number;

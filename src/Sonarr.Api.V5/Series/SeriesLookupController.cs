@@ -75,7 +75,6 @@ public class SeriesLookupController : Controller
             resource.IsExcluded = currentSeries.PrimaryMetadataProvider switch
             {
                 "anidb" => currentSeries.AniDbId.HasValue && _importListExclusionService.FindByAniDbId(currentSeries.AniDbId.Value) is not null,
-                "simkl" => currentSeries.SimklId.HasValue && _importListExclusionService.FindBySimklId(currentSeries.SimklId.Value) is not null,
                 "anilist" => currentSeries.AniListIds != null && currentSeries.AniListIds.Any(id => _importListExclusionService.FindByAniListId(id) is not null),
                 "mal" => currentSeries.MalIds != null && currentSeries.MalIds.Any(id => _importListExclusionService.FindByMalId(id) is not null),
                 _ => currentSeries.TvdbId > 0 && _importListExclusionService.FindByTvdbId(currentSeries.TvdbId) is not null

@@ -242,7 +242,6 @@ namespace NzbDrone.Core.Tv
             return provider switch
             {
                 "anidb" => $"anidb:{series.AniDbId}",
-                "simkl" => $"simkl:{series.SimklId}",
                 "anilist" => $"anilist:{series.AniListIds?.FirstOrDefault()}",
                 "mal" => $"mal:{series.MalIds?.FirstOrDefault()}",
                 _ => $"tvdb:{series.TvdbId}"

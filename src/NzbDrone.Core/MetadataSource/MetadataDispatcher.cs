@@ -114,7 +114,6 @@ namespace NzbDrone.Core.MetadataSource
                 .GroupBy(s => s.PrimaryMetadataProvider switch
                 {
                     "anidb" => $"anidb:{s.AniDbId}",
-                    "simkl" => $"simkl:{s.SimklId}",
                     "anilist" => $"anilist:{s.AniListIds?.FirstOrDefault()}",
                     "mal" => $"mal:{s.MalIds?.FirstOrDefault()}",
                     "tvdb" => s.TvdbId > 0 ? $"tvdb:{s.TvdbId}" : $"title:{s.CleanTitle}",
@@ -131,7 +130,6 @@ namespace NzbDrone.Core.MetadataSource
                 MetadataProviderType.Tvdb => series.TvdbId.ToString(),
                 MetadataProviderType.AniDb => series.AniDbId?.ToString() ?? throw new InvalidOperationException($"Series '{series.Title}' has no AniDB ID"),
                 MetadataProviderType.AniList => series.AniListIds?.FirstOrDefault().ToString() ?? throw new InvalidOperationException($"Series '{series.Title}' has no AniList ID"),
-                MetadataProviderType.Simkl => series.SimklId?.ToString() ?? throw new InvalidOperationException($"Series '{series.Title}' has no Simkl ID"),
                 MetadataProviderType.Mal => series.MalIds?.FirstOrDefault().ToString() ?? throw new InvalidOperationException($"Series '{series.Title}' has no MAL ID"),
                 _ => throw new ArgumentOutOfRangeException(nameof(providerType), providerType, null)
             };

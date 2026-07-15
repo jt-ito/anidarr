@@ -56,7 +56,6 @@ namespace NzbDrone.Core.Tv
             var id = provider switch
             {
                 "anidb" => series.AniDbId?.ToString(),
-                "simkl" => series.SimklId?.ToString(),
                 "anilist" => series.AniListIds?.FirstOrDefault().ToString(),
                 "mal" => series.MalIds?.FirstOrDefault().ToString(),
                 _ => series.TvdbId.ToString()
@@ -115,6 +114,7 @@ namespace NzbDrone.Core.Tv
             series.Status = seriesInfo.Status;
             series.CleanTitle = seriesInfo.CleanTitle;
             series.SortTitle = seriesInfo.SortTitle;
+            series.AlternateTitles = seriesInfo.AlternateTitles;
             series.LastInfoSync = DateTime.UtcNow;
             series.Runtime = seriesInfo.Runtime;
             series.Images = seriesInfo.Images;

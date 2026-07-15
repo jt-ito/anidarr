@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Tv.Events;
 
 namespace NzbDrone.Core.Tv
 {
@@ -22,11 +24,77 @@ namespace NzbDrone.Core.Tv
         Dictionary<int, int> AllSeriesQualityProfiles();
     }
 
-    public class SeriesRepository : BasicRepository<Series>, ISeriesRepository
+    public class SeriesRepository : BasicRepository<Series>, ISeriesRepository, IHandle<SeriesAddedEvent>, IHandle<SeriesUpdatedEvent>, IHandle<SeriesDeletedEvent>
     {
+        private readonly object _cacheLock = new object();
+        private ConcurrentDictionary<int, List<string>> _alternateTitlesCache;
+
         public SeriesRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
+        }
+
+        private void EnsureCache()
+        {
+            if (_alternateTitlesCache == null)
+            {
+                lock (_cacheLock)
+                {
+                    if (_alternateTitlesCache == null)
+                    {
+                        var seriesWithAlternateTitles = Query(s => s.AlternateTitles != null).ToList();
+                        var cache = new ConcurrentDictionary<int, List<string>>();
+
+                        foreach (var series in seriesWithAlternateTitles)
+                        {
+                            if (series.AlternateTitles != null && series.AlternateTitles.Count > 0)
+                            {
+                                var cleanedTitles = series.AlternateTitles.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle).Distinct().ToList();
+                                cache[series.Id] = cleanedTitles;
+                            }
+                        }
+
+                        _alternateTitlesCache = cache;
+                    }
+                }
+            }
+        }
+
+        public void Handle(SeriesAddedEvent message)
+        {
+            UpdateCache(message.Series);
+        }
+
+        public void Handle(SeriesUpdatedEvent message)
+        {
+            UpdateCache(message.Series);
+        }
+
+        public void Handle(SeriesDeletedEvent message)
+        {
+            if (_alternateTitlesCache != null)
+            {
+                foreach (var series in message.Series)
+                {
+                    _alternateTitlesCache.TryRemove(series.Id, out _);
+                }
+            }
+        }
+
+        private void UpdateCache(Series series)
+        {
+            if (_alternateTitlesCache != null)
+            {
+                if (series.AlternateTitles != null && series.AlternateTitles.Count > 0)
+                {
+                    var cleanedTitles = series.AlternateTitles.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle).Distinct().ToList();
+                    _alternateTitlesCache[series.Id] = cleanedTitles;
+                }
+                else
+                {
+                    _alternateTitlesCache.TryRemove(series.Id, out _);
+                }
+            }
         }
 
         public bool SeriesPathExists(string path)
@@ -38,8 +106,17 @@ namespace NzbDrone.Core.Tv
         {
             cleanTitle = cleanTitle.ToLowerInvariant();
 
-            var series = Query(s => s.CleanTitle == cleanTitle)
-                                        .ToList();
+            var series = Query(s => s.CleanTitle == cleanTitle).ToList();
+
+            if (series.Count == 0)
+            {
+                EnsureCache();
+                var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Contains(cleanTitle)).Select(kvp => kvp.Key).ToList();
+                if (matchingIds.Any())
+                {
+                    series.AddRange(Get(matchingIds));
+                }
+            }
 
             return ReturnSingleSeriesOrThrow(series);
         }
@@ -49,6 +126,16 @@ namespace NzbDrone.Core.Tv
             cleanTitle = cleanTitle.ToLowerInvariant();
 
             var series = Query(s => s.CleanTitle == cleanTitle && s.Year == year).ToList();
+
+            if (series.Count == 0)
+            {
+                EnsureCache();
+                var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Contains(cleanTitle)).Select(kvp => kvp.Key).ToList();
+                if (matchingIds.Any())
+                {
+                    series.AddRange(Get(matchingIds).Where(s => s.Year == year));
+                }
+            }
 
             return ReturnSingleSeriesOrThrow(series);
         }
@@ -62,7 +149,19 @@ namespace NzbDrone.Core.Tv
                 builder = Builder().Where($"(strpos(@cleanTitle, \"Series\".\"CleanTitle\") > 0)", new { cleanTitle = cleanTitle });
             }
 
-            return Query(builder).ToList();
+            var exactMatches = Query(builder).ToList();
+
+            // Fetch matching IDs from the in-memory cache
+            EnsureCache();
+            var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Any(at => cleanTitle.Contains(at))).Select(kvp => kvp.Key).ToList();
+
+            if (matchingIds.Any())
+            {
+                var alternateMatches = Get(matchingIds);
+                return exactMatches.Union(alternateMatches).GroupBy(s => s.Id).Select(g => g.First()).ToList();
+            }
+
+            return exactMatches.GroupBy(s => s.Id).Select(g => g.First()).ToList();
         }
 
         public Series FindByTvdbId(int tvdbId)

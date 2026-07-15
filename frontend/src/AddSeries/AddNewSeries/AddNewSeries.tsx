@@ -84,7 +84,7 @@ function AddNewSeries() {
 
         {/* Anidarr: Provider selector tabs */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          {['', 'Tvdb', 'AniDb', 'Simkl'].map((p) => {
+          {['', 'Tvdb', 'AniDb'].map((p) => {
             const handlePress = () => setProvider(p);
             return (
               <Button
@@ -98,9 +98,9 @@ function AddNewSeries() {
           })}
         </div>
 
-        {isFetching ? <LoadingIndicator /> : null}
+        {isFetching && !data.length ? <LoadingIndicator /> : null}
 
-        {!isFetching && !!error ? (
+        {!isFetching && !!error && !data.length ? (
           <div className={styles.message}>
             <div className={styles.helpText}>
               {translate('AddNewSeriesError')}
@@ -110,7 +110,7 @@ function AddNewSeries() {
           </div>
         ) : null}
 
-        {!isFetching && !error && !!data.length ? (
+        {!!data.length ? (
           <div className={styles.searchResults}>
             {data.map((item, index) => {
               return (
@@ -118,7 +118,6 @@ function AddNewSeries() {
                   key={
                     item.tvdbId ||
                     item.aniDbId ||
-                    item.simklId ||
                     (item.malIds && item.malIds[0]) ||
                     (item.aniListIds && item.aniListIds[0]) ||
                     index
@@ -129,6 +128,8 @@ function AddNewSeries() {
             })}
           </div>
         ) : null}
+
+        {isFetching && !!data.length ? <LoadingIndicator /> : null}
 
         {!isFetching && !error && !data.length && term ? (
           <div className={styles.message}>

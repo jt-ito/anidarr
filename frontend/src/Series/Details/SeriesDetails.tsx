@@ -403,7 +403,6 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
     imdbId,
     tmdbId,
     aniDbId,
-    simklId,
     malIds,
     aniListIds,
     title,
@@ -780,7 +779,6 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
                         imdbId={imdbId}
                         tmdbId={tmdbId}
                         aniDbId={aniDbId}
-                        simklId={simklId}
                         malIds={malIds}
                         aniListIds={aniListIds}
                         aniDbMappings={series.aniDbMappings}

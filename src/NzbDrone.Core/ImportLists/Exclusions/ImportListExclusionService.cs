@@ -16,7 +16,6 @@ namespace NzbDrone.Core.ImportLists.Exclusions
         ImportListExclusion Get(int id);
         ImportListExclusion FindByTvdbId(int tvdbId);
         ImportListExclusion FindByAniDbId(int aniDbId);
-        ImportListExclusion FindBySimklId(int simklId);
         ImportListExclusion FindByMalId(int malId);
         ImportListExclusion FindByAniListId(int aniListId);
         ImportListExclusion Update(ImportListExclusion importListExclusion);
@@ -64,11 +63,6 @@ namespace NzbDrone.Core.ImportLists.Exclusions
         public ImportListExclusion FindByAniDbId(int aniDbId)
         {
             return _repo.FindByAniDbId(aniDbId);
-        }
-
-        public ImportListExclusion FindBySimklId(int simklId)
-        {
-            return _repo.FindBySimklId(simklId);
         }
 
         public ImportListExclusion FindByMalId(int malId)

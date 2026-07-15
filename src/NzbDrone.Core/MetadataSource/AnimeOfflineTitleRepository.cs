@@ -11,7 +11,6 @@ namespace NzbDrone.Core.MetadataSource
         AnimeOfflineTitle FindByAniDbId(int anidbId);
         AnimeOfflineTitle FindByMalId(int malId);
         AnimeOfflineTitle FindByAniListId(int anilistId);
-        AnimeOfflineTitle FindBySimklId(int simklId);
     }
 
     public class AnimeOfflineTitleRepository : BasicRepository<AnimeOfflineTitle>, IAnimeOfflineTitleRepository
@@ -49,10 +48,6 @@ namespace NzbDrone.Core.MetadataSource
             {
                 results = results.Where(c => c.AniListId > 0);
             }
-            else if (providerKey == "simkl")
-            {
-                results = results.Where(c => c.SimklId > 0);
-            }
 
             return results.Take(50).ToList();
         }
@@ -70,11 +65,6 @@ namespace NzbDrone.Core.MetadataSource
         public AnimeOfflineTitle FindByAniListId(int anilistId)
         {
             return Query(c => c.AniListId == anilistId).FirstOrDefault();
-        }
-
-        public AnimeOfflineTitle FindBySimklId(int simklId)
-        {
-            return Query(c => c.SimklId == simklId).FirstOrDefault();
         }
     }
 }

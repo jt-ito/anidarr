@@ -21,11 +21,14 @@ export const useLookupSeries = (
   provider?: string,
   isEnabled = true
 ) => {
-  const result = useApiQuery<AddSeries[]>({
+  const isAll = !provider;
+  const primaryProvider = isAll ? 'tvdb' : provider;
+
+  const resultPrimary = useApiQuery<AddSeries[]>({
     path: '/series/lookup',
     queryParams: {
       term: query,
-      ...(provider ? { provider } : {}),
+      ...(primaryProvider ? { provider: primaryProvider } : {}),
     },
     queryOptions: {
       enabled: isEnabled && !!query,
@@ -34,9 +37,43 @@ export const useLookupSeries = (
     },
   });
 
+  const resultAnidb = useApiQuery<AddSeries[]>({
+    path: '/series/lookup',
+    queryParams: {
+      term: query,
+      provider: 'anidb',
+    },
+    queryOptions: {
+      enabled: isEnabled && !!query && isAll,
+      refetchOnWindowFocus: false,
+    },
+  });
+
+  const primaryData = resultPrimary.data || [];
+  const anidbData = resultAnidb.data || [];
+
+  let mergedData = primaryData;
+  if (isAll && anidbData.length > 0) {
+    const existingIds = new Set(primaryData.map((s) => s.tvdbId).filter(Boolean));
+    const existingTitles = new Set(primaryData.map((s) => s.title.toLowerCase()));
+
+    const uniqueAnidb = anidbData.filter(
+      (s) => !existingIds.has(s.tvdbId) && !existingTitles.has(s.title.toLowerCase())
+    );
+    mergedData = [...primaryData, ...uniqueAnidb];
+  }
+
+  const isFetching = isAll
+    ? resultPrimary.isFetching || resultAnidb.isFetching
+    : resultPrimary.isFetching;
+
+  const error = resultPrimary.error || resultAnidb.error;
+
   return {
-    ...result,
-    data: result.data ?? DEFAULT_SERIES,
+    ...resultPrimary,
+    isFetching,
+    error,
+    data: mergedData.length > 0 ? mergedData : DEFAULT_SERIES,
   };
 };
 

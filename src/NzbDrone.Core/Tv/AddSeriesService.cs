@@ -196,8 +196,7 @@ namespace NzbDrone.Core.Tv
 
             if (newSeries.PrimaryMetadataProvider == "anidb" ||
                 newSeries.PrimaryMetadataProvider == "mal" ||
-                newSeries.PrimaryMetadataProvider == "anilist" ||
-                newSeries.PrimaryMetadataProvider == "simkl")
+                newSeries.PrimaryMetadataProvider == "anilist")
             {
                 newSeries.SeriesType = SeriesTypes.Anime;
             }
@@ -222,10 +221,6 @@ namespace NzbDrone.Core.Tv
                 else if (newSeries.MalIds != null && newSeries.MalIds.Any())
                 {
                     newSeries.TvdbId = -(newSeries.MalIds.First() + 2000000);
-                }
-                else if (newSeries.SimklId.HasValue && newSeries.SimklId.Value > 0)
-                {
-                    newSeries.TvdbId = -(newSeries.SimklId.Value + 3000000);
                 }
             }
 
@@ -264,7 +259,6 @@ namespace NzbDrone.Core.Tv
             return existingSeries.Any(series => candidate.PrimaryMetadataProvider switch
             {
                 "anidb" => candidate.AniDbId.HasValue && candidate.AniDbId == series.AniDbId,
-                "simkl" => candidate.SimklId.HasValue && candidate.SimklId == series.SimklId,
                 "anilist" => candidate.AniListIds != null && series.AniListIds != null && candidate.AniListIds.Intersect(series.AniListIds).Any(),
                 "mal" => candidate.MalIds != null && series.MalIds != null && candidate.MalIds.Intersect(series.MalIds).Any(),
                 _ => candidate.TvdbId == series.TvdbId && series.TvdbId > 0,
@@ -277,7 +271,6 @@ namespace NzbDrone.Core.Tv
             var id = provider switch
             {
                 "anidb" => series.AniDbId?.ToString(),
-                "simkl" => series.SimklId?.ToString(),
                 "anilist" => series.AniListIds?.FirstOrDefault().ToString(),
                 "mal" => series.MalIds?.FirstOrDefault().ToString(),
                 _ => series.TvdbId.ToString()

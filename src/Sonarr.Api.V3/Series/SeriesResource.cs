@@ -55,7 +55,6 @@ namespace Sonarr.Api.V3.Series
         public int TmdbId { get; set; }
         public HashSet<int> MalIds { get; set; }
         public HashSet<int> AniListIds { get; set; }
-        public int? SimklId { get; set; }
         public string PrimaryMetadataProvider { get; set; }
         public DateTime? FirstAired { get; set; }
         public DateTime? LastAired { get; set; }
@@ -134,7 +133,6 @@ namespace Sonarr.Api.V3.Series
                 TmdbId = model.TmdbId,
                 MalIds = model.MalIds,
                 AniListIds = model.AniListIds,
-                SimklId = model.SimklId,
                 PrimaryMetadataProvider = model.PrimaryMetadataProvider,
                 FirstAired = model.FirstAired,
                 LastAired = model.LastAired,
@@ -205,7 +203,6 @@ namespace Sonarr.Api.V3.Series
                 TmdbId = resource.TmdbId,
                 MalIds = resource.MalIds,
                 AniListIds = resource.AniListIds,
-                SimklId = resource.SimklId,
                 PrimaryMetadataProvider = resource.PrimaryMetadataProvider,
                 FirstAired = resource.FirstAired,
                 SeriesType = resource.SeriesType,

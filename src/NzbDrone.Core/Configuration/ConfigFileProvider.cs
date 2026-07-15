@@ -74,7 +74,6 @@ namespace NzbDrone.Core.Configuration
 
         // Anidarr: metadata provider API keys
         string TvdbApiKey { get; }
-        string SimklClientId { get; }
         string MalClientId { get; }
         string AniDbClientName { get; }
         int AniDbClientVersion { get; }
@@ -335,7 +334,6 @@ namespace NzbDrone.Core.Configuration
 
         // Anidarr: metadata provider API keys (stored in config.xml, set via Settings > Metadata Providers)
         public string TvdbApiKey => GetValue("TvdbApiKey", string.Empty);
-        public string SimklClientId => GetValue("SimklClientId", string.Empty);
         public string MalClientId => GetValue("MalClientId", string.Empty);
         public string AniDbClientName => GetValue("AniDbClientName", string.Empty);
         public int AniDbClientVersion => GetValueInt("AniDbClientVersion", 0);

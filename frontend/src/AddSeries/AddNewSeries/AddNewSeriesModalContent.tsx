@@ -120,7 +120,7 @@ function AddNewSeriesModalContent({
     setSeriesType(seriesTypeSetting.value);
   }, [seriesTypeSetting]);
 
-  const { data: rootFolders } = useRootFolders();
+  const { data: rootFolders, isPending } = useRootFolders();
   const hasRootFolders = rootFolders && rootFolders.length > 0;
 
   return (
@@ -134,7 +134,7 @@ function AddNewSeriesModalContent({
       </ModalHeader>
 
       <ModalBody>
-        {!hasRootFolders && (
+        {!isPending && !hasRootFolders && (
           <Alert kind="danger">
             No Root Folders configured. Please go to Settings -&gt; Media
             Management to configure a root folder before adding a series.
@@ -301,7 +301,7 @@ function AddNewSeriesModalContent({
           className={styles.addButton}
           kind={kinds.SUCCESS}
           isSpinning={isAdding}
-          disabled={!hasRootFolders}
+          disabled={isPending || !hasRootFolders}
           onPress={handleAddSeriesPress}
         >
           {translate('AddSeriesWithTitle', { title })}

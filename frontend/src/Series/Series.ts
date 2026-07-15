@@ -114,7 +114,6 @@ interface Series extends ModelBase {
     seasonNumber: number;
     relationType: string;
   }[];
-  simklId?: number;
   malIds?: number[];
   aniListIds?: number[];
   primaryMetadataProvider?: string;

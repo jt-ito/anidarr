@@ -41,9 +41,9 @@ namespace NzbDrone.Core.Backup
 
                     // Drop Anidarr-specific columns. We use IgnoreErrors in case the columns are already missing or SQLite version is too old.
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN AniDbId;");
-                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN SimklId;");
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN PrimaryMetadataProvider;");
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN FansubGroup;");
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN AlternateTitles;");
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE QualityProfiles DROP COLUMN ReleaseRules;");
 
                     // Drop Anidarr-specific tables

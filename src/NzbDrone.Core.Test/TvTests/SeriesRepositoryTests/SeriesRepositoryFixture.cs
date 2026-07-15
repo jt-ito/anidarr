@@ -82,5 +82,39 @@ namespace NzbDrone.Core.Test.TvTests.SeriesRepositoryTests
             found.Should().HaveCount(2);
             found.Select(x => x.CleanTitle).Should().BeEquivalentTo(new[] { "crown", "crownextralong" });
         }
+
+        [Test]
+        public void should_update_alternate_titles_cache_on_series_updated_event()
+        {
+            var series = Builder<Series>.CreateNew()
+                .With(s => s.Id = 0)
+                .With(s => s.CleanTitle = "main")
+                .With(s => s.AlternateTitles = new System.Collections.Generic.List<string> { "apple" })
+                .BuildNew();
+
+            Subject.Insert(series);
+
+            // 1. Initial lookup -> lazily loads cache
+            var found = Subject.FindByTitleInexact("apple");
+            found.Should().HaveCount(1);
+            found.First().CleanTitle.Should().Be("main");
+
+            // 2. Shrink and update alternate titles
+            series.AlternateTitles = new System.Collections.Generic.List<string> { "banana" };
+            Subject.Update(series); // persists to DB
+            Subject.Handle(new NzbDrone.Core.Tv.Events.SeriesUpdatedEvent(series)); // triggers cache invalidation
+
+            // 3. Old title should no longer match
+            found = Subject.FindByTitleInexact("apple");
+            found.Should().BeEmpty();
+
+            System.Console.WriteLine("DEBUG: finding banana...");
+
+            // 4. New title should match
+            found = Subject.FindByTitleInexact("banana");
+            System.Console.WriteLine($"DEBUG: found count = {found.Count}");
+            found.Should().HaveCount(1);
+            found.First().CleanTitle.Should().Be("main");
+        }
     }
 }

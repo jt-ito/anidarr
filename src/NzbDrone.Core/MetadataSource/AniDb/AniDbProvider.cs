@@ -199,13 +199,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                             // Note: AniList enrichment targets AbsoluteEpisodeNumber if present (continuous numbering),
                             // otherwise falls back to EpisodeNumber (for single season series).
                             var episodeNumberForMatch = ep.AbsoluteEpisodeNumber ?? ep.EpisodeNumber;
-                            if (ep.AirDateUtc.HasValue && airingTimes.TryGetValue(episodeNumberForMatch, out var timeOfDay))
+                            if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && airingTimes.TryGetValue(episodeNumberForMatch, out var timeOfDay))
                             {
-                                // AniDb's AirDateUtc was parsed as JST date -> 15:00 UTC previous day.
-                                // We want to restore the JST Date, add the precise timeOfDay, and convert back to UTC.
-                                var jstDate = ep.AirDateUtc.Value.AddHours(9).Date;
+                                // Combine the AniDB date with the precise AniList time (in JST)
+                                var jstDate = DateTime.Parse(ep.AirDate);
                                 var preciseJstTime = jstDate.Add(timeOfDay);
-                                ep.AirDateUtc = preciseJstTime.AddHours(-9); // Back to UTC
+                                ep.AirDateUtc = preciseJstTime.AddHours(-9); // Convert JST to UTC
                             }
                         }
                     }
@@ -468,7 +467,20 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         {
             var ns = root?.Name.Namespace ?? XNamespace.None;
 
-            var title = GetBestTitle(root?.Elements(ns + "titles").Elements(ns + "title"), "Unknown");
+            var titleElements = root?.Elements(ns + "titles").Elements(ns + "title");
+            var title = GetBestTitle(titleElements, "Unknown");
+            var alternateTitles = new List<string>();
+            if (titleElements != null)
+            {
+                foreach (var tElement in titleElements)
+                {
+                    var val = tElement.Value?.Trim();
+                    if (!string.IsNullOrWhiteSpace(val))
+                    {
+                        alternateTitles.Add(val);
+                    }
+                }
+            }
 
             var series = new Series
             {
@@ -476,6 +488,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 CleanTitle = title.CleanSeriesTitle(),
                 SortTitle = SeriesTitleNormalizer.Normalize(title, aniDbId),
                 TitleSlug = title.ToUrlSlug(),
+                AlternateTitles = alternateTitles.Distinct().ToList(),
                 AniDbId = aniDbId,
                 Overview = CleanDescription(root?.Element(ns + "description")?.Value),
                 Runtime = int.TryParse(root?.Element(ns + "episodelength")?.Value, out var rt) ? rt : 24,
@@ -546,11 +559,10 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var airDate = ep.Element(ns + "airdate")?.Value;
                 if (airDate.IsNotNullOrWhiteSpace() && DateTime.TryParse(airDate, out var aired))
                 {
-                    // Treat the AniDB YYYY-MM-DD string as 00:00 JST (Japan Standard Time, UTC+09:00).
-                    // This converts it to 15:00 UTC of the previous day, aligning AniDB calendar entries with TVDB logic.
-                    var jstOffset = new TimeSpan(9, 0, 0);
-                    var airedJst = new DateTimeOffset(aired.Year, aired.Month, aired.Day, 0, 0, 0, jstOffset);
-                    episode.AirDateUtc = airedJst.UtcDateTime;
+                    // Default date-only episodes to end-of-day UTC (23:59:59)
+                    // so we don't prematurely search before it has actually aired.
+                    // This will be overridden by precise AniList times during enrichment.
+                    episode.AirDateUtc = new DateTime(aired.Year, aired.Month, aired.Day, 23, 59, 59, DateTimeKind.Utc);
                     episode.AirDate = aired.ToString("yyyy-MM-dd");
                 }
 

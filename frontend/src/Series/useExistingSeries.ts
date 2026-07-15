@@ -30,12 +30,6 @@ function useExistingSeries(seriesToCheck?: Partial<Series>) {
         s.tmdbId === seriesToCheck.tmdbId
       )
         return true;
-      if (
-        seriesToCheck.simklId &&
-        seriesToCheck.simklId > 0 &&
-        s.simklId === seriesToCheck.simklId
-      )
-        return true;
 
       if (
         seriesToCheck.malIds &&

@@ -133,26 +133,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
                   />
                 </Link>
               )}
-              {series.primaryMetadataProvider === 'simkl' && series.simklId && (
-                <Link
-                  className={styles.tvdbLink}
-                  to={`https://simkl.com/anime/${series.simklId}`}
-                  aria-label={translate('ViewSeriesOnTvdb', { title }).replace(
-                    'TVDB',
-                    'Simkl'
-                  )}
-                  onPress={handleTvdbLinkPress}
-                >
-                  <Icon
-                    className={styles.tvdbLinkIcon}
-                    name={icons.EXTERNAL_LINK}
-                    size={28}
-                    aria-hidden={true}
-                  />
-                </Link>
-              )}
               {series.primaryMetadataProvider !== 'anidb' &&
-                series.primaryMetadataProvider !== 'simkl' &&
                 tvdbId && (
                   <Link
                     className={styles.tvdbLink}
@@ -226,8 +207,6 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
             let providerName = 'TheTVDB';
             if (series.primaryMetadataProvider === 'anidb')
               providerName = 'AniDB';
-            else if (series.primaryMetadataProvider === 'simkl')
-              providerName = 'Simkl';
             else if (series.primaryMetadataProvider === 'anilist')
               providerName = 'AniList';
             else if (series.primaryMetadataProvider === 'mal')

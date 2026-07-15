@@ -31,9 +31,8 @@ namespace NzbDrone.Core.Tv
 
         // Anidarr: extended metadata provider IDs
         public int? AniDbId { get; set; }
-        public int? SimklId { get; set; }
 
-        /// <summary>Which metadata provider is the canonical source for this series (e.g. "tvdb", "anidb", "anilist", "simkl", "mal")</summary>
+        /// <summary>Which metadata provider is the canonical source for this series (e.g. "tvdb", "anidb", "anilist", "mal")</summary>
         public string PrimaryMetadataProvider { get; set; }
 
         /// <summary>Preferred or required fansub group for Anime downloads</summary>
@@ -41,6 +40,7 @@ namespace NzbDrone.Core.Tv
         public string Title { get; set; }
         public string CleanTitle { get; set; }
         public string SortTitle { get; set; }
+        public List<string> AlternateTitles { get; set; } = new List<string>();
         public SeriesStatusType Status { get; set; }
         public string Overview { get; set; }
         public string AirTime { get; set; }
@@ -98,6 +98,7 @@ namespace NzbDrone.Core.Tv
             AddOptions = otherSeries.AddOptions;
             FansubGroup = otherSeries.FansubGroup;
             AniDbMappings = otherSeries.AniDbMappings;
+            AlternateTitles = otherSeries.AlternateTitles;
         }
     }
 }

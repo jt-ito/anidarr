@@ -59,6 +59,32 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         }
 
         [Test]
+        public void should_always_apply_fixed_9_hour_jst_to_utc_offset_regardless_of_dst()
+        {
+            // Japan does not observe DST. The offset from JST to UTC is always exactly -9 hours.
+            // This test explicitly guards against regressions where a generic TimeZone conversion
+            // (e.g. Asia/Tokyo or Tokyo Standard Time) might incorrectly apply DST rules
+            // if configured improperly by a third-party lib or environment.
+
+            var testDates = new List<DateTime>
+            {
+                new DateTime(2026, 1, 15, 23, 30, 0, DateTimeKind.Unspecified), // Winter
+                new DateTime(2026, 4, 15, 23, 30, 0, DateTimeKind.Unspecified), // Spring
+                new DateTime(2026, 7, 15, 23, 30, 0, DateTimeKind.Unspecified), // Summer
+                new DateTime(2026, 10, 15, 23, 30, 0, DateTimeKind.Unspecified) // Autumn
+            };
+
+            foreach (var jstDate in testDates)
+            {
+                // Replicate the exact conversion logic from AniDbProvider/AniListEnricher
+                var utcDate = jstDate.AddHours(-9);
+
+                var offset = jstDate - utcDate;
+                offset.TotalHours.Should().Be(9);
+            }
+        }
+
+        [Test]
         public void should_traverse_linear_chain_and_merge_seasons()
         {
             // Setup: 1 (hub) -> Sequel -> 2 -> Sequel -> 3

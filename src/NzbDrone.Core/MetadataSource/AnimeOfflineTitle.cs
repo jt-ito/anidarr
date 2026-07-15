@@ -9,7 +9,6 @@ namespace NzbDrone.Core.MetadataSource
         public int? AniDbId { get; set; }
         public int? MalId { get; set; }
         public int? AniListId { get; set; }
-        public int? SimklId { get; set; }
         public string Title { get; set; }
         public string CleanTitle { get; set; }
         public List<string> SearchSynonyms { get; set; } = new List<string>();

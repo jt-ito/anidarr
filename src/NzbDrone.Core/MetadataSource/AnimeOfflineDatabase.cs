@@ -57,11 +57,6 @@ namespace NzbDrone.Core.MetadataSource
                 return _animeOfflineTitleRepository.FindByAniListId(id);
             }
 
-            if (providerKey == "simkl")
-            {
-                return _animeOfflineTitleRepository.FindBySimklId(id);
-            }
-
             return null;
         }
 
@@ -135,11 +130,6 @@ namespace NzbDrone.Core.MetadataSource
                 if (match.MalId > 0)
                 {
                     series.MalIds = new HashSet<int> { match.MalId.Value };
-                }
-
-                if (match.SimklId > 0)
-                {
-                    series.SimklId = match.SimklId.Value;
                 }
 
                 if (!string.IsNullOrWhiteSpace(match.Overview))
@@ -270,14 +260,6 @@ namespace NzbDrone.Core.MetadataSource
                                         if (int.TryParse(url.AsSpan("https://anilist.co/anime/".Length), out var id))
                                         {
                                             entry.AniListId = id;
-                                        }
-                                    }
-                                    else if (url.StartsWith("https://simkl.com/anime/"))
-                                    {
-                                        var parts = url.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
-                                        if (parts.Length > 0 && int.TryParse(parts.Last(), out var id))
-                                        {
-                                            entry.SimklId = id;
                                         }
                                     }
                                 }
@@ -501,12 +483,6 @@ namespace NzbDrone.Core.MetadataSource
                     if (existing.AniListId != entry.AniListId)
                     {
                         existing.AniListId = entry.AniListId;
-                        changed = true;
-                    }
-
-                    if (existing.SimklId != entry.SimklId)
-                    {
-                        existing.SimklId = entry.SimklId;
                         changed = true;
                     }
 

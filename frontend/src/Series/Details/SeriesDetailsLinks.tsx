@@ -14,7 +14,6 @@ type SeriesDetailsLinksProps = Pick<
   | 'imdbId'
   | 'tmdbId'
   | 'aniDbId'
-  | 'simklId'
   | 'malIds'
   | 'aniListIds'
   | 'aniDbMappings'
@@ -33,7 +32,6 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
     imdbId,
     tmdbId,
     aniDbId,
-    simklId,
     malIds,
     aniListIds,
     aniDbMappings,
@@ -60,14 +58,6 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
         externalId: aniDbId,
         name: 'AniDB',
         url: `https://anidb.net/anime/${aniDbId}`,
-      });
-    }
-
-    if (simklId) {
-      validLinks.push({
-        externalId: simklId,
-        name: 'Simkl',
-        url: `https://simkl.com/tv/${simklId}`,
       });
     }
 
@@ -142,7 +132,6 @@ function SeriesDetailsLinks(props: SeriesDetailsLinksProps) {
     imdbId,
     tmdbId,
     aniDbId,
-    simklId,
     malIds,
     aniListIds,
     aniDbMappings,

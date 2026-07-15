@@ -55,17 +55,6 @@ function MetadataSourceSettings() {
               </FormGroup>
 
               <FormGroup>
-                <FormLabel>{translate('SimklClientId')}</FormLabel>
-                <FormInputGroup
-                  type={inputTypes.TEXT}
-                  name="simklClientId"
-                  {...settings.simklClientId}
-                  helpText={translate('SimklClientIdHelpText')}
-                  onChange={handleInputChange}
-                />
-              </FormGroup>
-
-              <FormGroup>
                 <FormLabel>{translate('MalClientId')}</FormLabel>
                 <FormInputGroup
                   type={inputTypes.TEXT}

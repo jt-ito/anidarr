@@ -114,7 +114,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             .SetValidator(qualityProfileExistsValidator);
 
         PostValidator.RuleFor(s => s.Title).NotEmpty();
-        PostValidator.RuleFor(s => s).Must(s => s.TvdbId > 0 || (s.AniDbId.HasValue && s.AniDbId.Value > 0) || (s.MalIds != null && s.MalIds.Any()) || (s.AniListIds != null && s.AniListIds.Any()) || (s.SimklId.HasValue && s.SimklId.Value > 0))
+        PostValidator.RuleFor(s => s).Must(s => s.TvdbId > 0 || (s.AniDbId.HasValue && s.AniDbId.Value > 0) || (s.MalIds != null && s.MalIds.Any()) || (s.AniListIds != null && s.AniListIds.Any()))
             .WithMessage("At least one valid external ID must be provided.");
         PostValidator.RuleFor(s => s.TvdbId).SetValidator(seriesExistsValidator).When(s => s.TvdbId > 0);
     }
@@ -360,7 +360,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
     private void PopulateAlternateTitles(SeriesResource resource)
     {
-        resource.AlternateTitles = new List<AlternateTitleResource>();
+        resource.AlternateTitles ??= new List<AlternateTitleResource>();
 
         if (resource.TvdbId > 0)
         {

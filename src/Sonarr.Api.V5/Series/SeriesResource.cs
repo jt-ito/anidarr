@@ -62,7 +62,6 @@ public class SeriesResource : RestResource
 
     // Anidarr: extended metadata provider IDs
     public int? AniDbId { get; set; }
-    public int? SimklId { get; set; }
     public string? PrimaryMetadataProvider { get; set; }
     public string? FansubGroup { get; set; }
     public List<int>? MappedAniDbIds { get; set; }
@@ -78,7 +77,7 @@ public static class SeriesResourceMapper
 {
     public static SeriesResource ToResource(this NzbDrone.Core.Tv.Series model, bool includeSeasonImages = false)
     {
-        return new SeriesResource
+            var resource = new SeriesResource
         {
             Id = model.Id,
             Title = model.Title,
@@ -108,7 +107,6 @@ public static class SeriesResourceMapper
 
             // Anidarr extended IDs
             AniDbId = model.AniDbId,
-            SimklId = model.SimklId,
             PrimaryMetadataProvider = model.PrimaryMetadataProvider,
             FansubGroup = model.FansubGroup,
             FirstAired = model.FirstAired,
@@ -122,8 +120,11 @@ public static class SeriesResourceMapper
             Tags = model.Tags,
             Added = model.Added,
             AddOptions = model.AddOptions,
-            Ratings = model.Ratings
+            Ratings = model.Ratings,
+            AlternateTitles = model.AlternateTitles?.Select(t => new AlternateTitleResource { Title = t, Comment = "AniDB" }).ToList() ?? new List<AlternateTitleResource>()
         };
+
+            return resource;
     }
 
     public static NzbDrone.Core.Tv.Series ToModel(this SeriesResource resource)
@@ -157,7 +158,6 @@ public static class SeriesResourceMapper
 
             // Anidarr extended IDs
             AniDbId = resource.AniDbId,
-            SimklId = resource.SimklId,
             PrimaryMetadataProvider = resource.PrimaryMetadataProvider,
             FansubGroup = resource.FansubGroup,
             FirstAired = resource.FirstAired,
@@ -171,7 +171,8 @@ public static class SeriesResourceMapper
             Tags = resource.Tags,
             Added = resource.Added,
             AddOptions = resource.AddOptions,
-            Ratings = resource.Ratings
+            Ratings = resource.Ratings,
+            AlternateTitles = resource.AlternateTitles?.Select(t => t.Title).OfType<string>().ToList() ?? new List<string>()
         };
     }
 
