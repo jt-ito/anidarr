@@ -1,8 +1,20 @@
+<div align="center">
+
+<img src="logo.png" alt="Anidarr Logo" width="200" height="200" style="display: none;"/>
+
 # Anidarr
 
 **The Ultimate PVR for Anime Enthusiasts.**
 
+[![GitHub License](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
+
 Anidarr is a specialized fork of [Sonarr](https://github.com/Sonarr/Sonarr) designed from the ground up to solve the unique challenges of organizing and automating anime collections. It bypasses TVDB and Skyhook, directly integrating with native anime metadata providers to give you faster, more accurate, and more comprehensive anime indexing.
+
+</div>
+
+---
 
 ## ✨ Features
 
