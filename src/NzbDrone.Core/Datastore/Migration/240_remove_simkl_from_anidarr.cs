@@ -3,7 +3,7 @@ using NzbDrone.Core.Datastore.Migration.Framework;
 
 namespace NzbDrone.Core.Datastore.Migration
 {
-    [Migration(239)]
+    [Migration(240)]
     public class remove_simkl_from_anidarr : NzbDroneMigrationBase
     {
         protected override void MainDbUpgrade()
