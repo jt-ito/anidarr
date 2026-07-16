@@ -110,7 +110,7 @@ function AddNewSeries() {
           </div>
         ) : null}
 
-        {!!data.length ? (
+        {data.length > 0 ? (
           <div className={styles.searchResults}>
             {data.map((item, index) => {
               return (

@@ -97,13 +97,13 @@ function ImportSeriesSelectSeries({
   );
 
   const handleRefreshPress = useCallback(() => {
-    if (provider !== undefined) setProvider(undefined);
-    else refetch();
+    if (provider === undefined) refetch();
+    else setProvider(undefined);
   }, [provider, refetch]);
 
   const handleAniDbScan = useCallback(() => {
-    if (provider !== 'anidb') setProvider('anidb');
-    else refetch();
+    if (provider === 'anidb') refetch();
+    else setProvider('anidb');
     setContextMenu(null);
   }, [provider, refetch]);
 

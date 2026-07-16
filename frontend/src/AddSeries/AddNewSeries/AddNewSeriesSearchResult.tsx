@@ -133,19 +133,18 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
                   />
                 </Link>
               )}
-              {series.primaryMetadataProvider !== 'anidb' &&
-                tvdbId && (
-                  <Link
-                    className={styles.tvdbLink}
-                    to={`https://www.thetvdb.com/?tab=series&id=${tvdbId}`}
-                    aria-label={translate('ViewSeriesOnTvdb', { title })}
-                    onPress={handleTvdbLinkPress}
-                  >
-                    <Icon
-                      className={styles.tvdbLinkIcon}
-                      name={icons.EXTERNAL_LINK}
-                      size={28}
-                      aria-hidden={true}
+              {series.primaryMetadataProvider !== 'anidb' && tvdbId && (
+                <Link
+                  className={styles.tvdbLink}
+                  to={`https://www.thetvdb.com/?tab=series&id=${tvdbId}`}
+                  aria-label={translate('ViewSeriesOnTvdb', { title })}
+                  onPress={handleTvdbLinkPress}
+                >
+                  <Icon
+                    className={styles.tvdbLinkIcon}
+                    name={icons.EXTERNAL_LINK}
+                    size={28}
+                    aria-hidden={true}
                     />
                   </Link>
                 )}
