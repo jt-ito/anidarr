@@ -88,9 +88,9 @@ dotnet build src/Sonarr.sln -c Debug
 
 3. Start the Backend Server:
 
-```
-./_output/Sonarr.Console.exe
-```
+   ```bash
+   ./_output/net10.0/Sonarr.Console.exe
+   ```
 
 4. Install Frontend Dependencies & Start the Dev Server (in a new terminal):
 

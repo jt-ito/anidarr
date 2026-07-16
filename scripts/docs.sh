@@ -43,7 +43,7 @@ dotnet tool install --version 10.1.7 Swashbuckle.AspNetCore.Cli
 # Remove the openapi.json file so we can check if it was created
 rm $outputFile
 
-dotnet tool run swagger tofile --output ./src/Sonarr.Api.V5/openapi.json "$outputFolder/$RUNTIME/$application" v5 &
+dotnet tool run swagger tofile --output ./src/Sonarr.Api.V5/openapi.json "$outputFolder/$FRAMEWORK/$RUNTIME/$application" v5 &
 
 sleep 45
 

@@ -109,8 +109,8 @@ runs:
             echo "Packaging files"
             rm -rf $folder
             mkdir -p $folder
-            cp -r _output/$runtime/publish/* $folder
-            cp -r _output/Sonarr.Update/$runtime/publish $folder/Anidarr.Update
+            cp -r _output/$framework/$runtime/publish/* $folder
+            cp -r _output/Sonarr.Update/$framework/$runtime/publish $folder/Anidarr.Update
             cp LICENSE.md $folder
 
             echo "Removing Service helpers"
@@ -131,9 +131,10 @@ runs:
             echo "Packaging files"
             rm -rf $folder
             mkdir -p $folder
-            cp -r _output/$runtime/publish/* $folder
-            cp -r _output/Sonarr.Update/$runtime/publish $folder/Anidarr.Update
+            cp -r _output/$framework/$runtime/publish/* $folder
+            cp -r _output/Sonarr.Update/$framework/$runtime/publish $folder/Anidarr.Update
             cp LICENSE.md $folder
+            cp -r _output/$framework-windows/$runtime/publish/* $folder
 
             echo "Removing Sonarr.Mono"
             rm -f $folder/Sonarr.Mono.*
@@ -150,8 +151,8 @@ runs:
             echo "Packaging files"
             rm -rf $folder
             mkdir -p $folder
-            cp -r _output/$runtime/publish/* $folder
-            cp -r _output/Sonarr.Update/$runtime/publish $folder/Anidarr.Update
+            cp -r _output/$framework/$runtime/publish/* $folder
+            cp -r _output/Sonarr.Update/$framework/$runtime/publish $folder/Anidarr.Update
             cp LICENSE.md $folder
 
             echo "Removing Service helpers"
@@ -175,9 +176,9 @@ runs:
         framework="${{ inputs.framework }}"
         runtime="${{ inputs.runtime }}"
 
-        cp scripts/test.sh "_tests/$runtime/publish"
+        cp scripts/test.sh "_tests/$framework/$runtime/publish"
 
-        rm -f _tests/$runtime/*.log.config
+        rm -f _tests/$framework/$runtime/*.log.config
 
     - name: Upload Test Artifacts
       if: ${{ inputs.package_tests }}
