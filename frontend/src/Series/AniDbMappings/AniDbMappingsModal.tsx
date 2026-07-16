@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+/* eslint-disable react/jsx-no-bind */
 import React, { useState } from 'react';
 import Alert from 'Components/Alert';
 import Button from 'Components/Link/Button';
@@ -106,8 +107,8 @@ export default function AniDbMappingsModal({
   };
 
   const handleAdd = () => {
-    const id = parseInt(newAniDbId, 10);
-    const season = parseInt(newSeason, 10);
+    const id = parseInt(newAniDbId);
+    const season = parseInt(newSeason);
 
     if (!isNaN(id) && !isNaN(season)) {
       createMapping({

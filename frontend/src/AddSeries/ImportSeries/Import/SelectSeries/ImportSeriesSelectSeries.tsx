@@ -7,6 +7,7 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
+/* eslint-disable react/jsx-no-bind */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useLookupSeries } from 'AddSeries/AddNewSeries/useAddSeries';
 import FormInputButton from 'Components/Form/FormInputButton';

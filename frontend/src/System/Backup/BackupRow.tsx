@@ -10,8 +10,8 @@ import { icons, kinds } from 'Helpers/Props';
 import { BackupType } from 'typings/Backup';
 import formatBytes from 'Utilities/Number/formatBytes';
 import translate from 'Utilities/String/translate';
-import RestoreBackupModal from './RestoreBackupModal';
 import DownloadBackupModal from './DownloadBackupModal';
+import RestoreBackupModal from './RestoreBackupModal';
 import { useDeleteBackup } from './useBackups';
 import styles from './BackupRow.css';
 
@@ -95,7 +95,11 @@ function BackupRow({ id, type, name, path, size, time }: BackupRowProps) {
       </TableRowCell>
 
       <TableRowCell>
-        <Link to={`${window.Sonarr.urlBase}${path}`} noRouter={true} onClick={handleDownloadPress}>
+        <Link
+          to={`${window.Sonarr.urlBase}${path}`}
+          noRouter={true}
+          onClick={handleDownloadPress}
+        >
           {name}
         </Link>
       </TableRowCell>

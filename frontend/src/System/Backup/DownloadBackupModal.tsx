@@ -8,7 +8,6 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import { icons } from 'Helpers/Props';
 import translate from 'Utilities/String/translate';
-
 import styles from './DownloadBackupModal.css';
 
 interface DownloadBackupModalProps {
@@ -28,29 +27,41 @@ function DownloadBackupModal({
     <Modal isOpen={isOpen} onModalClose={onModalClose}>
       <ModalContent className={styles.modalContent} onModalClose={onModalClose}>
         <ModalHeader>{translate('Download Backup')}</ModalHeader>
-        
+
         <ModalBody className={styles.modalBody}>
           <div className={styles.options}>
-            <a href={`${window.Sonarr.urlBase}${path}`} className={styles.linkButton} onClick={onModalClose}>
+            <a
+              href={`${window.Sonarr.urlBase}${path}`}
+              className={styles.linkButton}
+              onClick={onModalClose}
+            >
               <Button className={styles.button}>
                 <Icon name={icons.DOWNLOAD} />
                 <span>{translate('Download Anidarr Backup (full)')}</span>
               </Button>
             </a>
-            
+
             <p className={styles.description}>
-              {translate('Includes all settings, series, and AniDB metadata. Use this if you are staying on Anidarr.')}
+              {translate(
+                'Includes all settings, series, and AniDB metadata. Use this if you are staying on Anidarr.'
+              )}
             </p>
 
-            <a href={`${window.Sonarr.urlBase}/api/v3/system/backup/download/sonarr-compatible/${id}`} className={styles.linkButton} onClick={onModalClose}>
+            <a
+              href={`${window.Sonarr.urlBase}/api/v3/system/backup/download/sonarr-compatible/${id}`}
+              className={styles.linkButton}
+              onClick={onModalClose}
+            >
               <Button className={styles.button}>
                 <Icon name={icons.DOWNLOAD} />
                 <span>{translate('Download Sonarr-Compatible Backup')}</span>
               </Button>
             </a>
-            
+
             <p className={styles.description}>
-              {translate('For migrating back to stock Sonarr. Strips all AniDB-specific series and metadata to prevent import errors.')}
+              {translate(
+                'For migrating back to stock Sonarr. Strips all AniDB-specific series and metadata to prevent import errors.'
+              )}
             </p>
           </div>
         </ModalBody>
@@ -64,5 +75,3 @@ function DownloadBackupModal({
 }
 
 export default DownloadBackupModal;
-
-

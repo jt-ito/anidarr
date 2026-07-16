@@ -53,12 +53,18 @@ export const useLookupSeries = (
   const anidbData = resultAnidb.data || [];
 
   let mergedData = primaryData;
+
   if (isAll && anidbData.length > 0) {
-    const existingIds = new Set(primaryData.map((s) => s.tvdbId).filter(Boolean));
-    const existingTitles = new Set(primaryData.map((s) => s.title.toLowerCase()));
+    const existingIds = new Set(
+      primaryData.map((s) => s.tvdbId).filter(Boolean)
+    );
+    const existingTitles = new Set(
+      primaryData.map((s) => s.title.toLowerCase())
+    );
 
     const uniqueAnidb = anidbData.filter(
-      (s) => !existingIds.has(s.tvdbId) && !existingTitles.has(s.title.toLowerCase())
+      (s) =>
+        !existingIds.has(s.tvdbId) && !existingTitles.has(s.title.toLowerCase())
     );
     mergedData = [...primaryData, ...uniqueAnidb];
   }

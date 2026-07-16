@@ -1,16 +1,17 @@
 /* eslint-disable react/jsx-no-bind */
+/* eslint-disable no-nested-ternary */
 import React, { useCallback } from 'react';
 import FormInputGroup from 'Components/Form/FormInputGroup';
 import FormLabel from 'Components/Form/FormLabel';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import { icons, inputTypes, kinds, sizes } from 'Helpers/Props';
+import { useSortedCustomFormats } from 'Settings/CustomFormats/CustomFormats/useCustomFormats';
 import {
   ReleaseRule,
   ReleaseRuleConditionOperator,
   ReleaseRuleConditionType,
 } from './useQualityProfiles';
-import { useSortedCustomFormats } from 'Settings/CustomFormats/CustomFormats/useCustomFormats';
 
 interface QualityProfileReleaseRulesProps {
   rules: ReleaseRule[];
@@ -44,7 +45,8 @@ export default function QualityProfileReleaseRules({
 }: QualityProfileReleaseRulesProps) {
   const { data: customFormats } = useSortedCustomFormats();
   const customFormatOptions = React.useMemo(
-    () => customFormats.map((cf) => ({ key: cf.id.toString(), value: cf.name })),
+    () =>
+      customFormats.map((cf) => ({ key: cf.id.toString(), value: cf.name })),
     [customFormats]
   );
 
@@ -250,7 +252,12 @@ export default function QualityProfileReleaseRules({
                     <FormInputGroup
                       type={inputTypes.SELECT}
                       name="value"
-                      value={condition.value || (customFormatOptions.length > 0 ? customFormatOptions[0].key : '')}
+                      value={
+                        condition.value ||
+                        (customFormatOptions.length > 0
+                          ? customFormatOptions[0].key
+                          : '')
+                      }
                       values={customFormatOptions}
                       onChange={(change) => {
                         const newConds = [...rule.conditions];

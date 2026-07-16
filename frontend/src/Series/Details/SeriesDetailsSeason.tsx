@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppDimension } from 'App/appStore';
 import CommandNames from 'Commands/CommandNames';
-import { useExecuteCommand } from 'Commands/useCommands';
-import { useCommands } from 'Commands/useCommands';
+import { useCommands, useExecuteCommand } from 'Commands/useCommands';
 import Icon from 'Components/Icon';
 import Label from 'Components/Label';
 import IconButton from 'Components/Link/IconButton';

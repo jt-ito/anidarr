@@ -145,9 +145,9 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
                     name={icons.EXTERNAL_LINK}
                     size={28}
                     aria-hidden={true}
-                    />
-                  </Link>
-                )}
+                  />
+                </Link>
+              )}
             </div>
           </div>
 
