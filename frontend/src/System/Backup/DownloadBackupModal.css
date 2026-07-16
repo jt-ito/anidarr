@@ -9,10 +9,10 @@
 
 .options {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  flex-direction: column;
   padding: 10px;
+  gap: 10px;
 }
 
 .linkButton {
@@ -21,14 +21,14 @@
 }
 
 .button {
-  width: 100%;
   justify-content: center;
+  width: 100%;
 }
 
 .description {
-  font-size: 13px;
-  color: var(--text-muted);
-  text-align: center;
   margin-top: 0;
   margin-bottom: 20px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 13px;
 }
