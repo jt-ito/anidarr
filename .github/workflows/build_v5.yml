@@ -24,8 +24,8 @@ concurrency:
 env:
   FRAMEWORK: net10.0
   RAW_BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-  SONARR_MAJOR_VERSION: 5
-  VERSION: 5.0.0
+  SONARR_MAJOR_VERSION: 0
+  VERSION: 0.0.1
 
 jobs:
   prepare:
