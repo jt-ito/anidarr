@@ -12,8 +12,8 @@ for runtime in _output/*
 do
   name="${runtime##*/}"
   folderName="$runtime/$framework"
-  sonarrFolder="$folderName/Sonarr"
-  archiveName="Sonarr.$BRANCH.$SONARR_VERSION.$name"
+  sonarrFolder="$folderName/Anidarr"
+  archiveName="Anidarr.$BRANCH.$SONARR_VERSION.$name"
 
   if [[ "$name" == 'UI' ]]; then
     continue
@@ -26,8 +26,8 @@ do
   
   echo "Setting permissions"
   find $sonarrFolder -name "ffprobe" -exec chmod a+x {} \;
-  find $sonarrFolder -name "Sonarr" -exec chmod a+x {} \;
-  find $sonarrFolder -name "Sonarr.Update" -exec chmod a+x {} \;
+  find $sonarrFolder -name "Anidarr" -exec chmod a+x {} \;
+  find $sonarrFolder -name "Anidarr.Update" -exec chmod a+x {} \;
   
   if [[ "$name" == *"osx"* ]]; then
     echo "Creating macOS package"
@@ -38,30 +38,30 @@ do
     rm -rf $packageFolder
     mkdir $packageFolder
       
-    cp -r distribution/macOS/Sonarr.app $packageFolder
-    mkdir -p $packageFolder/Sonarr.app/Contents/MacOS
+    cp -r distribution/macOS/Anidarr.app $packageFolder
+    mkdir -p $packageFolder/Anidarr.app/Contents/MacOS
       
     echo "Copying Binaries"
-    cp -r $sonarrFolder/* $packageFolder/Sonarr.app/Contents/MacOS
+    cp -r $sonarrFolder/* $packageFolder/Anidarr.app/Contents/MacOS
       
     echo "Removing Update Folder"
-    rm -r $packageFolder/Sonarr.app/Contents/MacOS/Sonarr.Update
+    rm -r $packageFolder/Anidarr.app/Contents/MacOS/Anidarr.Update
               
     echo "Packaging macOS app Artifact"
-    (cd $packageFolder; zip -rq "../../$artifactsFolder/$archiveName-app.zip" ./Sonarr.app)
+    (cd $packageFolder; zip -rq "../../$artifactsFolder/$archiveName-app.zip" ./Anidarr.app)
   fi
 
   echo "Packaging Artifact"
   if [[ "$name" == *"linux"* ]] || [[ "$name" == *"osx"* ]] || [[ "$name" == *"freebsd"* ]]; then
-    tar -zcf "./$artifactsFolder/$archiveName.tar.gz" -C $folderName Sonarr
+    tar -zcf "./$artifactsFolder/$archiveName.tar.gz" -C $folderName Anidarr
 	fi
     
   if [[ "$name" == *"win"* ]]; then
     if [ "$RUNNER_OS" = "Windows" ]
       then
-        (cd $folderName; 7z a -tzip "../../../$artifactsFolder/$archiveName.zip" ./Sonarr)
+        (cd $folderName; 7z a -tzip "../../../$artifactsFolder/$archiveName.zip" ./Anidarr)
       else
-      (cd $folderName; zip -rq "../../../$artifactsFolder/$archiveName.zip" ./Sonarr)
+      (cd $folderName; zip -rq "../../../$artifactsFolder/$archiveName.zip" ./Anidarr)
     fi
 	fi
 done

@@ -11,15 +11,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
-	<string>Sonarr</string>
+	<string>Anidarr</string>
 	<key>CFBundleIconFile</key>
-	<string>sonarr.icns</string>
+	<string>anidarr.icns</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.osx.sonarr.tv</string>
+	<string>com.anidarr.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Sonarr</string>
+	<string>Anidarr</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

@@ -3,14 +3,16 @@ name: Build
 on:
   push:
     branches:
-      - v5-develop
-      - v5-main
+      - develop
+      - main
+    tags:
+      - 'v*'
     paths-ignore:
       - "src/Sonarr.Api.*/openapi.json"
   pull_request:
     branches:
-      - v5-develop
-      - v5-redesign
+      - develop
+      - main
     paths-ignore:
       - "src/NzbDrone.Core/Localization/Core/**"
       - "src/Sonarr.Api.*/openapi.json"
@@ -40,7 +42,16 @@ jobs:
         run: |
           echo "framework=${{ env.FRAMEWORK }}" >> "$GITHUB_OUTPUT"
           echo "major_version=${{ env.SONARR_MAJOR_VERSION }}" >> "$GITHUB_OUTPUT"
-          echo "version=${{ env.VERSION }}.$((${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+
+          # If triggered by a tag (e.g. v5.0.0.100), use the tag as the version.
+          # Otherwise fall back to the base version + run number for branch builds.
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG_VERSION="${GITHUB_REF_NAME#v}"
+            echo "version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ env.VERSION }}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "branch=${RAW_BRANCH_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
   backend:
@@ -182,17 +193,17 @@ jobs:
             artifact: tests-linux-x64
             filter: TestCategory!=ManualTest&TestCategory!=WINDOWS&TestCategory=IntegrationTest
             binary_artifact: build-linux-x64
-            binary_path: linux-x64/${{ needs.prepare.outputs.framework }}/Sonarr
+            binary_path: linux-x64/${{ needs.prepare.outputs.framework }}/Anidarr
           - os: macos-latest
             artifact: tests-osx-arm64
             filter: TestCategory!=ManualTest&TestCategory!=WINDOWS&TestCategory=IntegrationTest
             binary_artifact: build-osx-arm64
-            binary_path: osx-arm64/${{ needs.prepare.outputs.framework }}/Sonarr
+            binary_path: osx-arm64/${{ needs.prepare.outputs.framework }}/Anidarr
           - os: windows-latest
             artifact: tests-win-x64
             filter: TestCategory!=ManualTest&TestCategory!=LINUX&TestCategory=IntegrationTest
             binary_artifact: build-win-x64
-            binary_path: win-x64/${{ needs.prepare.outputs.framework }}/Sonarr
+            binary_path: win-x64/${{ needs.prepare.outputs.framework }}/Anidarr
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out
@@ -210,7 +221,7 @@ jobs:
           binary_path: ${{ matrix.binary_path }}
 
   deploy:
-    if: ${{ github.ref_name == 'v5-develop-final' || github.ref_name == 'v5-main-final' }}
+    if: ${{ github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
     needs:
       [
         prepare,
@@ -226,7 +237,7 @@ jobs:
       contents: write
     with:
       framework: ${{ needs.prepare.outputs.framework }}
-      branch: ${{ github.ref_name }}
+      branch: ${{ needs.prepare.outputs.branch }}
       major_version: ${{ needs.prepare.outputs.major_version }}
       version: ${{ needs.prepare.outputs.version }}
 
@@ -242,7 +253,7 @@ jobs:
         integration_test,
         deploy,
       ]
-    if: ${{ !cancelled() && (github.ref_name == 'v5-develop-final' || github.ref_name == 'v5-main-final') }}
+    if: ${{ !cancelled() && github.ref_type == 'tag' && startsWith(github.ref_name, 'v') }}
     env:
       STATUS: ${{ contains(needs.*.result, 'failure') && 'failure' || 'success' }}
     runs-on: ubuntu-latest
