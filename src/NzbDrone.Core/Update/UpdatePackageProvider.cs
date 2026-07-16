@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using NzbDrone.Common.Cloud;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
@@ -34,58 +33,12 @@ namespace NzbDrone.Core.Update
 
         public UpdatePackage GetLatestUpdate(string branch, Version currentVersion)
         {
-            var request = _requestBuilder.Create()
-                                         .Resource("/update/{branch}")
-                                         .AddQueryParam("version", currentVersion)
-                                         .AddQueryParam("os", OsInfo.Os.ToString().ToLowerInvariant())
-                                         .AddQueryParam("arch", RuntimeInformation.OSArchitecture)
-                                         .AddQueryParam("runtime", "netcore")
-                                         .AddQueryParam("runtimeVer", _platformInfo.Version)
-                                         .AddQueryParam("dbType", _mainDatabase.DatabaseType)
-                                         .AddQueryParam("includeMajorVersion", true)
-                                         .SetSegment("branch", branch);
-
-            if (_analyticsService.IsEnabled)
-            {
-                // Send if the system is active so we know which versions to deprecate/ignore
-                request.AddQueryParam("active", _analyticsService.InstallIsActive.ToString().ToLower());
-            }
-
-            var update = _httpClient.Get<UpdatePackageAvailable>(request.Build()).Resource;
-
-            if (!update.Available)
-            {
-                return null;
-            }
-
-            return update.UpdatePackage;
+            return null;
         }
 
         public List<UpdatePackage> GetRecentUpdates(string branch, Version currentVersion, Version previousVersion)
         {
-            var request = _requestBuilder.Create()
-                                         .Resource("/update/{branch}/changes")
-                                         .AddQueryParam("version", currentVersion)
-                                         .AddQueryParam("os", OsInfo.Os.ToString().ToLowerInvariant())
-                                         .AddQueryParam("arch", RuntimeInformation.OSArchitecture)
-                                         .AddQueryParam("runtime", "netcore")
-                                         .AddQueryParam("runtimeVer", _platformInfo.Version)
-                                         .SetSegment("branch", branch);
-
-            if (previousVersion != null && previousVersion != currentVersion)
-            {
-                request.AddQueryParam("prevVersion", previousVersion);
-            }
-
-            if (_analyticsService.IsEnabled)
-            {
-                // Send if the system is active so we know which versions to deprecate/ignore
-                request.AddQueryParam("active", _analyticsService.InstallIsActive.ToString().ToLower());
-            }
-
-            var updates = _httpClient.Get<List<UpdatePackage>>(request.Build());
-
-            return updates.Resource;
+            return new List<UpdatePackage>();
         }
     }
 }
