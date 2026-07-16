@@ -2,6 +2,7 @@
   "Mal": "MyAnimeList",
   "Tvdb": "TheTVDB",
   "AniDb": "AniDB",
+  "AnidarrMigrationMessage": "An existing Sonarr data folder was detected but your Anidarr library is empty. If you are upgrading Anidarr from an older version, you must manually rename your data folder from 'Sonarr' to 'Anidarr' to restore your library. If you are running both applications side-by-side, you can ignore this warning.",
   "AniList": "AniList",
   "Simkl": "Simkl",
   "FansubGroup": "Fansub Group",
