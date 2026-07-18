@@ -27,7 +27,10 @@ namespace NzbDrone.Core.Datastore.Migration
                         var titleSlug = seriesReader.GetString(1);
 
                         var index = titleSlug.IndexOf("-anidb-", StringComparison.Ordinal);
-                        if (index <= 0) continue;
+                        if (index <= 0)
+                        {
+                            continue;
+                        }
 
                         var newSlug = titleSlug.Substring(0, index);
 
@@ -36,9 +39,9 @@ namespace NzbDrone.Core.Datastore.Migration
                             checkCmd.Transaction = tran;
                             checkCmd.CommandText = "SELECT COUNT(1) FROM \"Series\" WHERE \"TitleSlug\" = ?";
                             checkCmd.AddParameter(newSlug);
-                            
+
                             var exists = Convert.ToInt32(checkCmd.ExecuteScalar()) > 0;
-                            
+
                             if (!exists)
                             {
                                 using (var updateCmd = conn.CreateCommand())
@@ -47,7 +50,7 @@ namespace NzbDrone.Core.Datastore.Migration
                                     updateCmd.CommandText = "UPDATE \"Series\" SET \"TitleSlug\" = ? WHERE \"Id\" = ?";
                                     updateCmd.AddParameter(newSlug);
                                     updateCmd.AddParameter(id);
-        
+
                                     updateCmd.ExecuteNonQuery();
                                 }
                             }
