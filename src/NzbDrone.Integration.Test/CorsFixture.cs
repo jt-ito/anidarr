@@ -36,14 +36,14 @@ namespace NzbDrone.Integration.Test
         }
 
         [Test]
-        public void should_have_allow_headers_in_response_when_included_in_the_request()
+        public void should_not_have_allow_headers_in_response_when_included_in_the_request()
         {
             var request = BuildOptions();
             request.AddHeader(AccessControlHeaders.RequestHeaders, "X-Test");
 
             var response = RestClient.Execute(request);
 
-            response.Headers.Should().Contain(h => h.Name == AccessControlHeaders.AllowHeaders);
+            response.Headers.Should().NotContain(h => h.Name == AccessControlHeaders.AllowHeaders);
         }
 
         [Test]
@@ -52,16 +52,16 @@ namespace NzbDrone.Integration.Test
             var request = BuildOptions();
             var response = RestClient.Execute(request);
 
-            response.Headers.Should().Contain(h => h.Name == AccessControlHeaders.AllowOrigin);
+            response.Headers.Should().NotContain(h => h.Name == AccessControlHeaders.AllowOrigin);
         }
 
         [Test]
-        public void should_have_allow_methods_in_response()
+        public void should_not_have_allow_methods_in_response()
         {
             var request = BuildOptions();
             var response = RestClient.Execute(request);
 
-            response.Headers.Should().Contain(h => h.Name == AccessControlHeaders.AllowMethods);
+            response.Headers.Should().NotContain(h => h.Name == AccessControlHeaders.AllowMethods);
         }
 
         [Test]
@@ -74,12 +74,12 @@ namespace NzbDrone.Integration.Test
         }
 
         [Test]
-        public void should_have_allow_origin_in_non_options_request()
+        public void should_not_have_allow_origin_in_non_options_request()
         {
             var request = BuildGet();
             var response = RestClient.Execute(request);
 
-            response.Headers.Should().Contain(h => h.Name == AccessControlHeaders.AllowOrigin);
+            response.Headers.Should().NotContain(h => h.Name == AccessControlHeaders.AllowOrigin);
         }
 
         [Test]

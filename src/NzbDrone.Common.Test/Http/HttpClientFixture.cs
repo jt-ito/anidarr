@@ -42,10 +42,10 @@ namespace NzbDrone.Common.Test.Http
         public void FixtureSetUp()
         {
             // Always use our server for main tests
-            var mainHost = "httpbin.servarr.com";
+            var mainHost = "httpbin.org";
 
             // Use mirrors for tests that use two hosts
-            var candidates = new[] { "httpbin1.servarr.com" };
+            var candidates = new[] { "eu.httpbin.org" };
 
             // httpbin.org is broken right now, occasionally redirecting to https if it's unavailable.
             _httpBinHost = mainHost;
