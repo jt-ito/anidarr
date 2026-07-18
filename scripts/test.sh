@@ -35,13 +35,13 @@ if [ "$PLATFORM" = "Mac" ]; then
 fi
 
 if [ "$PLATFORM" = "Windows" ]; then
-  mkdir -p "$ProgramData/Sonarr"
+  mkdir -p "$ProgramData/Anidarr"
   WHERE="$WHERE&Category!=LINUX"
 elif [ "$PLATFORM" = "Linux" ]; then
-  mkdir -p ~/.config/Sonarr
+  mkdir -p ~/.config/Anidarr
   WHERE="$WHERE&Category!=WINDOWS"
 elif  [ "$PLATFORM" = "Mac" ]; then
-  mkdir -p ~/Library/Application\ Support/Sonarr
+  mkdir -p ~/Library/Application\ Support/Anidarr
   WHERE="$WHERE&Category!=WINDOWS"
 else
   echo "Platform must be provided as first argument: Windows, Linux or Mac"

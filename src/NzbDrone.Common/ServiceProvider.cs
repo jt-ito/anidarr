@@ -80,7 +80,7 @@ namespace NzbDrone.Common
 
             _logger.Info(installOutput.Lines.Select(x => x.Content).ConcatToString("\n"));
 
-            var descOutput = _processProvider.StartAndCapture("sc.exe", $"description {serviceName} \"Sonarr Application Server\"");
+            var descOutput = _processProvider.StartAndCapture("sc.exe", $"description {serviceName} \"Anidarr Application Server\"");
             if (descOutput.ExitCode != 0)
             {
                 _logger.Error($"Failed to install service: {descOutput.Lines.Select(x => x.Content).ConcatToString("\n")}");
