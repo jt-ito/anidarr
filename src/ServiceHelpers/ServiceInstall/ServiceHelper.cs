@@ -8,7 +8,7 @@ namespace ServiceInstall
 {
     public static class ServiceHelper
     {
-        private static string SonarrExe => Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).Directory.FullName, "Sonarr.Console.exe");
+        private static string SonarrExe => Path.Combine(new FileInfo(Assembly.GetExecutingAssembly().Location).Directory.FullName, "Anidarr.Console.exe");
 
         private static bool IsAnAdministrator()
         {
@@ -20,7 +20,7 @@ namespace ServiceInstall
         {
             if (!File.Exists(SonarrExe))
             {
-                Console.WriteLine("Unable to find Sonarr.Console.exe in the current directory.");
+                Console.WriteLine("Unable to find Anidarr.Console.exe in the current directory.");
                 return;
             }
 

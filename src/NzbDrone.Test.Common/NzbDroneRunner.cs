@@ -46,11 +46,11 @@ namespace NzbDrone.Test.Common
             string consoleExe;
             if (OsInfo.IsWindows)
             {
-                consoleExe = "Sonarr.Console.exe";
+                consoleExe = "Anidarr.Console.exe";
             }
             else
             {
-                consoleExe = "Sonarr";
+                consoleExe = "Anidarr";
             }
 
             if (BuildInfo.IsDebug)
