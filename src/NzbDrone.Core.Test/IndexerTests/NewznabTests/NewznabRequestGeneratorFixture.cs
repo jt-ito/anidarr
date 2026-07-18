@@ -182,11 +182,12 @@ namespace NzbDrone.Core.Test.IndexerTests.NewznabTests
             Subject.Settings.AnimeStandardFormatSearch = true;
             var results = Subject.GetSearchRequests(_animeSeasonSearchCriteria);
 
-            results.GetTier(0).Should().HaveCount(2);
+            results.GetTier(0).Should().HaveCount(3);
             var pages = results.GetTier(0).Select(t => t.First()).ToList();
 
-            pages[0].Url.FullUri.Should().Contain("rid=10&season=3");
-            pages[1].Url.FullUri.Should().Contain("q=Monkey%20Island&season=3");
+            pages[0].Url.FullUri.Should().Contain("q=Monkey%20Island");
+            pages[1].Url.FullUri.Should().Contain("rid=10&season=3");
+            pages[2].Url.FullUri.Should().Contain("q=Monkey%20Island&season=3");
         }
 
         [Test]
