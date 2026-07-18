@@ -665,5 +665,39 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             allCriteria.Last().As<SingleEpisodeSearchCriteria>().SeasonNumber.Should().Be(2);
             allCriteria.Last().As<SingleEpisodeSearchCriteria>().EpisodeNumber.Should().Be(3);
         }
+
+        [Test]
+        public async Task episode_search_should_include_all_alternate_titles_for_anime()
+        {
+            _xemSeries.Title = "Same Seminar Someya-san";
+            _xemSeries.CleanTitle = "sameseminarsomeyasan";
+            _xemSeries.SeriesType = SeriesTypes.Anime;
+            _xemSeries.AlternateTitles = new List<string>
+            {
+                "Onaji Zemi no Someya-san ga Sexy Joyuu Datta Hanashi.",
+                "同じゼミの染谷さんがセクシー女優だった話。",
+                "A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.",
+                "My Classmate's a Sexy Actress, and Now We Live Together?!"
+            };
+
+            WithEpisode(1, 1, 1, 1);
+
+            Mocker.GetMock<ISceneMappingService>()
+                .Setup(s => s.FindByTvdbId(It.IsAny<int>()))
+                .Returns(new List<SceneMapping>());
+
+            var allCriteria = WatchForSearchCriteria();
+
+            await Subject.EpisodeSearch(_xemEpisodes.First(), false, false);
+
+            allCriteria.Should().HaveCount(1);
+            var spec = allCriteria.First();
+
+            spec.SceneTitles.Should().Contain("Same Seminar Someya-san");
+            spec.SceneTitles.Should().Contain("Onaji Zemi no Someya-san ga Sexy Joyuu Datta Hanashi.");
+            spec.SceneTitles.Should().Contain("同じゼミの染谷さんがセクシー女優だった話。");
+            spec.SceneTitles.Should().Contain("A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.");
+            spec.SceneTitles.Should().Contain("My Classmate's a Sexy Actress, and Now We Live Together?!");
+        }
     }
 }

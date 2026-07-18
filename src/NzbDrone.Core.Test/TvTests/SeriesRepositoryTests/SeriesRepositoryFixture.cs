@@ -116,5 +116,60 @@ namespace NzbDrone.Core.Test.TvTests.SeriesRepositoryTests
             found.Should().HaveCount(1);
             found.First().CleanTitle.Should().Be("main");
         }
+
+        [Test]
+        public void should_find_by_real_world_alternate_titles()
+        {
+            var series = Builder<Series>.CreateNew()
+                .With(s => s.Id = 0)
+                .With(s => s.CleanTitle = "onajizeminosomeyasangasexyjoyuudattahanashi")
+                .With(s => s.AlternateTitles = new System.Collections.Generic.List<string>
+                {
+                    "A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.",
+                    "My Classmate's a Sexy Actress, and Now We Live Together?!"
+                })
+                .BuildNew();
+
+            Subject.Insert(series);
+
+            // Searching using abbreviation of the main title
+            var releaseTitle = "Someya-san ga Sexy Joyuu Datta Hanashi";
+            var cleanReleaseTitle = NzbDrone.Core.Parser.Parser.CleanSeriesTitle(releaseTitle);
+            var found = Subject.FindByTitleInexact(cleanReleaseTitle);
+            found.Should().HaveCount(1);
+            found.First().CleanTitle.Should().Be("onajizeminosomeyasangasexyjoyuudattahanashi");
+
+            // Searching using the exact alternate title
+            var cleanAlt1 = NzbDrone.Core.Parser.Parser.CleanSeriesTitle("A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.");
+            found = Subject.FindByTitleInexact(cleanAlt1);
+            found.Should().HaveCount(1);
+            found.First().CleanTitle.Should().Be("onajizeminosomeyasangasexyjoyuudattahanashi");
+
+            var cleanAlt2 = NzbDrone.Core.Parser.Parser.CleanSeriesTitle("My Classmate's a Sexy Actress, and Now We Live Together?!");
+            found = Subject.FindByTitleInexact(cleanAlt2);
+            found.Should().HaveCount(1);
+            found.First().CleanTitle.Should().Be("onajizeminosomeyasangasexyjoyuudattahanashi");
+        }
+
+        [TestCase("house")]
+        [TestCase("dead")]
+        [TestCase("the")]
+        [TestCase("a")]
+        public void should_reject_false_positive_substring_match(string cleanTitle)
+        {
+            var series = Builder<Series>.CreateNew()
+                .With(s => s.Id = 0)
+                .With(s => s.CleanTitle = "thehouseofthedead")
+                .With(s => s.AlternateTitles = new System.Collections.Generic.List<string>
+                {
+                    "The House of the Dead (2026)"
+                })
+                .BuildNew();
+
+            Subject.Insert(series);
+
+            var found = Subject.FindByTitleInexact(cleanTitle);
+            found.Should().BeEmpty();
+        }
     }
 }

@@ -153,7 +153,11 @@ namespace NzbDrone.Core.Tv
 
             // Fetch matching IDs from the in-memory cache
             EnsureCache();
-            var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Any(at => cleanTitle.Contains(at))).Select(kvp => kvp.Key).ToList();
+            var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Any(at =>
+                at == cleanTitle ||
+                ((cleanTitle.Contains(at) || at.Contains(cleanTitle)) &&
+                 System.Math.Min(cleanTitle.Length, at.Length) >= 5 &&
+                 (double)System.Math.Min(cleanTitle.Length, at.Length) / System.Math.Max(cleanTitle.Length, at.Length) >= 0.4))).Select(kvp => kvp.Key).ToList();
 
             if (matchingIds.Any())
             {

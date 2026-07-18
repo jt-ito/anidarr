@@ -32,7 +32,7 @@ namespace NzbDrone.Core.MetadataSource
             var synonymMatches = Query(c =>
                     (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
                     c.SearchSynonyms != null && c.SearchSynonyms.Contains(cleanQuery))
-                .Where(c => c.SearchSynonyms.Any(s => s == cleanQuery));
+                .Where(c => c.SearchSynonyms.Any(s => s.Contains(cleanQuery)));
 
             results = results.Union(synonymMatches);
 

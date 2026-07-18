@@ -480,6 +480,17 @@ namespace NzbDrone.Core.IndexerSearch
                 spec.SceneTitles.Add(series.Title);
             }
 
+            if (series.SeriesType == SeriesTypes.Anime && series.AlternateTitles != null)
+            {
+                foreach (var title in series.AlternateTitles)
+                {
+                    if (!spec.SceneTitles.Contains(title, StringComparer.InvariantCultureIgnoreCase))
+                    {
+                        spec.SceneTitles.Add(title);
+                    }
+                }
+            }
+
             return spec;
         }
 
@@ -497,6 +508,17 @@ namespace NzbDrone.Core.IndexerSearch
             spec.UserInvokedSearch = userInvokedSearch;
             spec.InteractiveSearch = interactiveSearch;
 
+            if (series.SeriesType == SeriesTypes.Anime && series.AlternateTitles != null)
+            {
+                foreach (var title in series.AlternateTitles)
+                {
+                    if (!spec.SceneTitles.Contains(title, StringComparer.InvariantCultureIgnoreCase))
+                    {
+                        spec.SceneTitles.Add(title);
+                    }
+                }
+            }
+
             return spec;
         }
 
@@ -513,6 +535,17 @@ namespace NzbDrone.Core.IndexerSearch
             spec.MonitoredEpisodesOnly = monitoredOnly;
             spec.UserInvokedSearch = userInvokedSearch;
             spec.InteractiveSearch = interactiveSearch;
+
+            if (series.SeriesType == SeriesTypes.Anime && series.AlternateTitles != null)
+            {
+                foreach (var title in series.AlternateTitles)
+                {
+                    if (!spec.SceneTitles.Contains(title, StringComparer.InvariantCultureIgnoreCase))
+                    {
+                        spec.SceneTitles.Add(title);
+                    }
+                }
+            }
 
             return spec;
         }
@@ -532,7 +565,10 @@ namespace NzbDrone.Core.IndexerSearch
 
             var batch = await Task.WhenAll(tasks);
 
-            var reports = batch.SelectMany(x => x).ToList();
+            var reports = batch.SelectMany(x => x)
+                               .GroupBy(r => r.Guid)
+                               .Select(g => g.OrderBy(v => v.IndexerPriority).First())
+                               .ToList();
 
             _logger.ProgressDebug("Total of {0} reports were found for {1} from {2} indexers", reports.Count, criteriaBase, indexers.Count);
 
