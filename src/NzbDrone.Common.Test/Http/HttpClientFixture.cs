@@ -331,7 +331,7 @@ namespace NzbDrone.Common.Test.Http
             var response = await Subject.GetAsync(request);
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
-            response.Content.Should().Contain("Sonarr");
+            response.Content.Should().Contain("Anidarr");
 
             ExceptionVerification.ExpectedErrors(0);
         }
@@ -358,7 +358,7 @@ namespace NzbDrone.Common.Test.Http
 
             var userAgent = response.Resource.Headers["User-Agent"].ToString();
 
-            userAgent.Should().Contain("Sonarr");
+            userAgent.Should().Contain("Anidarr");
         }
 
         [TestCase("Accept", "text/xml, text/rss+xml, application/rss+xml")]
