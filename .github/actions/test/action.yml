@@ -77,7 +77,7 @@ runs:
     - name: Make Sonarr binary executable
       if: ${{ inputs.integration_tests && !startsWith(inputs.os, 'windows') }}
       shell: bash
-      run: chmod +x ./_tests/bin/Sonarr
+      run: chmod +x ./_tests/bin/Anidarr
 
     - name: Run tests
       shell: bash
