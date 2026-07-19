@@ -261,6 +261,24 @@ namespace NzbDrone.Common.Disk
             sourcePath = ResolveRealParentPath(sourcePath);
             targetPath = ResolveRealParentPath(targetPath);
 
+            if (_diskProvider.FileExists(sourcePath))
+            {
+                try
+                {
+                    var sourceInfo = new FileInfo(sourcePath);
+                    var resolvedSource = sourceInfo.ResolveLinkTarget(true);
+                    if (resolvedSource != null)
+                    {
+                        sourcePath = resolvedSource.FullName;
+                        _logger.Trace("Resolved symlink for source path to {0}", sourcePath);
+                    }
+                }
+                catch (IOException ex)
+                {
+                    _logger.Trace(ex, "Unable to resolve symlink target for source path {0}", sourcePath);
+                }
+            }
+
             _logger.Debug("{0} [{1}] > [{2}]", mode, sourcePath, targetPath);
 
             var originalSize = _diskProvider.GetFileSize(sourcePath);

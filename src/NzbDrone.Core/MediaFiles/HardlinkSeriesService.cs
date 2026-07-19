@@ -29,16 +29,19 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IDiskProvider _diskProvider;
         private readonly IMediaFileService _mediaFileService;
         private readonly IBuildFileNames _buildFileNames;
+        private readonly IDiskTransferService _diskTransferService;
         private readonly Logger _logger;
 
         public HardlinkSeriesService(IDiskProvider diskProvider,
                                      IMediaFileService mediaFileService,
                                      IBuildFileNames buildFileNames,
+                                     IDiskTransferService diskTransferService,
                                      Logger logger)
         {
             _diskProvider = diskProvider;
             _mediaFileService = mediaFileService;
             _buildFileNames = buildFileNames;
+            _diskTransferService = diskTransferService;
             _logger = logger;
         }
 
@@ -81,18 +84,26 @@ namespace NzbDrone.Core.MediaFiles
 
                     _logger.Debug("Creating hardlink: {0} -> {1}", sourcePath, destinationPath);
 
-                    var success = _diskProvider.TryCreateHardLink(sourcePath, destinationPath);
+                    try
+                    {
+                        var transferResult = _diskTransferService.TransferFile(sourcePath, destinationPath, TransferMode.HardLink);
 
-                    if (success)
-                    {
-                        result.Succeeded++;
-                        _logger.Debug("Hardlink created successfully: {0}", destinationPath);
+                        if (transferResult.HasFlag(TransferMode.HardLink))
+                        {
+                            result.Succeeded++;
+                            _logger.Debug("Hardlink created successfully: {0}", destinationPath);
+                        }
+                        else
+                        {
+                            // TransferFile might fallback or fail silently if not hardlink
+                            var msg = $"Hardlink failed (possibly cross-device): {sourcePath} -> {destinationPath}";
+                            _logger.Warn(msg);
+                            result.Failed.Add(sourcePath);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        // TryCreateHardLink returns false on cross-device or other failures
-                        var msg = $"Hardlink failed (possibly cross-device): {sourcePath} -> {destinationPath}";
-                        _logger.Warn(msg);
+                        _logger.Warn(ex, $"Hardlink failed (possibly cross-device): {sourcePath} -> {destinationPath}");
                         result.Failed.Add(sourcePath);
                     }
                 }
