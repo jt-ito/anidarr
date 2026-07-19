@@ -142,11 +142,12 @@ namespace NzbDrone.Core.Tv
 
         public List<Series> FindByTitleInexact(string cleanTitle)
         {
-            var builder = Builder().Where($"instr(@cleanTitle, \"Series\".\"CleanTitle\")", new { cleanTitle = cleanTitle });
+            var maxLength = cleanTitle.Length < 5 ? 0 : (int)(cleanTitle.Length / 0.4);
+            var builder = Builder().Where($"(instr(@cleanTitle, \"Series\".\"CleanTitle\") > 0 OR (instr(\"Series\".\"CleanTitle\", @cleanTitle) > 0 AND length(\"Series\".\"CleanTitle\") <= @maxLength))", new { cleanTitle = cleanTitle, maxLength = maxLength });
 
             if (_database.DatabaseType == DatabaseType.PostgreSQL)
             {
-                builder = Builder().Where($"(strpos(@cleanTitle, \"Series\".\"CleanTitle\") > 0)", new { cleanTitle = cleanTitle });
+                builder = Builder().Where($"(strpos(@cleanTitle, \"Series\".\"CleanTitle\") > 0 OR (strpos(\"Series\".\"CleanTitle\", @cleanTitle) > 0 AND length(\"Series\".\"CleanTitle\") <= @maxLength))", new { cleanTitle = cleanTitle, maxLength = maxLength });
             }
 
             var exactMatches = Query(builder).ToList();
