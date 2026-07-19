@@ -42,10 +42,10 @@ namespace NzbDrone.Common.Test.Http
         public void FixtureSetUp()
         {
             // Always use our server for main tests
-            var mainHost = "httpbin.org";
+            var mainHost = "httpbin.servarr.com";
 
             // Use mirrors for tests that use two hosts
-            var candidates = new[] { "eu.httpbin.org" };
+            var candidates = new[] { "httpbin1.servarr.com" };
 
             // httpbin.org is broken right now, occasionally redirecting to https if it's unavailable.
             _httpBinHost = mainHost;
@@ -464,7 +464,7 @@ namespace NzbDrone.Common.Test.Http
         {
             if (_httpBinHost == _httpBinHost2)
             {
-                Assert.Inconclusive("Need both httpbin.org and eu.httpbin.org to run this test.");
+                Assert.Inconclusive("Need both httpbin.servarr.com and httpbin1.servarr.com to run this test.");
             }
 
             var oldRequest = new HttpRequest($"https://{_httpBinHost2}/get");
@@ -809,8 +809,8 @@ namespace NzbDrone.Common.Test.Http
             Thread.CurrentThread.CurrentUICulture = CultureInfo.GetCultureInfo(culture);
             try
             {
-                // the date is bad in the below - should be 13-Jul-2026
-                var malformedCookie = @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-26 16:19:50 GMT; path=/; HttpOnly";
+                // the date is bad in the below - should be 13-Jul-2036
+                var malformedCookie = @"__cfduid=d29e686a9d65800021c66faca0a29b4261436890790; expires=Mon, 13-Jul-36 16:19:50 GMT; path=/; HttpOnly";
                 var requestSet = new HttpRequestBuilder($"https://{_httpBinHost}/response-headers")
                     .AddQueryParam("Set-Cookie", malformedCookie)
                     .Build();
