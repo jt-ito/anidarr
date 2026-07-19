@@ -103,7 +103,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     var hasQualifyingHubRelation = id != hubId;
                     var isAmbiguousHubRelation = false;
 
-                    if (hasQualifyingHubRelation && GetRelations(doc, "Prequel").Count > 1)
+                    if (!hasQualifyingHubRelation && GetRelations(doc, "Prequel").Any())
                     {
                         isAmbiguousHubRelation = true;
                     }
