@@ -24,6 +24,7 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public virtual bool InteractiveSearch { get; set; }
 
         private static readonly Regex TrailingPunctuation = new Regex(@"[.!?:;。！？：；]+$", RegexOptions.Compiled);
+        private static readonly Regex SmartQuotes = new Regex(@"[\u0060\u00B4\u2018\u2019]", RegexOptions.Compiled);
 
         public List<string> AllSceneTitles => SceneTitles.Concat(CleanSceneTitles).Distinct().ToList();
         public List<string> CleanSceneTitles => SceneTitles.Select(GetCleanSceneTitle).Distinct().ToList();
@@ -59,7 +60,8 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
                 return title;
             }
 
-            return TrailingPunctuation.Replace(title, "").Trim();
+            var normalized = SmartQuotes.Replace(title, "'");
+            return TrailingPunctuation.Replace(normalized, "").Trim();
         }
 
         public static string GetCleanSceneTitle(string title)

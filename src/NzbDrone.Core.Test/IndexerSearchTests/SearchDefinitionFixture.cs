@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         [TestCase("同じゼミの染谷さんがセクシー女優だった話。", "同じゼミの染谷さんがセクシー女優だった話")]
         [TestCase("A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.", "A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress")]
         [TestCase("My Classmate's a Sexy Actress, and Now We Live Together?!", "My Classmate's a Sexy Actress, and Now We Live Together")]
+        [TestCase("My Classmate`s a Sexy Actress, and Now We Live Together?!", "My Classmate's a Sexy Actress, and Now We Live Together")]
         [TestCase("Some Anime Title!", "Some Anime Title")]
         [TestCase("Another Anime Title?!", "Another Anime Title")]
         [TestCase("Title with hyphens - stays", "Title with hyphens - stays")]
