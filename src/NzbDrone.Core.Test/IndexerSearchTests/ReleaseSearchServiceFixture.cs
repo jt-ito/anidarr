@@ -699,5 +699,39 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             spec.SceneTitles.Should().Contain("A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.");
             spec.SceneTitles.Should().Contain("My Classmate's a Sexy Actress, and Now We Live Together?!");
         }
+
+        [Test]
+        public async Task should_dedup_cross_indexer_results_with_same_guid()
+        {
+            WithEpisode(1, 1, 1, 1);
+
+            var indexer1 = new Mock<IIndexer>();
+            indexer1.SetupGet(s => s.Definition).Returns(new IndexerDefinition { Id = 1, Name = "Indexer1" });
+            indexer1.SetupGet(s => s.SupportsSearch).Returns(true);
+            indexer1.Setup(s => s.Fetch(It.IsAny<SingleEpisodeSearchCriteria>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo> { new Parser.Model.ReleaseInfo { Guid = "test-guid", Title = "Release 1" } });
+
+            var indexer2 = new Mock<IIndexer>();
+            indexer2.SetupGet(s => s.Definition).Returns(new IndexerDefinition { Id = 2, Name = "Indexer2" });
+            indexer2.SetupGet(s => s.SupportsSearch).Returns(true);
+            indexer2.Setup(s => s.Fetch(It.IsAny<SingleEpisodeSearchCriteria>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo> { new Parser.Model.ReleaseInfo { Guid = "test-guid", Title = "Release 2" } });
+
+            Mocker.GetMock<IIndexerFactory>()
+                .Setup(s => s.AutomaticSearchEnabled(true))
+                .Returns(new List<IIndexer> { indexer1.Object, indexer2.Object });
+
+            var capturedReports = new List<Parser.Model.ReleaseInfo>();
+
+            Mocker.GetMock<IMakeDownloadDecision>()
+                .Setup(s => s.GetSearchDecision(It.IsAny<List<Parser.Model.ReleaseInfo>>(), It.IsAny<SearchCriteriaBase>()))
+                .Callback<List<Parser.Model.ReleaseInfo>, SearchCriteriaBase>((reports, criteria) => capturedReports = reports)
+                .Returns(new List<DownloadDecision>());
+
+            await Subject.EpisodeSearch(_xemEpisodes.First(), false, false);
+
+            capturedReports.Should().HaveCount(1);
+            capturedReports.First().Guid.Should().Be("test-guid");
+        }
     }
 }

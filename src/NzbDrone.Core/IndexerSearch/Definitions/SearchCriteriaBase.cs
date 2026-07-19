@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -22,8 +23,44 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public virtual bool UserInvokedSearch { get; set; }
         public virtual bool InteractiveSearch { get; set; }
 
+        private static readonly Regex TrailingPunctuation = new Regex(@"[.!?:;。！？：；]+$", RegexOptions.Compiled);
+
         public List<string> AllSceneTitles => SceneTitles.Concat(CleanSceneTitles).Distinct().ToList();
         public List<string> CleanSceneTitles => SceneTitles.Select(GetCleanSceneTitle).Distinct().ToList();
+
+        public List<string> AnimeSearchTitles
+        {
+            get
+            {
+                var titles = new List<string>();
+                if (Series?.Title != null)
+                {
+                    titles.Add(Series.Title);
+                }
+
+                if (Series?.AlternateTitles != null)
+                {
+                    titles.AddRange(Series.AlternateTitles);
+                }
+
+                if (SceneTitles != null)
+                {
+                    titles.AddRange(SceneTitles);
+                }
+
+                return titles.Select(NormalizeAnimeTitle).Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
+            }
+        }
+
+        public static string NormalizeAnimeTitle(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            return TrailingPunctuation.Replace(title, "").Trim();
+        }
 
         public static string GetCleanSceneTitle(string title)
         {

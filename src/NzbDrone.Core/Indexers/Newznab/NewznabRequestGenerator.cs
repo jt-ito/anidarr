@@ -435,10 +435,18 @@ namespace NzbDrone.Core.Indexers.Newznab
                         $"&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}&ep={searchCriteria.EpisodeNumber}");
                 }
 
-                var queryTitles = TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles;
+                // Cap at 5 to be indexer-courteous and avoid unbounded sequential tiers (Addition 4)
+                var queryTitles = searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime
+                    ? searchCriteria.AnimeSearchTitles.Take(5).ToList()
+                    : (TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles);
 
                 foreach (var queryTitle in queryTitles)
                 {
+                    if (searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime)
+                    {
+                        pageableRequests.AddTier();
+                    }
+
                     pageableRequests.Add(GetPagedRequests(MaxPages,
                         Settings.AnimeCategories,
                         "search",
@@ -463,15 +471,10 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (SupportsSearch)
             {
-                var queryTitles = TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles;
-
-                foreach (var queryTitle in queryTitles)
-                {
-                    pageableRequests.Add(GetPagedRequests(MaxPages,
-                        Settings.AnimeCategories,
-                        "search",
-                        $"&q={NewsnabifyTitle(queryTitle)}"));
-                }
+                // Cap at 5 to be indexer-courteous and avoid unbounded sequential tiers (Addition 4)
+                var queryTitles = searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime
+                    ? searchCriteria.AnimeSearchTitles.Take(5).ToList()
+                    : (TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles);
 
                 if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
                 {
@@ -479,8 +482,21 @@ namespace NzbDrone.Core.Indexers.Newznab
                         Settings.AnimeCategories,
                         searchCriteria,
                         $"&season={NewznabifySeasonNumber(searchCriteria.SeasonNumber)}");
+                }
 
-                    foreach (var queryTitle in queryTitles)
+                foreach (var queryTitle in queryTitles)
+                {
+                    if (searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime)
+                    {
+                        pageableRequests.AddTier();
+                    }
+
+                    pageableRequests.Add(GetPagedRequests(MaxPages,
+                        Settings.AnimeCategories,
+                        "search",
+                        $"&q={NewsnabifyTitle(queryTitle)}"));
+
+                    if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
                     {
                         pageableRequests.Add(GetPagedRequests(MaxPages,
                             Settings.AnimeCategories,

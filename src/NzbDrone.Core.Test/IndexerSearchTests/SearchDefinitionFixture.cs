@@ -24,5 +24,18 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             Subject.SceneTitles = new List<string> { input };
             Subject.CleanSceneTitles.First().Should().Be(expected);
         }
+
+        [TestCase("Onaji Zemi no Someya-san ga Sexy Joyuu Datta Hanashi.", "Onaji Zemi no Someya-san ga Sexy Joyuu Datta Hanashi")]
+        [TestCase("同じゼミの染谷さんがセクシー女優だった話。", "同じゼミの染谷さんがセクシー女優だった話")]
+        [TestCase("A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress.", "A Story about How Someya-san, a Girl from My College Seminar, Turned out to Be an AV Actress")]
+        [TestCase("My Classmate's a Sexy Actress, and Now We Live Together?!", "My Classmate's a Sexy Actress, and Now We Live Together")]
+        [TestCase("Some Anime Title!", "Some Anime Title")]
+        [TestCase("Another Anime Title?!", "Another Anime Title")]
+        [TestCase("Title with hyphens - stays", "Title with hyphens - stays")]
+        [TestCase("Title with full-width question mark？", "Title with full-width question mark")]
+        public void should_normalize_anime_titles(string input, string expected)
+        {
+            SearchCriteriaBase.NormalizeAnimeTitle(input).Should().Be(expected);
+        }
     }
 }
