@@ -85,6 +85,7 @@ jobs:
         with:
           latest: true
           prerelease: ${{ inputs.branch != 'main' }}
+          doNotFailIfNotFound: true
 
       - name: Generate Release Notes
         id: generate-release-notes
@@ -93,13 +94,17 @@ jobs:
           github-token: ${{ github.token }}
           result-encoding: string
           script: |
-            const { data } = await github.rest.repos.generateReleaseNotes({
+            const params = {
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: 'v${{ inputs.version }}',
-              target_commitish: '${{ github.sha }}',
-              previous_tag_name: '${{ steps.previous-release.outputs.tag_name }}',
-            })
+              target_commitish: '${{ github.sha }}'
+            };
+            const previous_tag_name = '${{ steps.previous-release.outputs.tag_name }}';
+            if (previous_tag_name) {
+              params.previous_tag_name = previous_tag_name;
+            }
+            const { data } = await github.rest.repos.generateReleaseNotes(params);
             return data.body
 
       - name: Generate SHA256 Checksums
