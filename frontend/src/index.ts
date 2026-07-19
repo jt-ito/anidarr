@@ -1,4 +1,4 @@
-import './polyfills';
+import './polyfills'; // Trivial comment 2 for cache test
 import 'Styles/globals.css';
 import './index.css';
 

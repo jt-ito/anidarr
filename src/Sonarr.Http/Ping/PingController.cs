@@ -1,4 +1,4 @@
-using System;
+using System; // Trivial comment 2 for cache test
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

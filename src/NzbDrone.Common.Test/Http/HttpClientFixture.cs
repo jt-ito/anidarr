@@ -331,7 +331,7 @@ namespace NzbDrone.Common.Test.Http
             var response = await Subject.GetAsync(request);
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
-            response.Content.Should().Contain("Anidarr");
+            response.Content.Should().Contain("Sonarr");
 
             ExceptionVerification.ExpectedErrors(0);
         }

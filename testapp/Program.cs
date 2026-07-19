@@ -1,29 +1,59 @@
 using System;
-using System.IO;
-using System.IO.Compression;
-using System.Net.Http;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
+using System.Xml.Linq;
 
-class Program
-{
-    static async Task Main()
+class Program {
+    static string BuildAnimeXml(int id, string title, List<Tuple<int, string>> relations, int episodes = 12)
     {
-        var url = "http://anidb.net/api/anime-titles.dat.gz";
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("User-Agent", "Sonarr/5.0");
-        var response = await client.GetAsync(url);
-        
-        using var fs = new FileStream("anime-titles.dat.gz", FileMode.Create);
-        await response.Content.CopyToAsync(fs);
-        fs.Close();
-        
-        using var inFs = new FileStream("anime-titles.dat.gz", FileMode.Open);
-        using var gzip = new GZipStream(inFs, CompressionMode.Decompress);
-        using var reader = new StreamReader(gzip);
-        
-        for (int i = 0; i < 20; i++)
+        var relatedAnimeXml = string.Join("
+", relations.Select(r => $"<anime id="{r.Item1}" type="{r.Item2}">Related</anime>"));
+
+        var episodesXml = "";
+        for (var i = 1; i <= episodes; i++)
         {
-            Console.WriteLine(await reader.ReadLineAsync());
+            episodesXml += $"<episode><epno type="1">{i}</epno><length>25</length><title xml:lang="en">Episode {i}</title></episode>
+";
         }
+
+        return $@"<?xml version="1.0" encoding="UTF-8"?>
+<anime id="{id}">
+  <titles>
+    <title xml:lang="en" type="main">{title}</title>
+  </titles>
+  <type>TV Series</type>
+  <relatedanime>
+    {relatedAnimeXml}
+  </relatedanime>
+  <episodes>
+    {episodesXml}
+  </episodes>
+</anime>";
+    }
+
+    static void Main() {
+        var xml = BuildAnimeXml(1, "Season 1", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel"), Tuple.Create(3, "Sequel") });
+        var doc = XDocument.Parse(xml);
+        var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+        var related = doc.Root?.Element(ns + "relatedanime");
+        if (related == null) {
+            Console.WriteLine("related is null");
+            return;
+        }
+
+        var results = new List<int>();
+        foreach (var anime in related.Elements(ns + "anime"))
+        {
+            var type = (string)anime.Attribute("type");
+            if (string.Equals(type, "Sequel", StringComparison.OrdinalIgnoreCase))
+            {
+                var idStr = (string)anime.Attribute("id");
+                if (int.TryParse(idStr, out var id) && id > 0)
+                {
+                    results.Add(id);
+                }
+            }
+        }
+        Console.WriteLine("Sequels found: " + results.Count);
     }
 }

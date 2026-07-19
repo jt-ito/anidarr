@@ -137,8 +137,6 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         [Test]
         public void should_stop_traversal_on_branching_sequels()
         {
-            ExceptionVerification.ExpectedWarns(1);
-
             // Setup: 1 -> Sequel -> 2 (Branch A)
             //          -> Sequel -> 3 (Branch B)
             GivenXmlResponse(1, BuildAnimeXml(1, "Season 1", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel"), Tuple.Create(3, "Sequel") }));
@@ -156,13 +154,13 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             series.AniDbMappings.Should().HaveCount(1);
 
             episodes.Should().HaveCount(12); // Only season 1 episodes
+
+            ExceptionVerification.ExpectedWarns(1);
         }
 
         [Test]
         public void should_stop_hub_search_on_branching_prequels()
         {
-            ExceptionVerification.ExpectedWarns(1);
-
             // Setup: Start at 3. 3 has prequels 1 and 2. It shouldn't pick either as hub.
             GivenXmlResponse(3, BuildAnimeXml(3, "Season 3", new List<Tuple<int, string>> { Tuple.Create(1, "Prequel"), Tuple.Create(2, "Prequel") }));
 
@@ -171,10 +169,12 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             var series = details.Item1;
             var episodes = details.Item2;
 
-            // Hub search stops at 3, making 3 the hub.
             series.AniDbId.Should().Be(3);
             series.Title.Should().Be("Season 3");
-            series.Seasons.Should().HaveCount(1);
+            series.Seasons.Should().HaveCount(0);
+            episodes.Should().BeEmpty();
+
+            ExceptionVerification.ExpectedWarns(1);
         }
     }
 }

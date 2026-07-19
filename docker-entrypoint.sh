@@ -19,11 +19,15 @@ if [ "$USER_ID" -ne 0 ] || [ "$GROUP_ID" -ne 0 ]; then
     fi
 
     # Fix permissions for the config directory so the user can read/write to it
-    chown -R anidarr:anidarr /config
+    # Optimize by checking if it's already correct to save time on huge directories
+    if [ "$(stat -c '%u:%g' /config)" != "$USER_ID:$GROUP_ID" ]; then
+        echo "Updating permissions for /config..."
+        chown -R anidarr:anidarr /config
+    fi
 
     # Drop privileges and execute the CMD using gosu
     exec gosu anidarr "$@"
 else
-    echo "Running as root"
+    echo "WARNING: Running as root. It is highly recommended to set PUID and PGID for better container security."
     exec "$@"
 fi
