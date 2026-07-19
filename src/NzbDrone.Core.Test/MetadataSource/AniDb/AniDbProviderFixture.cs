@@ -9,6 +9,8 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.MetadataSource.AniDb;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Test.Common;
+
 namespace NzbDrone.Core.Test.MetadataSource.AniDb
 {
     [TestFixture]
@@ -135,7 +137,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         [Test]
         public void should_stop_traversal_on_branching_sequels()
         {
-            ExpectedWarns(1);
+            ExceptionVerification.ExpectedWarns(1);
+
             // Setup: 1 -> Sequel -> 2 (Branch A)
             //          -> Sequel -> 3 (Branch B)
             GivenXmlResponse(1, BuildAnimeXml(1, "Season 1", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel"), Tuple.Create(3, "Sequel") }));
@@ -158,7 +161,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         [Test]
         public void should_stop_hub_search_on_branching_prequels()
         {
-            ExpectedWarns(1);
+            ExceptionVerification.ExpectedWarns(1);
+
             // Setup: Start at 3. 3 has prequels 1 and 2. It shouldn't pick either as hub.
             GivenXmlResponse(3, BuildAnimeXml(3, "Season 3", new List<Tuple<int, string>> { Tuple.Create(1, "Prequel"), Tuple.Create(2, "Prequel") }));
 
