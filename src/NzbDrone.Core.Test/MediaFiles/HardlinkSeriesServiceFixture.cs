@@ -6,6 +6,7 @@ using FluentAssertions;
 using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
@@ -260,6 +261,81 @@ namespace NzbDrone.Core.Test.MediaFiles
 
             // Verify that the Warn log for untracked files was generated
             ExceptionVerification.ExpectedWarns(1);
+        }
+
+        [Test]
+        public void should_not_delete_old_folder_when_it_is_parent_of_root_folder()
+        {
+            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
+            var expectedSource = Path.Combine(_oldSeriesPath, "Episode1.mkv");
+            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
+
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_oldSeriesPath)).Returns(true);
+            Mocker.GetMock<IDiskTransferService>().Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink)).Returns(TransferMode.HardLink);
+
+            // Setup RootFolderService to return a root folder that is a child of the old path
+            var childRootFolder = Path.Combine(_oldSeriesPath, "ChildRootFolder");
+            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = childRootFolder } });
+
+            Subject.HardlinkSeries(_series, _oldSeriesPath);
+
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_delete_exact_series_folder_without_touching_parent_root_folder()
+        {
+            var originalOldPath = @"/data/Choows/My Classmate's a Sexy Actress, and Now We Live Together!!";
+            var rootFolderPath = @"/data/Choows";
+
+            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
+            var expectedSource = Path.Combine(originalOldPath, "Episode1.mkv");
+            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
+
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(originalOldPath)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[] { expectedSource });
+
+            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = rootFolderPath } });
+
+            Mocker.GetMock<IDiskTransferService>()
+                  .Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink))
+                  .Returns(TransferMode.HardLink);
+
+            Subject.HardlinkSeries(_series, originalOldPath);
+
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(originalOldPath.CleanFilePath(), true), Times.Once());
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(rootFolderPath.CleanFilePath(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.Is<string>(p => p != originalOldPath.CleanFilePath()), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_delete_old_folder_when_it_shares_string_prefix_but_is_not_child_of_root_folder()
+        {
+            var originalOldPath = @"/data/ChoowsExtra";
+            var rootFolderPath = @"/data/Choows";
+
+            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
+            var expectedSource = Path.Combine(originalOldPath, "Episode1.mkv");
+            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
+
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(originalOldPath)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[] { expectedSource });
+
+            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = rootFolderPath } });
+
+            Mocker.GetMock<IDiskTransferService>()
+                  .Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink))
+                  .Returns(TransferMode.HardLink);
+
+            Subject.HardlinkSeries(_series, originalOldPath);
+
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(originalOldPath.CleanFilePath(), true), Times.Once());
         }
     }
 }
