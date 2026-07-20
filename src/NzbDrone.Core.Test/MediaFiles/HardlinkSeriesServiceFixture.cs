@@ -239,6 +239,57 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
+        public void should_not_delete_old_folder_when_it_is_parent_of_root_folder()
+        {
+            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
+
+            // Explicitly test the case where old path is a parent of a root folder
+            var explicitOldPath = @"/data/Choows"; // Parent directory
+            var explicitRootFolder = @"/data/Choows/My Classmate's a Sexy Actress, and Now We Live Together!!"; // Child root folder
+
+            var expectedSource = Path.Combine(explicitOldPath, "Episode1.mkv");
+            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
+
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(explicitOldPath)).Returns(true);
+            Mocker.GetMock<IDiskTransferService>().Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink)).Returns(TransferMode.HardLink);
+
+            // Setup RootFolderService to return a root folder that is INSIDE the old path
+            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = explicitRootFolder } });
+
+            Subject.HardlinkSeries(_series, explicitOldPath);
+
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
+        }
+
+        [Test]
+        public void should_delete_old_folder_even_if_it_shares_prefix_with_root_folder()
+        {
+            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
+
+            // Explicitly test the false-prefix match scenario
+            var explicitOldPath = @"/data/ChoowsExtra"; // A sibling directory that shares a prefix
+            var explicitRootFolder = @"/data/Choows"; // The root folder
+
+            var expectedSource = Path.Combine(explicitOldPath, "Episode1.mkv");
+            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
+
+            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(explicitOldPath)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[0]);
+            Mocker.GetMock<IDiskTransferService>().Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink)).Returns(TransferMode.HardLink);
+
+            // Setup RootFolderService to return a root folder that shares a prefix but is not a parent/child
+            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = explicitRootFolder } });
+
+            Subject.HardlinkSeries(_series, explicitOldPath);
+
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(explicitOldPath.CleanFilePath(), true), Times.Once());
+        }
+
+        [Test]
         public void should_abort_deletion_when_untracked_files_exist()
         {
             var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
@@ -262,27 +313,6 @@ namespace NzbDrone.Core.Test.MediaFiles
             Assert.AreEqual(0, result.Failed.Count, "Failed count");
 
             // We expect DeleteFolder to NEVER be called
-            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
-        }
-
-        [Test]
-        public void should_not_delete_old_folder_when_it_is_parent_of_root_folder()
-        {
-            var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
-            var expectedSource = Path.Combine(_oldSeriesPath, "Episode1.mkv");
-            var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
-
-            Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_oldSeriesPath)).Returns(true);
-            Mocker.GetMock<IDiskTransferService>().Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink)).Returns(TransferMode.HardLink);
-
-            // Setup RootFolderService to return a root folder that is a child of the old path
-            var childRootFolder = Path.Combine(_oldSeriesPath, "ChildRootFolder");
-            Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = childRootFolder } });
-
-            Subject.HardlinkSeries(_series, _oldSeriesPath);
-
             Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
         }
 
