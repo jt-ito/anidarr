@@ -209,6 +209,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
     public Results<Accepted<SeriesResource>, NotFound> UpdateSeries([FromBody] SeriesResource seriesResource, [FromQuery] bool moveFiles = false)
     {
         var series = _seriesService.GetSeries(seriesResource.Id);
+        var oldSeriesPath = series.Path;
 
         // Anidarr: determine action from RootFolderAction field (fallback: legacy moveFiles query param)
         var action = seriesResource.RootFolderAction
@@ -218,6 +219,10 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             && seriesResource.Path != null
             && !series.Path.Equals(seriesResource.Path, global::System.StringComparison.OrdinalIgnoreCase);
 
+        // Update the database first so any downstream operations use the fresh path
+        var model = seriesResource.ToModel(series);
+        _seriesService.UpdateSeries(model);
+
         if (rootFolderChanged)
         {
             switch (action)
@@ -226,16 +231,16 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                     var command = new MoveSeriesCommand
                     {
                         SeriesId = series.Id,
-                        SourcePath = series.Path,
+                        SourcePath = oldSeriesPath,
                         DestinationPath = seriesResource.Path
                     };
                     _commandQueueManager.Push(command, trigger: CommandTrigger.Manual);
                     break;
 
                 case RootFolderAction.HardlinkToNew:
-                    // Hardlink to the new root folder; keep originals where they are
-                    var newRoot = seriesResource.RootFolderPath ?? global::System.IO.Path.GetDirectoryName(seriesResource.Path);
-                    var hlResult = _hardlinkSeriesService.HardlinkSeries(series, newRoot);
+                    // Hardlink to the new root folder using the freshly-updated series and the old series path
+                    var updatedSeries = _seriesService.GetSeries(seriesResource.Id);
+                    var hlResult = _hardlinkSeriesService.HardlinkSeries(updatedSeries, oldSeriesPath);
                     if (hlResult.Failed.Count > 0)
                     {
                         // Log but don't block the request — partial success is acceptable
@@ -246,13 +251,11 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                     break;
 
                 case RootFolderAction.PathUpdateOnly:
-                    // Fall through — the model update below handles the path change
+                    // Fall through
                     break;
             }
         }
 
-        var model = seriesResource.ToModel(series);
-        _seriesService.UpdateSeries(model);
         BroadcastResourceChange(ModelAction.Updated, seriesResource);
 
         return TypedAccepted(seriesResource.Id);

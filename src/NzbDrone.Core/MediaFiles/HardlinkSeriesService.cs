@@ -10,7 +10,7 @@ namespace NzbDrone.Core.MediaFiles
 {
     public interface IHardlinkSeriesFiles
     {
-        HardlinkResult HardlinkSeries(Series series, string destinationRoot);
+        HardlinkResult HardlinkSeries(Series series, string oldSeriesPath);
     }
 
     public class HardlinkResult
@@ -45,7 +45,7 @@ namespace NzbDrone.Core.MediaFiles
             _logger = logger;
         }
 
-        public HardlinkResult HardlinkSeries(Series series, string destinationRoot)
+        public HardlinkResult HardlinkSeries(Series series, string oldSeriesPath)
         {
             var episodeFiles = _mediaFileService.GetFilesBySeries(series.Id);
             var result = new HardlinkResult();
@@ -54,7 +54,7 @@ namespace NzbDrone.Core.MediaFiles
             {
                 try
                 {
-                    var sourcePath = Path.Combine(series.Path, episodeFile.RelativePath);
+                    var sourcePath = Path.Combine(oldSeriesPath, episodeFile.RelativePath);
 
                     if (!_diskProvider.FileExists(sourcePath))
                     {
@@ -63,10 +63,8 @@ namespace NzbDrone.Core.MediaFiles
                         continue;
                     }
 
-                    // Build destination using same folder structure as original
-                    var relativeDestination = episodeFile.RelativePath;
-                    var seriesFolderName = new DirectoryInfo(series.Path).Name;
-                    var destinationPath = Path.Combine(destinationRoot, seriesFolderName, relativeDestination);
+                    // Destination is directly constructed using the fresh series Path
+                    var destinationPath = Path.Combine(series.Path, episodeFile.RelativePath);
 
                     // Ensure destination directory exists
                     var destDir = Path.GetDirectoryName(destinationPath);
@@ -92,6 +90,17 @@ namespace NzbDrone.Core.MediaFiles
                         {
                             result.Succeeded++;
                             _logger.Debug("Hardlink created successfully: {0}", destinationPath);
+
+                            try
+                            {
+                                // Remove the old link, mimicking a move
+                                _diskProvider.DeleteFile(sourcePath);
+                                _logger.Debug("Removed old hardlink source: {0}", sourcePath);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Warn(ex, "Failed to remove old hardlink source after successfully hardlinking to destination: {0}", sourcePath);
+                            }
                         }
                         else
                         {
