@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Organizer;
+using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Tv;
 
 namespace NzbDrone.Core.MediaFiles
@@ -30,18 +33,21 @@ namespace NzbDrone.Core.MediaFiles
         private readonly IMediaFileService _mediaFileService;
         private readonly IBuildFileNames _buildFileNames;
         private readonly IDiskTransferService _diskTransferService;
+        private readonly IRootFolderService _rootFolderService;
         private readonly Logger _logger;
 
         public HardlinkSeriesService(IDiskProvider diskProvider,
                                      IMediaFileService mediaFileService,
                                      IBuildFileNames buildFileNames,
                                      IDiskTransferService diskTransferService,
+                                     IRootFolderService rootFolderService,
                                      Logger logger)
         {
             _diskProvider = diskProvider;
             _mediaFileService = mediaFileService;
             _buildFileNames = buildFileNames;
             _diskTransferService = diskTransferService;
+            _rootFolderService = rootFolderService;
             _logger = logger;
         }
 
@@ -125,7 +131,55 @@ namespace NzbDrone.Core.MediaFiles
 
             _logger.Info("Hardlink complete for '{0}': {1} succeeded, {2} failed", series.Title, result.Succeeded, result.Failed.Count);
 
+            if (result.Failed.Count == 0 && _diskProvider.FolderExists(oldSeriesPath))
+            {
+                DeleteOldSeriesFolder(oldSeriesPath, result.Succeeded);
+            }
+
             return result;
+        }
+
+        private void DeleteOldSeriesFolder(string oldSeriesPath, int succeededCount)
+        {
+            try
+            {
+                var cleanOldPath = oldSeriesPath.CleanFilePath();
+                var osPath = new OsPath(cleanOldPath);
+
+                if (osPath.IsEmpty || osPath.Directory == OsPath.Null)
+                {
+                    _logger.Error("Safety Check Failed: Cannot delete old series folder because path is empty or a filesystem root. Path: {0}", cleanOldPath);
+                    return;
+                }
+
+                var rootFolders = _rootFolderService.All();
+                foreach (var rootFolder in rootFolders)
+                {
+                    var cleanRootFolder = rootFolder.Path.CleanFilePath();
+                    if (cleanRootFolder.PathEquals(cleanOldPath) || cleanOldPath.IsParentPath(cleanRootFolder))
+                    {
+                        _logger.Error("Safety Check Failed: Cannot delete old series folder because path is equal to or shorter than a configured root folder. Path: {0}, Root Folder: {1}", cleanOldPath, cleanRootFolder);
+                        return;
+                    }
+                }
+
+                var allFiles = _diskProvider.GetFiles(cleanOldPath, true).ToList();
+                if (allFiles.Count > 0)
+                {
+                    _logger.Warn("Deleting old series folder with {0} untracked files remaining: {1}", allFiles.Count, cleanOldPath);
+                    foreach (var file in allFiles)
+                    {
+                        _logger.Debug("Untracked file will be deleted: {0}", file);
+                    }
+                }
+
+                _logger.Info("Deleting old series folder '{0}' — {1} episode files verified successfully relinked to new location.", cleanOldPath, succeededCount);
+                _diskProvider.DeleteFolder(cleanOldPath, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to cleanly delete old series folder: {0}", oldSeriesPath);
+            }
         }
     }
 }
