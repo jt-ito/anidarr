@@ -8,10 +8,10 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaFiles;
+
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
-using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles
 {
@@ -189,7 +189,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_oldSeriesPath)).Returns(true);
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[] { expectedSource });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[0]);
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder>());
 
             Mocker.GetMock<IDiskTransferService>()
@@ -239,28 +239,30 @@ namespace NzbDrone.Core.Test.MediaFiles
         }
 
         [Test]
-        public void should_log_untracked_files_before_deleting_old_folder()
+        public void should_abort_deletion_when_untracked_files_exist()
         {
             var episodeFile = Builder<EpisodeFile>.CreateNew().With(f => f.RelativePath = "Episode1.mkv").Build();
             var expectedSource = Path.Combine(_oldSeriesPath, "Episode1.mkv");
             var expectedDest = Path.Combine(_series.Path, "Episode1.mkv");
 
             Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
+            var oldPath = @"C:\Test\OldPath\Series";
+            Mocker.GetMock<IDiskProvider>().Setup(v => v.FolderExists(It.IsAny<string>())).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(v => v.GetFiles(It.IsAny<string>(), true)).Returns(new[] { @"C:\Test\OldPath\Series\untracked.nfo" });
+
+            // Fix: Mock Hardlink dependencies so it gets past them and reaches deletion logic
+            expectedSource = Path.Combine(oldPath, "Episode1.mkv");
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(_oldSeriesPath)).Returns(true);
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder>());
             Mocker.GetMock<IDiskTransferService>().Setup(s => s.TransferFile(expectedSource, expectedDest, TransferMode.HardLink)).Returns(TransferMode.HardLink);
 
-            // Setup untracked files
-            var allFiles = new[] { expectedSource, Path.Combine(_oldSeriesPath, "poster.jpg"), Path.Combine(_oldSeriesPath, "series.nfo") };
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(allFiles);
+            var result = Subject.HardlinkSeries(_series, oldPath);
 
-            Subject.HardlinkSeries(_series, _oldSeriesPath);
+            Assert.AreEqual(1, result.Succeeded, "Succeeded count");
+            Assert.AreEqual(0, result.Failed.Count, "Failed count");
 
-            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(_oldSeriesPath, true), Times.Once());
-
-            // Verify that the Warn log for untracked files was generated
-            ExceptionVerification.ExpectedWarns(1);
+            // We expect DeleteFolder to NEVER be called
+            Mocker.GetMock<IDiskProvider>().Verify(v => v.DeleteFolder(It.IsAny<string>(), It.IsAny<bool>()), Times.Never());
         }
 
         [Test]
@@ -297,7 +299,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(originalOldPath)).Returns(true);
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[] { expectedSource });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[0]);
 
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = rootFolderPath } });
 
@@ -325,7 +327,7 @@ namespace NzbDrone.Core.Test.MediaFiles
             Mocker.GetMock<IMediaFileService>().Setup(s => s.GetFilesBySeries(_series.Id)).Returns(new List<EpisodeFile> { episodeFile });
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(expectedSource)).Returns(true);
             Mocker.GetMock<IDiskProvider>().Setup(s => s.FolderExists(originalOldPath)).Returns(true);
-            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[] { expectedSource });
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFiles(It.IsAny<string>(), true)).Returns(new string[0]);
 
             Mocker.GetMock<IRootFolderService>().Setup(s => s.All()).Returns(new List<RootFolder> { new RootFolder { Path = rootFolderPath } });
 

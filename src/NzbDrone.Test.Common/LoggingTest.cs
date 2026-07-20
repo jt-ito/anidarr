@@ -39,6 +39,7 @@ namespace NzbDrone.Test.Common
 
                 RegisterExceptionVerification();
 
+                LogManager.Configuration = LogManager.Configuration;
                 LogManager.ReconfigExistingLoggers();
             }
         }

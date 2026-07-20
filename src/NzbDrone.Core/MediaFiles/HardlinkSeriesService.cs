@@ -148,17 +148,17 @@ namespace NzbDrone.Core.MediaFiles
 
                 if (osPath.IsEmpty || osPath.Directory == OsPath.Null)
                 {
-                    _logger.Error("Safety Check Failed: Cannot delete old series folder because path is empty or a filesystem root. Path: {0}", cleanOldPath);
                     return;
                 }
 
+                _logger.Error("DEBUG: cleanOldPath={0}", cleanOldPath);
                 var rootFolders = _rootFolderService.All();
+                _logger.Error("DEBUG: rootFolders.Count={0}", rootFolders.Count);
                 foreach (var rootFolder in rootFolders)
                 {
                     var cleanRootFolder = rootFolder.Path.CleanFilePath();
                     if (cleanRootFolder.PathEquals(cleanOldPath) || cleanOldPath.IsParentPath(cleanRootFolder))
                     {
-                        _logger.Error("Safety Check Failed: Cannot delete old series folder because path is equal to or shorter than a configured root folder. Path: {0}, Root Folder: {1}", cleanOldPath, cleanRootFolder);
                         return;
                     }
                 }
@@ -166,11 +166,8 @@ namespace NzbDrone.Core.MediaFiles
                 var allFiles = _diskProvider.GetFiles(cleanOldPath, true).ToList();
                 if (allFiles.Count > 0)
                 {
-                    _logger.Warn("Deleting old series folder with {0} untracked files remaining: {1}", allFiles.Count, cleanOldPath);
-                    foreach (var file in allFiles)
-                    {
-                        _logger.Debug("Untracked file will be deleted: {0}", file);
-                    }
+                    _logger.Warn("Aborting deletion of old series folder because untracked files were found. Files: {0}", string.Join(", ", allFiles));
+                    return;
                 }
 
                 _logger.Info("Deleting old series folder '{0}' — {1} episode files verified successfully relinked to new location.", cleanOldPath, succeededCount);
@@ -178,7 +175,7 @@ namespace NzbDrone.Core.MediaFiles
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to cleanly delete old series folder: {0}", oldSeriesPath);
+                _logger.Warn(ex, "Error deleting old series folder: {0}", oldSeriesPath);
             }
         }
     }
