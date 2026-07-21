@@ -8,10 +8,10 @@ using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MediaFiles;
-
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
+using NzbDrone.Test.Common;
 
 namespace NzbDrone.Core.Test.MediaFiles
 {
@@ -30,6 +30,8 @@ namespace NzbDrone.Core.Test.MediaFiles
                                      .Build();
 
             _oldSeriesPath = @"C:\Test\OldPath\Series";
+
+            ExceptionVerification.IgnoreWarns();
         }
 
         [Test]
