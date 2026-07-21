@@ -26,10 +26,10 @@ namespace NzbDrone.Core.Test.MediaFiles
         {
             _series = Builder<Series>.CreateNew()
                                      .With(s => s.Id = 1)
-                                     .With(s => s.Path = @"C:\Test\NewPath\Series")
+                                     .With(s => s.Path = @"C:\Test\NewPath\Series".AsOsAgnostic())
                                      .Build();
 
-            _oldSeriesPath = @"C:\Test\OldPath\Series";
+            _oldSeriesPath = @"C:\Test\OldPath\Series".AsOsAgnostic();
 
             ExceptionVerification.IgnoreWarns();
         }
@@ -60,7 +60,7 @@ namespace NzbDrone.Core.Test.MediaFiles
         public void should_hardlink_and_delete_old_source_when_successful()
         {
             var episodeFile = Builder<EpisodeFile>.CreateNew()
-                                                  .With(f => f.RelativePath = "Season 1\\Episode1.mkv")
+                                                  .With(f => f.RelativePath = Path.Combine("Season 1", "Episode1.mkv"))
                                                   .Build();
 
             var expectedSource = Path.Combine(_oldSeriesPath, "Season 1", "Episode1.mkv");
