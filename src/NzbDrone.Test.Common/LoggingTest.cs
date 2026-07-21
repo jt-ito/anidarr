@@ -15,6 +15,9 @@ namespace NzbDrone.Test.Common
 
         protected static void InitLogging()
         {
+            // Force NzbDroneLogger static constructor to run so it doesn't overwrite our configuration mid-test
+            System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(NzbDrone.Common.Instrumentation.NzbDroneLogger).TypeHandle);
+
             new StartupContext();
 
             if (LogManager.Configuration == null || LogManager.Configuration.AllTargets.None(c => c is ExceptionVerification))
