@@ -346,6 +346,8 @@ namespace NzbDrone.Common.Disk
                 {
                     throw new IOException("Hardlinking from '" + sourcePath + "' to '" + targetPath + "' failed.");
                 }
+
+                _logger.Debug("Hardlink from '{0}' to '{1}' failed, falling back to copy.", sourcePath, targetPath);
             }
 
             // Adjust the transfer mode depending on the filesystems

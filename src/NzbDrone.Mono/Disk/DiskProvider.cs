@@ -423,6 +423,7 @@ namespace NzbDrone.Mono.Disk
 
                 if (fileInfo.IsSymbolicLink)
                 {
+                    _logger.Debug("Hardlink '{0}' to '{1}' failed because source is a symbolic link.", source, destination);
                     return false;
                 }
 
@@ -437,14 +438,14 @@ namespace NzbDrone.Mono.Disk
                 }
                 else
                 {
-                    _logger.Debug(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
+                    _logger.Warn(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
                 }
 
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.Debug(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
+                _logger.Warn(ex, "Hardlink '{0}' to '{1}' failed.", source, destination);
                 return false;
             }
         }
