@@ -780,6 +780,7 @@ function InteractiveImportModalContentInner(
       const ids = items.map((i) => i.id);
 
       const updates: Partial<InteractiveImport> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (seriesId) updates.series = { id: seriesId } as any;
       if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
 
