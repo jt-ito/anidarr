@@ -310,6 +310,7 @@ function EpisodeRow({
               episodeId={id}
               episodeEntity="episodes"
               seriesId={seriesId}
+              seasonNumber={seasonNumber}
               episodeTitle={title}
               showOpenSeriesButton={false}
             />

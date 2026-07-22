@@ -137,6 +137,7 @@ function SeriesDetailsSeason({
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isInteractiveSearchModalOpen, setIsInteractiveSearchModalOpen] =
     useState(false);
+  const [isManualImportModalOpen, setIsManualImportModalOpen] = useState(false);
 
   const { toggleEpisodesMonitored, isToggling, togglingEpisodeIds } =
     useToggleEpisodesMonitored(getQueryKey('episodes')!);
@@ -231,6 +232,14 @@ function SeriesDetailsSeason({
 
   const handleInteractiveSearchModalClose = useCallback(() => {
     setIsInteractiveSearchModalOpen(false);
+  }, []);
+
+  const handleManualImportPress = useCallback(() => {
+    setIsManualImportModalOpen(true);
+  }, []);
+
+  const handleManualImportModalClose = useCallback(() => {
+    setIsManualImportModalOpen(false);
   }, []);
 
   const handleSortPress = useCallback(
@@ -380,6 +389,17 @@ function SeriesDetailsSeason({
               </MenuItem>
 
               <MenuItem
+                onPress={handleManualImportPress}
+              >
+                <Icon
+                  className={styles.actionMenuIcon}
+                  name={icons.INTERACTIVE}
+                />
+
+                {translate('ManualImport')}
+              </MenuItem>
+
+              <MenuItem
                 isDisabled={!episodeFileCount}
                 onPress={handleOrganizePress}
               >
@@ -436,6 +456,15 @@ function SeriesDetailsSeason({
               size={24}
               isDisabled={!totalEpisodeCount}
               onPress={handleInteractiveSearchPress}
+            />
+
+            <IconButton
+              className={styles.actionButton}
+              name={icons.INTERACTIVE}
+              title={translate('ManualImport')}
+              aria-label={translate('ManualImport')}
+              size={24}
+              onPress={handleManualImportPress}
             />
 
             <IconButton
@@ -539,6 +568,13 @@ function SeriesDetailsSeason({
         showImportMode={false}
         modalTitle={translate('ManageEpisodes')}
         onModalClose={handleManageEpisodesModalClose}
+      />
+
+      <InteractiveImportModal
+        isOpen={isManualImportModalOpen}
+        seriesId={seriesId}
+        seasonNumber={seasonNumber}
+        onModalClose={handleManualImportModalClose}
       />
 
       <SeriesHistoryModal

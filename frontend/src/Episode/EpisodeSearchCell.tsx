@@ -7,6 +7,7 @@ import TableRowCell from 'Components/Table/Cells/TableRowCell';
 import { EpisodeEntity } from 'Episode/useEpisode';
 import useModalOpenState from 'Helpers/Hooks/useModalOpenState';
 import { icons } from 'Helpers/Props';
+import InteractiveImportModal from 'InteractiveImport/InteractiveImportModal';
 import translate from 'Utilities/String/translate';
 import EpisodeDetailsModal from './EpisodeDetailsModal';
 import styles from './EpisodeSearchCell.css';
@@ -15,6 +16,7 @@ interface EpisodeSearchCellProps {
   episodeId: number;
   episodeEntity: EpisodeEntity;
   seriesId: number;
+  seasonNumber: number;
   episodeTitle: string;
   showOpenSeriesButton: boolean;
 }
@@ -23,6 +25,7 @@ function EpisodeSearchCell({
   episodeId,
   episodeEntity,
   seriesId,
+  seasonNumber,
   episodeTitle,
   showOpenSeriesButton,
 }: EpisodeSearchCellProps) {
@@ -34,6 +37,12 @@ function EpisodeSearchCell({
 
   const [isDetailsModalOpen, setDetailsModalOpen, setDetailsModalClosed] =
     useModalOpenState(false);
+
+  const [
+    isInteractiveImportModalOpen,
+    setInteractiveImportModalOpen,
+    setInteractiveImportModalClosed,
+  ] = useModalOpenState(false);
 
   const handleSearchPress = useCallback(() => {
     executeCommand({
@@ -58,6 +67,13 @@ function EpisodeSearchCell({
         onPress={setDetailsModalOpen}
       />
 
+      <IconButton
+        name={icons.INTERACTIVE}
+        title={translate('ManualImport')}
+        aria-label={translate('ManualImport')}
+        onPress={setInteractiveImportModalOpen}
+      />
+
       <EpisodeDetailsModal
         isOpen={isDetailsModalOpen}
         episodeId={episodeId}
@@ -69,6 +85,16 @@ function EpisodeSearchCell({
         showOpenSeriesButton={showOpenSeriesButton}
         onModalClose={setDetailsModalClosed}
       />
+
+      {isInteractiveImportModalOpen && (
+        <InteractiveImportModal
+          isOpen={isInteractiveImportModalOpen}
+          seriesId={seriesId}
+          seasonNumber={seasonNumber}
+          episodeId={episodeId}
+          onModalClose={setInteractiveImportModalClosed}
+        />
+      )}
     </TableRowCell>
   );
 }

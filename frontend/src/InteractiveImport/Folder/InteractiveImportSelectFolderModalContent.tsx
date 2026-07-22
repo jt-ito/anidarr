@@ -13,14 +13,39 @@ import Table from 'Components/Table/Table';
 import TableBody from 'Components/Table/TableBody';
 import { icons, kinds, sizes } from 'Helpers/Props';
 import {
+  addPinnedPath,
   addRecentFolder,
+  clearActivePinnedPath,
+  removePinnedPath,
+  setActivePinnedPath,
+  useActivePinnedPathId,
   useFavoriteFolders,
+  usePinnedPaths,
   useRecentFolders,
 } from 'InteractiveImport/interactiveImportFoldersStore';
 import translate from 'Utilities/String/translate';
 import FavoriteFolderRow from './FavoriteFolderRow';
+import PinnedPathRow from './PinnedPathRow';
 import RecentFolderRow from './RecentFolderRow';
 import styles from './InteractiveImportSelectFolderModalContent.css';
+
+const pinnedPathsColumns: Column[] = [
+  {
+    name: 'label',
+    label: () => translate('Label'),
+    isVisible: true,
+  },
+  {
+    name: 'folder',
+    label: () => translate('Folder'),
+    isVisible: true,
+  },
+  {
+    name: 'actions',
+    label: '',
+    isVisible: true,
+  },
+];
 
 const favoriteFoldersColumns: Column[] = [
   {
@@ -55,6 +80,7 @@ const recentFoldersColumns: Column[] = [
 
 interface InteractiveImportSelectFolderModalContentProps {
   modalTitle: string;
+  initialFolder?: string;
   onFolderSelect(folder: string): void;
   onModalClose(): void;
 }
@@ -62,12 +88,14 @@ interface InteractiveImportSelectFolderModalContentProps {
 function InteractiveImportSelectFolderModalContent(
   props: InteractiveImportSelectFolderModalContentProps
 ) {
-  const { modalTitle, onFolderSelect, onModalClose } = props;
-  const [folder, setFolder] = useState('');
+  const { modalTitle, initialFolder, onFolderSelect, onModalClose } = props;
+  const [folder, setFolder] = useState(initialFolder || '');
   const executeCommand = useExecuteCommand();
 
   const favoriteFolders = useFavoriteFolders();
   const recentFolders = useRecentFolders();
+  const pinnedPaths = usePinnedPaths();
+  const activePinnedPathId = useActivePinnedPathId();
 
   const favoriteFolderMap = useMemo(() => {
     return new Map(favoriteFolders.map((f) => [f.folder, f]));
@@ -103,6 +131,25 @@ function InteractiveImportSelectFolderModalContent(
     onFolderSelect(folder);
   }, [folder, onFolderSelect]);
 
+  const onPinPathPress = useCallback(() => {
+    const label = window.prompt(translate('EnterPinnedPathLabel') || 'Enter a label for this pinned path:');
+    if (label) {
+      addPinnedPath(label, folder);
+    }
+  }, [folder]);
+
+  const onSetActivePinnedPath = useCallback((id: string) => {
+    if (activePinnedPathId === id) {
+      clearActivePinnedPath();
+    } else {
+      setActivePinnedPath(id);
+    }
+  }, [activePinnedPathId]);
+
+  const onRemovePinnedPath = useCallback((id: string) => {
+    removePinnedPath(id);
+  }, []);
+
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
@@ -116,6 +163,33 @@ function InteractiveImportSelectFolderModalContent(
           includeFiles={false}
           onChange={onPathChange}
         />
+
+        {pinnedPaths.length ? (
+          <div className={styles.foldersContainer}>
+            <div className={styles.foldersTitle}>
+              {translate('PinnedPaths')}
+            </div>
+
+            <Table columns={pinnedPathsColumns}>
+              <TableBody>
+                {pinnedPaths.map((pinnedPath) => {
+                  return (
+                    <PinnedPathRow
+                      key={pinnedPath.id}
+                      id={pinnedPath.id}
+                      label={pinnedPath.label}
+                      folder={pinnedPath.path}
+                      isActive={activePinnedPathId === pinnedPath.id}
+                      onPress={onRecentPathPress}
+                      onSetActive={onSetActivePinnedPath}
+                      onRemove={onRemovePinnedPath}
+                    />
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
 
         {favoriteFolders.length ? (
           <div className={styles.foldersContainer}>
@@ -190,6 +264,19 @@ function InteractiveImportSelectFolderModalContent(
             >
               <Icon className={styles.buttonIcon} name={icons.INTERACTIVE} />
               {translate('InteractiveImport')}
+            </Button>
+          </div>
+
+          <div className={styles.buttonContainer}>
+            <Button
+              className={styles.button}
+              kind={kinds.DEFAULT}
+              size={sizes.LARGE}
+              isDisabled={!folder}
+              onPress={onPinPathPress}
+            >
+              <Icon className={styles.buttonIcon} name={icons.HEART} />
+              {translate('PinPath') || 'Pin Path'}
             </Button>
           </div>
         </div>

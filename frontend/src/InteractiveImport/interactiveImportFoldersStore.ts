@@ -1,5 +1,5 @@
 import moment from 'moment';
-import { createPersist } from 'Helpers/createPersist';
+import { create } from 'zustand';
 import sortByProp from 'Utilities/Array/sortByProp';
 
 const MAXIMUM_RECENT_FOLDERS = 10;
@@ -13,22 +13,34 @@ interface FavoriteFolder {
   folder: string;
 }
 
+export interface PinnedPath {
+  id: string;
+  label: string;
+  path: string;
+}
+
 interface InteractiveImportFoldersState {
   recentFolders: RecentFolder[];
   favoriteFolders: FavoriteFolder[];
+  pinnedPaths: PinnedPath[];
+  activePinnedPathId: string | null;
 }
 
-const store = createPersist<InteractiveImportFoldersState>(
-  'interactive_import_folders',
-  () => ({
-    recentFolders: [],
-    favoriteFolders: [],
-  })
-);
+interface InteractiveImportFoldersActions {
+  hydrate: (state: Partial<InteractiveImportFoldersState>) => void;
+}
 
-export const useInteractiveImportFolders = () => {
-  return store((state) => state);
-};
+export type InteractiveImportFoldersStore = InteractiveImportFoldersState & InteractiveImportFoldersActions;
+
+const store = create<InteractiveImportFoldersStore>((set) => ({
+  recentFolders: [],
+  favoriteFolders: [],
+  pinnedPaths: [],
+  activePinnedPathId: null,
+  hydrate: (state) => set(state),
+}));
+
+export const useInteractiveImportFolders = store;
 
 export const useRecentFolders = () => {
   return store((state) => state.recentFolders);
@@ -36,6 +48,14 @@ export const useRecentFolders = () => {
 
 export const useFavoriteFolders = () => {
   return store((state) => state.favoriteFolders);
+};
+
+export const usePinnedPaths = () => {
+  return store((state) => state.pinnedPaths);
+};
+
+export const useActivePinnedPathId = () => {
+  return store((state) => state.activePinnedPathId);
 };
 
 export const addRecentFolder = (folder: string) => {
@@ -118,4 +138,48 @@ export const getRecentFolders = () => {
 
 export const getFavoriteFolders = () => {
   return store.getState().favoriteFolders;
+};
+
+export const addPinnedPath = (label: string, path: string) => {
+  store.setState((state) => {
+    const id = Date.now().toString(); // simple ID generation
+    const pinnedPath: PinnedPath = { id, label, path };
+    const pinnedPaths = [...state.pinnedPaths, pinnedPath].sort(
+      sortByProp('label')
+    );
+
+    return {
+      ...state,
+      pinnedPaths,
+      activePinnedPathId: id, // Automatically make it active when pinned
+    };
+  });
+};
+
+export const removePinnedPath = (id: string) => {
+  store.setState((state) => {
+    const pinnedPaths = state.pinnedPaths.filter((item) => item.id !== id);
+    const activePinnedPathId =
+      state.activePinnedPathId === id ? null : state.activePinnedPathId;
+
+    return {
+      ...state,
+      pinnedPaths,
+      activePinnedPathId,
+    };
+  });
+};
+
+export const setActivePinnedPath = (id: string) => {
+  store.setState((state) => ({
+    ...state,
+    activePinnedPathId: id,
+  }));
+};
+
+export const clearActivePinnedPath = () => {
+  store.setState((state) => ({
+    ...state,
+    activePinnedPathId: null,
+  }));
 };

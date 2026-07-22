@@ -376,6 +376,12 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("UILanguage", value); }
         }
 
+        public string InteractiveImportFolders
+        {
+            get { return GetValue("InteractiveImportFolders", ""); }
+            set { SetValue("InteractiveImportFolders", value); }
+        }
+
         public bool CleanupMetadataImages
         {
             get { return GetValueBoolean("CleanupMetadataImages", true); }

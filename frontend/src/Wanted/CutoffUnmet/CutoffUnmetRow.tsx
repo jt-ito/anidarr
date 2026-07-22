@@ -166,6 +166,7 @@ function CutoffUnmetRow({
               key={name}
               episodeId={id}
               seriesId={series.id}
+              seasonNumber={seasonNumber}
               episodeTitle={title}
               episodeEntity="wanted.cutoffUnmet"
               showOpenSeriesButton={true}

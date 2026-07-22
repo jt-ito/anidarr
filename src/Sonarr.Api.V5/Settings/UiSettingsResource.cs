@@ -19,6 +19,7 @@ public class UiSettingsResource : RestResource
     public bool EnableColorImpairedMode { get; set; }
     public string? Theme { get; set; }
     public int UiLanguage { get; set; }
+    public string? InteractiveImportFolders { get; set; }
 }
 
 public static class UiSettingsResourceMapper
@@ -38,7 +39,8 @@ public static class UiSettingsResourceMapper
 
             EnableColorImpairedMode = model.EnableColorImpairedMode,
             Theme = config.Theme,
-            UiLanguage = model.UILanguage
+            UiLanguage = model.UILanguage,
+            InteractiveImportFolders = model.InteractiveImportFolders
         };
     }
 }

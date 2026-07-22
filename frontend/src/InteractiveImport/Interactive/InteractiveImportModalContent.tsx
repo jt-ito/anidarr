@@ -205,6 +205,7 @@ export interface InteractiveImportModalContentProps {
   downloadIds?: string[];
   seriesId?: number;
   seasonNumber?: number;
+  episodeId?: number;
   showSeries?: boolean;
   allowSeriesChange?: boolean;
   showDelete?: boolean;
@@ -218,6 +219,7 @@ export interface InteractiveImportModalContentProps {
   initialSortDirection?: string;
   modalTitle: string;
   onModalClose(): void;
+  onBackToFolderSelect?: () => void;
 }
 
 function InteractiveImportModalContentInner(
@@ -227,6 +229,7 @@ function InteractiveImportModalContentInner(
     downloadIds,
     seriesId,
     seasonNumber,
+    episodeId,
     allowSeriesChange = true,
     showSeries = true,
     showFilterExistingFiles = false,
@@ -238,6 +241,7 @@ function InteractiveImportModalContentInner(
     initialSortDirection,
     modalTitle,
     onModalClose,
+    onBackToFolderSelect,
   } = props;
 
   const filterExistingFiles = filterExistingFilesStore((state) => state);
@@ -253,8 +257,8 @@ function InteractiveImportModalContentInner(
     originalItems,
   } = useInteractiveImport({
     downloadIds,
-    seriesId,
-    seasonNumber,
+    seriesId: folder ? undefined : seriesId,
+    seasonNumber: folder ? undefined : seasonNumber,
     folder,
     filterExistingFiles,
   });
@@ -290,6 +294,7 @@ function InteractiveImportModalContentInner(
     useState<string | null>(null);
   const previousIsDeleting = usePrevious(isDeleting);
   const executeCommand = useExecuteCommand();
+  const [hasAppliedPrefill, setHasAppliedPrefill] = useState(false);
 
   const {
     allSelected,
@@ -758,6 +763,24 @@ function InteractiveImportModalContentInner(
     [updateInteractiveImportItem, setSelectModalOpen, handleReprocessItems]
   );
 
+  useEffect(() => {
+    if (isPopulated && !isFetching && items.length > 0 && !hasAppliedPrefill && folder && (seriesId || seasonNumber !== undefined || episodeId)) {
+      setHasAppliedPrefill(true);
+      
+      const ids = items.map(i => i.id);
+      
+      const updates: Partial<InteractiveImport> = {};
+      if (seriesId) updates.series = { id: seriesId } as any;
+      if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
+      if (episodeId) updates.episodes = [{ id: episodeId }] as any;
+
+      if (Object.keys(updates).length > 0) {
+        updateInteractiveImportItems(ids, updates);
+        handleReprocessItems(ids);
+      }
+    }
+  }, [isPopulated, isFetching, items, hasAppliedPrefill, folder, seriesId, seasonNumber, episodeId, updateInteractiveImportItems, handleReprocessItems]);
+
   const handleReleaseGroupSelect = useCallback(
     (releaseGroup: string) => {
       updateInteractiveImportItems(selectedIds, { releaseGroup });
@@ -861,7 +884,17 @@ function InteractiveImportModalContentInner(
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
-        {modalTitle} - {title || folder}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <div>
+            {modalTitle} - {title || folder}
+          </div>
+          {onBackToFolderSelect ? (
+            <Button kind={kinds.DEFAULT} onPress={onBackToFolderSelect} style={{ marginLeft: 'auto', marginRight: '16px' }}>
+              <Icon name={icons.FOLDER} style={{ marginRight: '8px' }} />
+              {translate('ChangeFolder')}
+            </Button>
+          ) : null}
+        </div>
       </ModalHeader>
 
       <ModalBody scrollDirection={scrollDirections.BOTH}>

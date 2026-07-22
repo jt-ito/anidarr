@@ -157,6 +157,7 @@ function MissingRow({
               key={name}
               episodeId={id}
               seriesId={series.id}
+              seasonNumber={seasonNumber}
               episodeTitle={title}
               episodeEntity="wanted.missing"
               showOpenSeriesButton={true}
