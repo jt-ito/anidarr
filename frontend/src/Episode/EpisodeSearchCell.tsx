@@ -92,6 +92,7 @@ function EpisodeSearchCell({
           seriesId={seriesId}
           seasonNumber={seasonNumber}
           episodeId={episodeId}
+          episodeEntity={episodeEntity}
           onModalClose={setInteractiveImportModalClosed}
         />
       )}

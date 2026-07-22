@@ -95,6 +95,7 @@ interface InteractiveImportModalProps
   seriesId?: number;
   seasonNumber?: number;
   episodeId?: number;
+  episodeEntity?: any; // avoid adding full Episode import if possible, but actually we can import it or use any.
   modalTitle?: string;
   onModalClose(): void;
 }
@@ -104,6 +105,9 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
     isOpen,
     folder,
     downloadIds,
+    seasonNumber,
+    episodeId,
+    episodeEntity,
     modalTitle = translate('ManualImport'),
     onModalClose,
     ...otherProps
@@ -161,6 +165,7 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
           {...otherProps}
           folder={finalFolder}
           downloadIds={downloadIds}
+          episodeEntity={episodeEntity}
           modalTitle={modalTitle}
           onModalClose={onModalClose}
           onBackToFolderSelect={onBackToFolderSelect}

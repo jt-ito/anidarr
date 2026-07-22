@@ -206,6 +206,8 @@ export interface InteractiveImportModalContentProps {
   seriesId?: number;
   seasonNumber?: number;
   episodeId?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  episodeEntity?: any;
   showSeries?: boolean;
   allowSeriesChange?: boolean;
   showDelete?: boolean;
@@ -230,6 +232,7 @@ function InteractiveImportModalContentInner(
     seriesId,
     seasonNumber,
     episodeId,
+    episodeEntity,
     allowSeriesChange = true,
     showSeries = true,
     showFilterExistingFiles = false,
@@ -781,7 +784,9 @@ function InteractiveImportModalContentInner(
       if (seriesId) updates.series = { id: seriesId } as any;
       if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (episodeId) updates.episodes = [{ id: episodeId }] as any;
+      if (episodeEntity) updates.episodes = [episodeEntity];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      else if (episodeId) updates.episodes = [{ id: episodeId }] as any;
 
       if (Object.keys(updates).length > 0) {
         updateInteractiveImportItems(ids, updates);
