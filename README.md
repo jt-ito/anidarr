@@ -113,6 +113,28 @@ A few things worth knowing:
 * **Release selection mode** (points-based or rule-based) can be set per quality profile under **Settings > Profiles**.
 * **Backups** are available under **Settings > General > Backup**, with a choice between a full Anidarr backup or a Sonarr-compatible backup for migrating away.
 
+### 🐳 Docker Compose Example
+
+Here is a basic `docker-compose.yml` example to get you started:
+
+```yaml
+version: "3"
+services:
+  anidarr:
+    image: jteaito/anidarr:latest
+    container_name: anidarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+    volumes:
+      - /path/to/anidarr/config:/config
+      - /path/to/media:/data # Must be a single mount for hardlinks!
+    ports:
+      - 8989:8989
+    restart: unless-stopped
+```
+
 ### 🐳 Docker: Hardlinks & Volume Mounts
 
 If you're running Anidarr in Docker and want hardlinks to work (instead of slow, space-wasting file copies), **all paths must be accessible from a single volume mount**. The Linux kernel rejects hardlinks across different mount boundaries — even if both mounts point to the same physical drive.
