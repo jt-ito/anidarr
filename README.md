@@ -118,7 +118,6 @@ A few things worth knowing:
 Here is a basic `docker-compose.yml` example to get you started:
 
 ```yaml
-version: "3"
 services:
   anidarr:
     image: jteaito/anidarr:latest
