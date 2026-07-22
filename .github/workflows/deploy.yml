@@ -126,5 +126,6 @@ jobs:
           body: ${{ steps.generate-release-notes.outputs.result }}
           name: ${{ inputs.version }}
           prerelease: ${{ inputs.branch != 'main' }}
+          makeLatest: ${{ inputs.branch == 'main' }}
           skipIfReleaseExists: true
           tag: v${{ inputs.version }}

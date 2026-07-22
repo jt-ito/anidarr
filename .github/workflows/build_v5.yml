@@ -50,11 +50,11 @@ jobs:
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG_VERSION="${GITHUB_REF_NAME#v}"
             echo "version=${TAG_VERSION}" >> "$GITHUB_OUTPUT"
+            echo "branch=main" >> "$GITHUB_OUTPUT"
           else
             echo "version=${{ env.VERSION }}.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            echo "branch=${RAW_BRANCH_NAME//\//-}" >> "$GITHUB_OUTPUT"
           fi
-
-          echo "branch=${RAW_BRANCH_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
   backend:
     needs: prepare
