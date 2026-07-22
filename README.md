@@ -113,6 +113,38 @@ A few things worth knowing:
 * **Release selection mode** (points-based or rule-based) can be set per quality profile under **Settings > Profiles**.
 * **Backups** are available under **Settings > General > Backup**, with a choice between a full Anidarr backup or a Sonarr-compatible backup for migrating away.
 
+### 🐳 Docker: Hardlinks & Volume Mounts
+
+If you're running Anidarr in Docker and want hardlinks to work (instead of slow, space-wasting file copies), **all paths must be accessible from a single volume mount**. The Linux kernel rejects hardlinks across different mount boundaries — even if both mounts point to the same physical drive.
+
+**❌ Broken** — two separate mounts to the same drive:
+```yaml
+volumes:
+  - /mnt/sda1/:/data
+  - /mnt/sda1/Tor:/downloads
+```
+This creates two mount namespaces inside the container. Hardlinks between `/data/...` and `/downloads/...` will silently fail and fall back to copying.
+
+**✅ Fixed** — one mount, everything underneath it:
+```yaml
+volumes:
+  - /mnt/sda1/:/data
+```
+Your library folders (`/data/Choows/`, etc.) and download folder (`/data/Tor/`) are all under the same mount, so hardlinks work.
+
+**If your download client reports a different path** (e.g., qBittorrent reports files at `/downloads/...` because its own container mounts the download directory there), add a **Remote Path Mapping** in Anidarr so it knows how to translate:
+
+1. Go to **Settings → Download Clients → Remote Path Mappings**
+2. Add a mapping:
+
+   | Field | Value |
+   |-------|-------|
+   | **Host** | `localhost` (or whatever host your download client uses) |
+   | **Remote Path** | `/downloads/` (the path your download client reports) |
+   | **Local Path** | `/data/Tor/` (where that same directory lives under Anidarr's single mount) |
+
+This tells Anidarr: "when the download client says a file is at `/downloads/something.mkv`, it's actually at `/data/Tor/something.mkv`" — keeping everything on one mount so hardlinks succeed.
+
 ## 🤝 Contributing
 
 Anidarr is an open-source project and we welcome contributions! Whether it's fixing bugs, adding new metadata providers, or improving the React frontend, feel free to open a Pull Request.
