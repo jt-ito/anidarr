@@ -144,6 +144,7 @@ function InteractiveImportSelectFolderModalContent(
     if (pinLabel) {
       addPinnedPath(pinLabel, folder);
     }
+
     setIsPinPromptOpen(false);
   }, [pinLabel, folder]);
 
@@ -151,16 +152,34 @@ function InteractiveImportSelectFolderModalContent(
     setIsPinPromptOpen(false);
   }, []);
 
-  const onSetActivePinnedPath = useCallback((id: string) => {
-    if (activePinnedPathId === id) {
-      clearActivePinnedPath();
-    } else {
-      setActivePinnedPath(id);
-    }
-  }, [activePinnedPathId]);
+  const onSetActivePinnedPath = useCallback(
+    (id: string) => {
+      if (activePinnedPathId === id) {
+        clearActivePinnedPath();
+      } else {
+        setActivePinnedPath(id);
+      }
+    },
+    [activePinnedPathId]
+  );
 
   const onRemovePinnedPath = useCallback((id: string) => {
     removePinnedPath(id);
+  }, []);
+
+  const handlePinKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handlePinConfirm();
+      }
+    },
+    [handlePinConfirm]
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handlePinLabelChange = useCallback((e: any) => {
+    setPinLabel(e.value);
   }, []);
 
   return (
@@ -262,7 +281,11 @@ function InteractiveImportSelectFolderModalContent(
               isDisabled={!folder}
               onPress={onQuickImportPress}
             >
-              <Icon className={styles.buttonIcon} name={icons.QUICK} fixedWidth={true} />
+              <Icon
+                className={styles.buttonIcon}
+                name={icons.QUICK}
+                fixedWidth={true}
+              />
               {translate('MoveAutomatically')}
             </Button>
           </div>
@@ -275,7 +298,11 @@ function InteractiveImportSelectFolderModalContent(
               isDisabled={!folder}
               onPress={onInteractiveImportPress}
             >
-              <Icon className={styles.buttonIcon} name={icons.INTERACTIVE} fixedWidth={true} />
+              <Icon
+                className={styles.buttonIcon}
+                name={icons.INTERACTIVE}
+                fixedWidth={true}
+              />
               {translate('InteractiveImport')}
             </Button>
           </div>
@@ -288,7 +315,11 @@ function InteractiveImportSelectFolderModalContent(
               isDisabled={!folder}
               onPress={onPinPathPress}
             >
-              <Icon className={styles.buttonIcon} name={icons.HEART} fixedWidth={true} />
+              <Icon
+                className={styles.buttonIcon}
+                name={icons.HEART}
+                fixedWidth={true}
+              />
               {translate('PinPath') || 'Pin Path'}
             </Button>
           </div>
@@ -302,28 +333,28 @@ function InteractiveImportSelectFolderModalContent(
       {isPinPromptOpen && (
         <Modal isOpen={isPinPromptOpen} onModalClose={handlePinCancel}>
           <ModalContent onModalClose={handlePinCancel}>
-            <ModalHeader>{translate('EnterPinnedPathLabel') || 'Enter a label for this pinned path:'}</ModalHeader>
+            <ModalHeader>
+              {translate('EnterPinnedPathLabel') ||
+                'Enter a label for this pinned path:'}
+            </ModalHeader>
             <ModalBody>
-              <div
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handlePinConfirm();
-                  }
-                }}
-              >
+              <div onKeyDown={handlePinKeyDown}>
                 <TextInput
                   type="text"
                   name="pinLabel"
                   value={pinLabel}
                   autoFocus={true}
-                  onChange={(e) => setPinLabel(e.value)}
+                  onChange={handlePinLabelChange}
                 />
               </div>
             </ModalBody>
             <ModalFooter>
               <Button onPress={handlePinCancel}>{translate('Cancel')}</Button>
-              <Button onPress={handlePinConfirm} kind={kinds.PRIMARY} isDisabled={!pinLabel}>
+              <Button
+                kind={kinds.PRIMARY}
+                isDisabled={!pinLabel}
+                onPress={handlePinConfirm}
+              >
                 {translate('Save')}
               </Button>
             </ModalFooter>

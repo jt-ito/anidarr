@@ -1,23 +1,26 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Modal from 'Components/Modal/Modal';
 import usePrevious from 'Helpers/Hooks/usePrevious';
 import { sizes } from 'Helpers/Props';
+import {
+  useSaveUiSettings,
+  useUiSettingsValues,
+} from 'Settings/UI/useUiSettings';
 import translate from 'Utilities/String/translate';
 import InteractiveImportSelectFolderModalContent from './Folder/InteractiveImportSelectFolderModalContent';
-import {
-  useActivePinnedPathId,
-  usePinnedPaths,
-  useInteractiveImportFolders,
-} from './interactiveImportFoldersStore';
 import InteractiveImportModalContent, {
   InteractiveImportModalContentProps,
 } from './Interactive/InteractiveImportModalContent';
-import { useUiSettingsValues, useSaveUiSettings } from 'Settings/UI/useUiSettings';
+import {
+  useActivePinnedPathId,
+  useInteractiveImportFolders,
+  usePinnedPaths,
+} from './interactiveImportFoldersStore';
 
 function InteractiveImportFoldersSync() {
   const saveSettings = useSaveUiSettings();
   const settings = useUiSettingsValues();
-  const hydrate = useInteractiveImportFolders((state: any) => state.hydrate);
+  const hydrate = useInteractiveImportFolders().hydrate;
   const storeState = useInteractiveImportFolders();
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -27,24 +30,30 @@ function InteractiveImportFoldersSync() {
         try {
           const parsed = JSON.parse(settings.interactiveImportFolders);
           hydrate(parsed);
-        } catch (e) {
+        } catch (_e) {
           // ignore parsing error
         }
       } else {
         const localData = localStorage.getItem('interactive_import_folders');
+
         if (localData) {
           try {
             const parsed = JSON.parse(localData);
+
             if (parsed?.state) {
               hydrate(parsed.state);
-              saveSettings({ interactiveImportFolders: JSON.stringify(parsed.state) });
+              saveSettings({
+                interactiveImportFolders: JSON.stringify(parsed.state),
+              });
             }
+
             localStorage.removeItem('interactive_import_folders');
-          } catch (e) {
+          } catch (_e) {
             // ignore
           }
         }
       }
+
       setIsInitialized(true);
     }
   }, [settings, isInitialized, hydrate, saveSettings]);
@@ -57,6 +66,7 @@ function InteractiveImportFoldersSync() {
         pinnedPaths: storeState.pinnedPaths,
         activePinnedPathId: storeState.activePinnedPathId,
       });
+
       if (settings?.interactiveImportFolders !== serialized) {
         saveSettings({ interactiveImportFolders: serialized });
       }
@@ -74,9 +84,11 @@ function InteractiveImportFoldersSync() {
   return null;
 }
 
-
 interface InteractiveImportModalProps
-  extends Omit<InteractiveImportModalContentProps, 'modalTitle' | 'onBackToFolderSelect'> {
+  extends Omit<
+    InteractiveImportModalContentProps,
+    'modalTitle' | 'onBackToFolderSelect'
+  > {
   isOpen: boolean;
   folder?: string;
   downloadIds?: string[];
@@ -157,7 +169,7 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
         <InteractiveImportSelectFolderModalContent
           {...otherProps}
           modalTitle={modalTitle}
-          initialFolder={!explicitlyClearedFolder ? activePinnedPath : undefined}
+          initialFolder={explicitlyClearedFolder ? undefined : activePinnedPath}
           onFolderSelect={onFolderSelect}
           onModalClose={onModalClose}
         />

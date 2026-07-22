@@ -764,14 +764,23 @@ function InteractiveImportModalContentInner(
   );
 
   useEffect(() => {
-    if (isPopulated && !isFetching && items.length > 0 && !hasAppliedPrefill && folder && (seriesId || seasonNumber !== undefined || episodeId)) {
+    if (
+      isPopulated &&
+      !isFetching &&
+      items.length > 0 &&
+      !hasAppliedPrefill &&
+      folder &&
+      (seriesId || seasonNumber !== undefined || episodeId)
+    ) {
       setHasAppliedPrefill(true);
-      
-      const ids = items.map(i => i.id);
-      
+
+      const ids = items.map((i) => i.id);
+
       const updates: Partial<InteractiveImport> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (seriesId) updates.series = { id: seriesId } as any;
       if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (episodeId) updates.episodes = [{ id: episodeId }] as any;
 
       if (Object.keys(updates).length > 0) {
@@ -779,7 +788,18 @@ function InteractiveImportModalContentInner(
         handleReprocessItems(ids);
       }
     }
-  }, [isPopulated, isFetching, items, hasAppliedPrefill, folder, seriesId, seasonNumber, episodeId, updateInteractiveImportItems, handleReprocessItems]);
+  }, [
+    isPopulated,
+    isFetching,
+    items,
+    hasAppliedPrefill,
+    folder,
+    seriesId,
+    seasonNumber,
+    episodeId,
+    updateInteractiveImportItems,
+    handleReprocessItems,
+  ]);
 
   const handleReleaseGroupSelect = useCallback(
     (releaseGroup: string) => {
@@ -884,12 +904,23 @@ function InteractiveImportModalContentInner(
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+          }}
+        >
           <div>
             {modalTitle} - {title || folder}
           </div>
           {onBackToFolderSelect ? (
-            <Button kind={kinds.DEFAULT} onPress={onBackToFolderSelect} style={{ marginLeft: 'auto', marginRight: '16px' }}>
+            <Button
+              kind={kinds.DEFAULT}
+              style={{ marginLeft: 'auto', marginRight: '16px' }}
+              onPress={onBackToFolderSelect}
+            >
               <Icon name={icons.FOLDER} style={{ marginRight: '8px' }} />
               {translate('ChangeFolder')}
             </Button>

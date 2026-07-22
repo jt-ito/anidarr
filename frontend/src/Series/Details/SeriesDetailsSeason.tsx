@@ -388,9 +388,7 @@ function SeriesDetailsSeason({
                 {translate('InteractiveSearch')}
               </MenuItem>
 
-              <MenuItem
-                onPress={handleManualImportPress}
-              >
+              <MenuItem onPress={handleManualImportPress}>
                 <Icon
                   className={styles.actionMenuIcon}
                   name={icons.MANUAL_IMPORT}

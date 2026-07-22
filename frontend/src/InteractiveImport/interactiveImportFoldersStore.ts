@@ -30,7 +30,8 @@ interface InteractiveImportFoldersActions {
   hydrate: (state: Partial<InteractiveImportFoldersState>) => void;
 }
 
-export type InteractiveImportFoldersStore = InteractiveImportFoldersState & InteractiveImportFoldersActions;
+export type InteractiveImportFoldersStore = InteractiveImportFoldersState &
+  InteractiveImportFoldersActions;
 
 const store = create<InteractiveImportFoldersStore>((set) => ({
   recentFolders: [],
