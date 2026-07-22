@@ -2,10 +2,8 @@ import React, { useCallback, useMemo, useState } from 'react';
 import CommandNames from 'Commands/CommandNames';
 import { useExecuteCommand } from 'Commands/useCommands';
 import PathInput from 'Components/Form/PathInput';
-import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
-import Modal from 'Components/Modal/Modal';
 import ModalBody from 'Components/Modal/ModalBody';
 import ModalContent from 'Components/Modal/ModalContent';
 import ModalFooter from 'Components/Modal/ModalFooter';
@@ -139,9 +137,24 @@ function InteractiveImportSelectFolderModalContent(
       const label = parts.length > 0 ? parts[parts.length - 1] : folder;
       addPinnedPath(label, folder);
     }
-  }, [folder]);
+  }, [folder, addPinnedPath]);
 
   const onSetActivePinnedPath = useCallback(
+    (id: string) => {
+      if (activePinnedPathId === id) {
+        clearActivePinnedPath();
+      } else {
+        setActivePinnedPath(id);
+      }
+    },
+    [activePinnedPathId]
+  );
+
+  const onRemovePinnedPath = useCallback((id: string) => {
+    removePinnedPath(id);
+  }, []);
+
+  return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
         {translate('SelectFolderModalTitle', { modalTitle })}
