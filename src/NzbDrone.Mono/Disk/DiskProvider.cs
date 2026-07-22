@@ -434,7 +434,7 @@ namespace NzbDrone.Mono.Disk
             {
                 if (ex.ErrorCode == Errno.EXDEV)
                 {
-                    _logger.Trace("Hardlink '{0}' to '{1}' failed due to cross-device access.", source, destination);
+                    _logger.Warn("Hardlink '{0}' to '{1}' failed due to cross-device access.", source, destination);
                 }
                 else
                 {
