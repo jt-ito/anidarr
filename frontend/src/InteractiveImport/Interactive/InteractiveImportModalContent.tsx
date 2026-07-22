@@ -802,6 +802,7 @@ function InteractiveImportModalContentInner(
     seriesId,
     seasonNumber,
     episodeId,
+    episodeEntity,
     updateInteractiveImportItems,
     handleReprocessItems,
   ]);

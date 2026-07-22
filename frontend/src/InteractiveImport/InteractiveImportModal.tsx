@@ -95,6 +95,7 @@ interface InteractiveImportModalProps
   seriesId?: number;
   seasonNumber?: number;
   episodeId?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   episodeEntity?: any; // avoid adding full Episode import if possible, but actually we can import it or use any.
   modalTitle?: string;
   onModalClose(): void;
