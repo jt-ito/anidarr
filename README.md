@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" alt="Anidarr Logo" width="200" height="200" style="display: none;"/>
+<img src="logo.svg" alt="Anidarr Logo" width="200" height="200" />
 
 # Anidarr
 
