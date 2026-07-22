@@ -56,6 +56,9 @@ Tired of point values that don't behave the way you expect? Anidarr adds an opti
 ### 🔗 Bulk Hardlinking for Existing Files
 Already have your library organized on disk? Select one or more series from the library page, choose a root folder in the Edit popup, and pick **Hardlink** instead of the default **Move** — Anidarr reuses its existing file-parsing and hardlink logic to bring your files into the library instantly, without the old Wanted → Manual Import detour.
 
+### 🗂️ Enhanced Manual Import
+We've streamlined the manual import process to make organizing straggling files more intuitive and accessible. Fast-access Manual Import buttons (featuring a custom stick-shift icon) are now placed prominently directly on episode rows and series details pages. The Interactive Import modal also features a seamless new "Pin Path" capability, allowing you to instantly bookmark and revisit your frequently used manual import folders with a single click, completely removing repetitive path typing and annoying popups.
+
 ### 💾 Dual-Mode Backup
 Export a full Anidarr backup (including all AniDB metadata, hub/relations data, and rule-based release profiles), or export a **Sonarr-Compatible Backup** that strips out everything AniDB-specific — including Anidarr-only database schema changes — so you can restore your library into a vanilla Sonarr install if you ever want to move back.
 
