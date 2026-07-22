@@ -19,6 +19,8 @@ interface EpisodeSearchCellProps {
   seasonNumber: number;
   episodeTitle: string;
   showOpenSeriesButton: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prefillEpisode?: any;
 }
 
 function EpisodeSearchCell({
@@ -28,6 +30,7 @@ function EpisodeSearchCell({
   seasonNumber,
   episodeTitle,
   showOpenSeriesButton,
+  prefillEpisode,
 }: EpisodeSearchCellProps) {
   const isSearching = useCommandExecuting(CommandNames.EpisodeSearch, {
     episodeIds: [episodeId],
@@ -92,7 +95,7 @@ function EpisodeSearchCell({
           seriesId={seriesId}
           seasonNumber={seasonNumber}
           episodeId={episodeId}
-          episodeEntity={episodeEntity}
+          prefillEpisode={prefillEpisode}
           onModalClose={setInteractiveImportModalClosed}
         />
       )}

@@ -309,6 +309,14 @@ function EpisodeRow({
               key={name}
               episodeId={id}
               episodeEntity="episodes"
+              prefillEpisode={{
+                id,
+                seriesId,
+                seasonNumber,
+                episodeNumber,
+                absoluteEpisodeNumber,
+                title,
+              }}
               seriesId={seriesId}
               seasonNumber={seasonNumber}
               episodeTitle={title}

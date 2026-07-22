@@ -96,7 +96,7 @@ interface InteractiveImportModalProps
   seasonNumber?: number;
   episodeId?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  episodeEntity?: any; // avoid adding full Episode import if possible, but actually we can import it or use any.
+  prefillEpisode?: any;
   modalTitle?: string;
   onModalClose(): void;
 }
@@ -108,7 +108,7 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
     downloadIds,
     seasonNumber,
     episodeId,
-    episodeEntity,
+    prefillEpisode,
     modalTitle = translate('ManualImport'),
     onModalClose,
     ...otherProps
@@ -166,7 +166,7 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
           {...otherProps}
           folder={finalFolder}
           downloadIds={downloadIds}
-          episodeEntity={episodeEntity}
+          prefillEpisode={prefillEpisode}
           modalTitle={modalTitle}
           onModalClose={onModalClose}
           onBackToFolderSelect={onBackToFolderSelect}

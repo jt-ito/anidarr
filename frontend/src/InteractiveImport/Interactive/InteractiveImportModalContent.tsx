@@ -207,7 +207,7 @@ export interface InteractiveImportModalContentProps {
   seasonNumber?: number;
   episodeId?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  episodeEntity?: any;
+  prefillEpisode?: any;
   showSeries?: boolean;
   allowSeriesChange?: boolean;
   showDelete?: boolean;
@@ -232,7 +232,7 @@ function InteractiveImportModalContentInner(
     seriesId,
     seasonNumber,
     episodeId,
-    episodeEntity,
+    prefillEpisode,
     allowSeriesChange = true,
     showSeries = true,
     showFilterExistingFiles = false,
@@ -780,13 +780,15 @@ function InteractiveImportModalContentInner(
       const ids = items.map((i) => i.id);
 
       const updates: Partial<InteractiveImport> = {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (seriesId) updates.series = { id: seriesId } as any;
       if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (episodeEntity) updates.episodes = [episodeEntity];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      else if (episodeId) updates.episodes = [{ id: episodeId }] as any;
+
+      if (items.length === 1) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (prefillEpisode) updates.episodes = [prefillEpisode];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        else if (episodeId) updates.episodes = [{ id: episodeId }] as any;
+      }
 
       if (Object.keys(updates).length > 0) {
         updateInteractiveImportItems(ids, updates);
@@ -802,7 +804,7 @@ function InteractiveImportModalContentInner(
     seriesId,
     seasonNumber,
     episodeId,
-    episodeEntity,
+    prefillEpisode,
     updateInteractiveImportItems,
     handleReprocessItems,
   ]);

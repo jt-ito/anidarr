@@ -164,7 +164,7 @@ function InteractiveImportSelectFolderModalContent(
         <PathInput
           name="folder"
           value={folder}
-          includeFiles={false}
+          includeFiles={true}
           onChange={onPathChange}
         />
 
