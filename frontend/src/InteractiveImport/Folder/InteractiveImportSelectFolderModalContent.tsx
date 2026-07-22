@@ -92,8 +92,6 @@ function InteractiveImportSelectFolderModalContent(
 ) {
   const { modalTitle, initialFolder, onFolderSelect, onModalClose } = props;
   const [folder, setFolder] = useState(initialFolder || '');
-  const [isPinPromptOpen, setIsPinPromptOpen] = useState(false);
-  const [pinLabel, setPinLabel] = useState('');
   const executeCommand = useExecuteCommand();
 
   const favoriteFolders = useFavoriteFolders();
@@ -136,53 +134,14 @@ function InteractiveImportSelectFolderModalContent(
   }, [folder, onFolderSelect]);
 
   const onPinPathPress = useCallback(() => {
-    setPinLabel('');
-    setIsPinPromptOpen(true);
-  }, []);
-
-  const handlePinConfirm = useCallback(() => {
-    if (pinLabel) {
-      addPinnedPath(pinLabel, folder);
+    if (folder) {
+      const parts = folder.split(/[/\\]/).filter(Boolean);
+      const label = parts.length > 0 ? parts[parts.length - 1] : folder;
+      addPinnedPath(label, folder);
     }
-
-    setIsPinPromptOpen(false);
-  }, [pinLabel, folder]);
-
-  const handlePinCancel = useCallback(() => {
-    setIsPinPromptOpen(false);
-  }, []);
+  }, [folder]);
 
   const onSetActivePinnedPath = useCallback(
-    (id: string) => {
-      if (activePinnedPathId === id) {
-        clearActivePinnedPath();
-      } else {
-        setActivePinnedPath(id);
-      }
-    },
-    [activePinnedPathId]
-  );
-
-  const onRemovePinnedPath = useCallback((id: string) => {
-    removePinnedPath(id);
-  }, []);
-
-  const handlePinKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLDivElement>) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handlePinConfirm();
-      }
-    },
-    [handlePinConfirm]
-  );
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handlePinLabelChange = useCallback((e: any) => {
-    setPinLabel(e.value);
-  }, []);
-
-  return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
         {translate('SelectFolderModalTitle', { modalTitle })}
@@ -329,38 +288,6 @@ function InteractiveImportSelectFolderModalContent(
       <ModalFooter>
         <Button onPress={onModalClose}>{translate('Cancel')}</Button>
       </ModalFooter>
-
-      {isPinPromptOpen && (
-        <Modal isOpen={isPinPromptOpen} onModalClose={handlePinCancel}>
-          <ModalContent onModalClose={handlePinCancel}>
-            <ModalHeader>
-              {translate('EnterPinnedPathLabel') ||
-                'Enter a label for this pinned path:'}
-            </ModalHeader>
-            <ModalBody>
-              <div onKeyDown={handlePinKeyDown}>
-                <TextInput
-                  type="text"
-                  name="pinLabel"
-                  value={pinLabel}
-                  autoFocus={true}
-                  onChange={handlePinLabelChange}
-                />
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button onPress={handlePinCancel}>{translate('Cancel')}</Button>
-              <Button
-                kind={kinds.PRIMARY}
-                isDisabled={!pinLabel}
-                onPress={handlePinConfirm}
-              >
-                {translate('Save')}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      )}
     </ModalContent>
   );
 }
