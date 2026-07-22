@@ -1,6 +1,7 @@
 //
 // Regular
 
+import { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faBookmark as farBookmark,
   faCalendar as farCalendar,
@@ -178,6 +179,19 @@ export const IGNORE = fasTimesCircle;
 export const INFO = fasInfoCircle;
 export const INTERACTIVE = fasUser;
 export const KEYBOARD = farKeyboard;
+
+export const MANUAL_IMPORT: IconDefinition = {
+  prefix: 'fas',
+  iconName: 'manual-import' as any,
+  icon: [
+    612,
+    612,
+    [],
+    'f000',
+    'M442 442 L439 435 L429 426 L238 436 L232 439 L229 450 L236 462 L244 464 L430 463 L437 460 L441 455 Z M420 403 L419 397 L412 387 L403 383 L393 382 L235 414 L232 417 L232 422 L235 427 L405 417 L416 415 Z M389 360 L383 352 L371 347 L365 347 L242 388 L237 391 L235 401 L237 404 L385 374 L389 371 Z M343 343 L332 337 L314 332 L292 332 L277 336 L263 344 L254 353 L247 365 L245 376 Z M244 230 L232 237 L220 240 L258 328 L262 332 L278 324 L285 323 L285 320 Z M207 144 L188 151 L179 159 L170 176 L169 194 L173 207 L184 221 L198 229 L217 231 L236 224 L249 211 L255 196 L255 179 L249 164 L239 153 L223 145 Z M219 154 L220 157 L217 162 L198 168 L185 187 L178 185 L179 174 L191 159 L206 152 L213 151 Z'
+  ]
+};
+
 export const LANGUAGE = fasLanguage;
 export const LOGOUT = fasSignOutAlt;
 export const MANAGE = fasListCheck;

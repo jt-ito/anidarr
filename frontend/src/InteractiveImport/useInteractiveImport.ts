@@ -161,11 +161,12 @@ export const useReprocessInteractiveImportItems = () => {
 
   const reprocessInteractiveImportItems = useCallback(
     (ids: number[]) => {
-      const [, currentData] = queryClient.getQueriesData<InteractiveImport[]>({
+      const queries = queryClient.getQueriesData<InteractiveImport[]>({
         queryKey: ['/manualimport'],
-      })[0];
+      });
+      const currentData = queries.flatMap(([, data]) => data || []);
 
-      if (!currentData) {
+      if (currentData.length === 0) {
         return;
       }
 

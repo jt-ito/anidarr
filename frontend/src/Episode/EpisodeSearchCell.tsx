@@ -68,7 +68,7 @@ function EpisodeSearchCell({
       />
 
       <IconButton
-        name={icons.INTERACTIVE}
+        name={icons.MANUAL_IMPORT}
         title={translate('ManualImport')}
         aria-label={translate('ManualImport')}
         onPress={setInteractiveImportModalOpen}

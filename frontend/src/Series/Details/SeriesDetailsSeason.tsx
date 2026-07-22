@@ -393,7 +393,7 @@ function SeriesDetailsSeason({
               >
                 <Icon
                   className={styles.actionMenuIcon}
-                  name={icons.INTERACTIVE}
+                  name={icons.MANUAL_IMPORT}
                 />
 
                 {translate('ManualImport')}
@@ -460,7 +460,7 @@ function SeriesDetailsSeason({
 
             <IconButton
               className={styles.actionButton}
-              name={icons.INTERACTIVE}
+              name={icons.MANUAL_IMPORT}
               title={translate('ManualImport')}
               aria-label={translate('ManualImport')}
               size={24}

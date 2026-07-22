@@ -242,7 +242,7 @@ function MissingContent() {
 
             <PageToolbarButton
               label={translate('ManualImport')}
-              iconName={icons.INTERACTIVE}
+              iconName={icons.MANUAL_IMPORT}
               onPress={handleInteractiveImportPress}
             />
           </PageToolbarSection>
