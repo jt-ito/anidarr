@@ -137,7 +137,7 @@ function InteractiveImportSelectFolderModalContent(
       const label = parts.length > 0 ? parts[parts.length - 1] : folder;
       addPinnedPath(label, folder);
     }
-  }, [folder, addPinnedPath]);
+  }, [folder]);
 
   const onSetActivePinnedPath = useCallback(
     (id: string) => {
