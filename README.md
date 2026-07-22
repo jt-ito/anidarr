@@ -121,7 +121,7 @@ If you're running Anidarr in Docker and want hardlinks to work (instead of slow,
 ```yaml
 volumes:
   - /mnt/sda1/:/data
-  - /mnt/sda1/Tor:/downloads
+  - /mnt/sda1/downloads:/downloads
 ```
 This creates two mount namespaces inside the container. Hardlinks between `/data/...` and `/downloads/...` will silently fail and fall back to copying.
 
@@ -130,7 +130,7 @@ This creates two mount namespaces inside the container. Hardlinks between `/data
 volumes:
   - /mnt/sda1/:/data
 ```
-Your library folders (`/data/Choows/`, etc.) and download folder (`/data/Tor/`) are all under the same mount, so hardlinks work.
+Your library folders (`/data/tv-shows/`, etc.) and download folder (`/data/downloads/`) are all under the same mount, so hardlinks work.
 
 **If your download client reports a different path** (e.g., qBittorrent reports files at `/downloads/...` because its own container mounts the download directory there), add a **Remote Path Mapping** in Anidarr so it knows how to translate:
 
@@ -141,9 +141,9 @@ Your library folders (`/data/Choows/`, etc.) and download folder (`/data/Tor/`) 
    |-------|-------|
    | **Host** | `localhost` (or whatever host your download client uses) |
    | **Remote Path** | `/downloads/` (the path your download client reports) |
-   | **Local Path** | `/data/Tor/` (where that same directory lives under Anidarr's single mount) |
+   | **Local Path** | `/data/downloads/` (where that same directory lives under Anidarr's single mount) |
 
-This tells Anidarr: "when the download client says a file is at `/downloads/something.mkv`, it's actually at `/data/Tor/something.mkv`" — keeping everything on one mount so hardlinks succeed.
+This tells Anidarr: "when the download client says a file is at `/downloads/something.mkv`, it's actually at `/data/downloads/something.mkv`" — keeping everything on one mount so hardlinks succeed.
 
 ## 🤝 Contributing
 
