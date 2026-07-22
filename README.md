@@ -10,7 +10,7 @@
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://reactjs.org/)
 
-Anidarr is a specialized fork of [Sonarr](https://github.com/Sonarr/Sonarr) designed from the ground up to solve the unique challenges of organizing and automating anime collections. It bypasses TVDB and Skyhook, directly integrating with native anime metadata providers to give you faster, more accurate, and more comprehensive anime indexing.
+Anidarr is a specialized fork of [Sonarr](https://github.com/Sonarr/Sonarr) designed from the ground up to solve the unique challenges of organizing and automating anime collections. It adds native anime metadata providers as a robust backup to TVDB and Skyhook, giving you faster, more accurate, and more comprehensive anime indexing.
 
 </div>
 
