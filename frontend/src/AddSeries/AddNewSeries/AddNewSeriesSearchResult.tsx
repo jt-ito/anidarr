@@ -20,6 +20,9 @@ interface AddNewSeriesSearchResultProps {
 }
 
 function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
+  const existingSeries = useExistingSeries(series);
+  const displaySeries = existingSeries || series;
+
   const {
     tvdbId,
     title,
@@ -33,10 +36,8 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
     overview,
     seriesType,
     images,
-    isExcluded,
-  } = series;
-
-  const existingSeries = useExistingSeries(series);
+  } = displaySeries;
+  const { isExcluded } = series;
   const isSmallScreen = useAppDimension('isSmallScreen');
   const [isNewAddSeriesModalOpen, setIsNewAddSeriesModalOpen] = useState(false);
 
