@@ -86,6 +86,49 @@ namespace NzbDrone.Core.Test.TvTests
             series.Path.Should().Be(Path.Combine(newSeries.RootFolderPath, _fakeSeries.Title));
         }
 
+        [TestCase(1, 1)] // Adding Season 1 (hub root)
+        [TestCase(2, 1)] // Adding Season 2
+        [TestCase(3, 1)] // Adding Season 3
+        public void should_preserve_anidb_mappings_for_all_hub_seasons(int seasonAniDbId, int expectedHubAniDbId)
+        {
+            // Simulate that the user clicked to add ANY season in the hub, meaning newSeries has the AniDbId of that season.
+            var newSeries = new Series
+            {
+                AniDbId = seasonAniDbId,
+                PrimaryMetadataProvider = "anidb",
+                RootFolderPath = @"C:\Test\TV"
+            };
+
+            // Simulate the MetadataDispatcher correctly fetching the full hub and generating AniDbMappings for all seasons.
+            var expectedMappings = new List<AniDbSeriesMapping>
+            {
+                new AniDbSeriesMapping { AniDbId = 1, SeasonNumber = 1, RelationType = "Same" },
+                new AniDbSeriesMapping { AniDbId = 2, SeasonNumber = 2, RelationType = "Sequel" },
+                new AniDbSeriesMapping { AniDbId = 3, SeasonNumber = 3, RelationType = "Sequel" }
+            };
+
+            var hubSeries = Builder<Series>.CreateNew()
+                .With(s => s.AniDbId = expectedHubAniDbId)
+                .With(s => s.AniDbMappings = expectedMappings)
+                .Build();
+
+            Mocker.GetMock<IMetadataDispatcher>()
+                  .Setup(s => s.GetSeriesInfo(It.IsAny<Series>()))
+                  .Returns(new Tuple<Series, List<Episode>>(hubSeries, new List<Episode>()));
+
+            GivenValidPath();
+
+            var series = Subject.AddSeries(newSeries);
+
+            // Assert that the AniDbMappings were correctly preserved during AddSeries (specifically during ApplyChanges)
+            series.AniDbMappings.Should().NotBeNull();
+            series.AniDbMappings.Should().HaveCount(3);
+            series.AniDbMappings.Should().BeEquivalentTo(expectedMappings);
+
+            // Assert that no matter which season was added, the resulting hub has the correct root AniDbId.
+            series.AniDbId.Should().Be(expectedHubAniDbId);
+        }
+
         [Test]
         public void should_throw_if_series_validation_fails()
         {
