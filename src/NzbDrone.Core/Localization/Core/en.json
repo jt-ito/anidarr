@@ -1919,6 +1919,8 @@
     "ScriptPath":  "Script Path",
     "Search":  "Search",
     "SearchAll":  "Search All",
+    "SearchByAnidbId":  "You can also search using AniDB ID of a show. eg. anidb:71663",
+    "SearchByAnyId":  "You can also search using the AniDB ID or the TVDB ID of a show. eg. anidb:71663 or tvdb:71663",
     "SearchByTvdbId":  "You can also search using TVDB ID of a show. eg. tvdb:71663",
     "SearchFailedError":  "Search failed, please try again later.",
     "SearchForAllMissingEpisodes":  "Search for all missing episodes",
