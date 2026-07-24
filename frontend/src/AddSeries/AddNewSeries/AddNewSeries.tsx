@@ -57,6 +57,7 @@ function AddNewSeries() {
   }, [initialTerm]);
 
   let searchHintText = translate('SearchByAnyId');
+
   if (provider === 'AniDb') {
     searchHintText = translate('SearchByAnidbId');
   } else if (provider === 'Tvdb') {
@@ -143,9 +144,7 @@ function AddNewSeries() {
             <div className={styles.noResults}>
               {translate('CouldNotFindResults', { term })}
             </div>
-            <div>
-              {searchHintText}
-            </div>
+            <div>{searchHintText}</div>
             <div>
               <Link to="https://wiki.servarr.com/sonarr/faq#why-cant-i-add-a-new-series-when-i-know-the-tvdb-id">
                 {translate('WhyCantIFindMyShow')}
@@ -159,9 +158,7 @@ function AddNewSeries() {
             <div className={styles.helpText}>
               {translate('AddNewSeriesHelpText')}
             </div>
-            <div>
-              {searchHintText}
-            </div>
+            <div>{searchHintText}</div>
           </div>
         )}
 
