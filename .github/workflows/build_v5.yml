@@ -122,6 +122,9 @@ jobs:
       - name: Lint
         run: yarn lint
 
+      - name: Test
+        run: yarn test
+
       - name: Stylelint
         run: yarn stylelint -f github
 

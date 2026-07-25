@@ -47,6 +47,8 @@ export interface Season {
   monitored: boolean;
   seasonNumber: number;
   statistics: Statistics;
+  title?: string;
+  images?: Image[];
 }
 
 export interface Ratings {

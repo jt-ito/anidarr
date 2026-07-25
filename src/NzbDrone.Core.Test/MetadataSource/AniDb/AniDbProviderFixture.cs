@@ -176,5 +176,25 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
 
             ExceptionVerification.ExpectedWarns(1);
         }
+
+        [Test]
+        public void should_capture_per_season_title_and_images()
+        {
+            GivenXmlResponse(1, BuildAnimeXml(1, "Main Hub Season 1", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel") }));
+            GivenXmlResponse(2, BuildAnimeXml(2, "Season 2 Spinoff", new List<Tuple<int, string>> { Tuple.Create(1, "Prequel") }));
+
+            var details = Subject.GetSeriesInfo("1");
+            var series = details.Item1;
+
+            series.Seasons.Should().HaveCount(2);
+            var season1 = series.Seasons.Single(s => s.SeasonNumber == 1);
+            var season2 = series.Seasons.Single(s => s.SeasonNumber == 2);
+
+            season1.Title.Should().Be("Main Hub Season 1");
+            season1.Images.Should().NotBeNull();
+
+            season2.Title.Should().Be("Season 2 Spinoff");
+            season2.Images.Should().NotBeNull();
+        }
     }
 }

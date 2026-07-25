@@ -13,6 +13,7 @@ import SeriesPoster from 'Series/SeriesPoster';
 import useExistingSeries from 'Series/useExistingSeries';
 import translate from 'Utilities/String/translate';
 import AddNewSeriesModal from './AddNewSeriesModal';
+import resolveDisplaySeries from './resolveDisplaySeries';
 import styles from './AddNewSeriesSearchResult.css';
 
 interface AddNewSeriesSearchResultProps {
@@ -21,7 +22,7 @@ interface AddNewSeriesSearchResultProps {
 
 function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
   const existingSeries = useExistingSeries(series);
-  const displaySeries = existingSeries || series;
+  const displaySeries = resolveDisplaySeries(series, existingSeries);
 
   const {
     tvdbId,
