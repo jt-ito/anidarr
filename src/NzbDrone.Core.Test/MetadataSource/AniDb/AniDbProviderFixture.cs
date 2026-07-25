@@ -210,7 +210,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
                 { 1, timeOfDay }
             };
 
-            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+            var multipleTimes = new Dictionary<int, Dictionary<int, TimeSpan>> { { 185874, airingTimes } };
+            anilistEnricherMock.Setup(c => c.GetAiringTimesForMultiple(It.IsAny<IEnumerable<int>>())).Returns(multipleTimes);
 
             // Hub is Bleach TYBW Cour 1, this is Cour 4 (Kashin-tan)
             GivenXmlResponse(1, BuildAnimeXml(1, "BLEACH TYBW", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel") }, 13));
@@ -235,10 +236,10 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
 
             GivenXmlResponse(4, kashinTanXml);
 
-            // Mock finding AniList ID for the hub
+            // Mock finding AniList ID for the Kashin-tan season (ID 4)
             var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
-            var hubSeriesMock = new AnimeOfflineTitle { AniDbId = 1, AniListId = 185874 };
-            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(hubSeriesMock);
+            var kashinTanMock = new AnimeOfflineTitle { AniDbId = 4, AniListId = 185874 };
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 4)).Returns(kashinTanMock);
             var details = Subject.GetSeriesInfo("1");
 
             // Assert
@@ -262,7 +263,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
                 { 1, timeOfDay }
             };
 
-            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+            var multipleTimes = new Dictionary<int, Dictionary<int, TimeSpan>> { { 185874, airingTimes } };
+            anilistEnricherMock.Setup(c => c.GetAiringTimesForMultiple(It.IsAny<IEnumerable<int>>())).Returns(multipleTimes);
 
             // AniDb date is July 26th
             var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
@@ -298,7 +300,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             var timeOfDay = new TimeSpan(14, 0, 0);
 
             var airingTimes = new Dictionary<int, TimeSpan> { { 1, timeOfDay } };
-            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+            var multipleTimes = new Dictionary<int, Dictionary<int, TimeSpan>> { { 185874, airingTimes } };
+            anilistEnricherMock.Setup(c => c.GetAiringTimesForMultiple(It.IsAny<IEnumerable<int>>())).Returns(multipleTimes);
 
             // Mock the title fallback search to return our ID
             anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle("Test Anime Fallback", 2026, 1)).Returns(185874);

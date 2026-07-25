@@ -66,6 +66,8 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var absoluteEpisodeOffset = 0;
             var specialEpisodeCounter = 1;
 
+            var chainData = new List<(int AssignedSeasonNumber, List<Episode> Episodes, int? AniListId)>();
+
             foreach (var id in chainIds)
             {
                 XDocument doc;
@@ -153,119 +155,157 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 if (assignedSeasonNumber != -1)
                 {
                     var episodes = MapEpisodes(doc.Root);
-                    var maxEpisodeNumber = 0;
-                    foreach (var ep in episodes)
+
+                    int? currentAniListId = null;
+                    try
                     {
-                        if (ep.SeasonNumber == 1)
+                        var local = _titleSearch.GetSeriesById("anidb", id);
+                        if (local != null && local.AniListId.HasValue)
                         {
-                            ep.SeasonNumber = assignedSeasonNumber;
-                            if (assignedSeasonNumber > 0)
+                            currentAniListId = local.AniListId.Value;
+                            if (hubSeries.AniListIds == null)
                             {
-                                ep.AbsoluteEpisodeNumber = absoluteEpisodeOffset + ep.EpisodeNumber;
-                                maxEpisodeNumber = Math.Max(maxEpisodeNumber, ep.EpisodeNumber);
+                                hubSeries.AniListIds = new HashSet<int>();
                             }
-                            else
+
+                            hubSeries.AniListIds.Add(local.AniListId.Value);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(currentSeriesMetadata.Title))
+                        {
+                            var expectedYear = currentSeriesMetadata.Year > 0 ? currentSeriesMetadata.Year : (episodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
+                            if (expectedYear > 0)
                             {
-                                ep.AbsoluteEpisodeNumber = null; // Specials shouldn't have absolute numbers
-                                ep.EpisodeNumber = specialEpisodeCounter++;
+                                var expectedEpisodeCount = episodes.Count(e => e.SeasonNumber > 0);
+                                _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", id, currentSeriesMetadata.Title);
+                                currentAniListId = _aniListEnricher.SearchAniListIdByTitle(currentSeriesMetadata.Title, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
+
+                                if (currentAniListId.HasValue)
+                                {
+                                    if (hubSeries.AniListIds == null)
+                                    {
+                                        hubSeries.AniListIds = new HashSet<int>();
+                                    }
+
+                                    hubSeries.AniListIds.Add(currentAniListId.Value);
+                                    _titleSearch.UpdateAniListId(id, currentAniListId.Value);
+                                }
                             }
                         }
-                        else if (ep.SeasonNumber == 0)
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn(ex, "Failed to resolve AniList ID for AniDB ID {0}", id);
+                    }
+
+                    chainData.Add((assignedSeasonNumber, episodes, currentAniListId));
+                }
+            }
+
+            var allAniListIds = chainData.Where(x => x.AniListId.HasValue).Select(x => x.AniListId.Value).ToList();
+            var allAiringTimes = new Dictionary<int, Dictionary<int, TimeSpan>>();
+
+            if (allAniListIds.Any())
+            {
+                try
+                {
+                    _logger.Debug("Batch fetching time-of-day data for {0} AniList IDs", allAniListIds.Count);
+                    allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Failed to batch fetch AniList airing times.");
+                }
+            }
+
+            TimeSpan? globalDefaultTime = null;
+            var allTimes = allAiringTimes.Values.SelectMany(x => x.Values).ToList();
+            if (allTimes.Any())
+            {
+                globalDefaultTime = allTimes.GroupBy(t => t).OrderByDescending(g => g.Count()).First().Key;
+            }
+
+            foreach (var data in chainData)
+            {
+                var assignedSeasonNumber = data.AssignedSeasonNumber;
+                var episodes = data.Episodes;
+                var currentAniListId = data.AniListId;
+
+                var airingTimes = new Dictionary<int, TimeSpan>();
+                TimeSpan? seasonDefaultTime = null;
+
+                if (currentAniListId.HasValue && allAiringTimes.TryGetValue(currentAniListId.Value, out var times) && times.Any())
+                {
+                    airingTimes = times;
+                    seasonDefaultTime = times.Values.GroupBy(t => t).OrderByDescending(g => g.Count()).First().Key;
+                }
+
+                var maxEpisodeNumber = 0;
+                foreach (var ep in episodes)
+                {
+                    if (ep.SeasonNumber == 1)
+                    {
+                        ep.SeasonNumber = assignedSeasonNumber;
+                        if (assignedSeasonNumber > 0)
                         {
-                            ep.SeasonNumber = 0;
+                            ep.AbsoluteEpisodeNumber = absoluteEpisodeOffset + ep.EpisodeNumber;
+                            maxEpisodeNumber = Math.Max(maxEpisodeNumber, ep.EpisodeNumber);
+                        }
+                        else
+                        {
+                            ep.AbsoluteEpisodeNumber = null; // Specials shouldn't have absolute numbers
                             ep.EpisodeNumber = specialEpisodeCounter++;
-                            ep.AbsoluteEpisodeNumber = null;
                         }
-
-                        allEpisodes.Add(ep);
                     }
-
-                    if (assignedSeasonNumber > 0)
+                    else if (ep.SeasonNumber == 0)
                     {
-                        absoluteEpisodeOffset += maxEpisodeNumber;
+                        ep.SeasonNumber = 0;
+                        ep.EpisodeNumber = specialEpisodeCounter++;
+                        ep.AbsoluteEpisodeNumber = null;
                     }
+
+                    var timeOfDay = default(TimeSpan);
+                    var hasMatch = false;
+
+                    if (ep.AbsoluteEpisodeNumber.HasValue && airingTimes.TryGetValue(ep.AbsoluteEpisodeNumber.Value, out var absTime))
+                    {
+                        timeOfDay = absTime;
+                        hasMatch = true;
+                    }
+                    else if (airingTimes.TryGetValue(ep.EpisodeNumber, out var relTime))
+                    {
+                        timeOfDay = relTime;
+                        hasMatch = true;
+                    }
+                    else if (seasonDefaultTime.HasValue)
+                    {
+                        timeOfDay = seasonDefaultTime.Value;
+                        hasMatch = true;
+                    }
+                    else if (globalDefaultTime.HasValue)
+                    {
+                        timeOfDay = globalDefaultTime.Value;
+                        hasMatch = true;
+                    }
+
+                    if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && hasMatch)
+                    {
+                        var jstDate = DateTime.Parse(ep.AirDate);
+                        var preciseJstTime = jstDate.Add(timeOfDay);
+                        ep.AirDateUtc = DateTime.SpecifyKind(preciseJstTime.AddHours(-9), DateTimeKind.Utc);
+                    }
+
+                    allEpisodes.Add(ep);
+                }
+
+                if (assignedSeasonNumber > 0)
+                {
+                    absoluteEpisodeOffset += maxEpisodeNumber;
                 }
             }
 
             if (hubSeries == null)
             {
                 throw new Exception($"Could not fetch primary series data for AniDB ID {externalId}");
-            }
-
-            if (hubSeries.AniListIds == null || !hubSeries.AniListIds.Any())
-            {
-                try
-                {
-                    var local = _titleSearch.GetSeriesById("anidb", hubSeries.AniDbId.Value);
-                    if (local != null && local.AniListId.HasValue)
-                    {
-                        hubSeries.AniListIds = new HashSet<int> { local.AniListId.Value };
-                    }
-                    else if (!string.IsNullOrWhiteSpace(hubSeries.Title))
-                    {
-                        var expectedYear = hubSeries.Year > 0 ? hubSeries.Year : (allEpisodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
-                        if (expectedYear > 0)
-                        {
-                            var expectedEpisodeCount = allEpisodes.Count(e => e.SeasonNumber > 0);
-
-                            _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", hubSeries.AniDbId, hubSeries.Title);
-                            var fallbackId = _aniListEnricher.SearchAniListIdByTitle(hubSeries.Title, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
-
-                            if (fallbackId.HasValue)
-                            {
-                                hubSeries.AniListIds = new HashSet<int> { fallbackId.Value };
-                                _titleSearch.UpdateAniListId(hubSeries.AniDbId.Value, fallbackId.Value);
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn(ex, "Failed to resolve AniList ID for AniDB ID {0}", hubSeries.AniDbId);
-                }
-            }
-
-            if (hubSeries.AniListIds != null && hubSeries.AniListIds.Any())
-            {
-                var aniListId = hubSeries.AniListIds.First();
-                try
-                {
-                    _logger.Debug("Enriching AniDB series {0} with time-of-day data from AniList ID {1}", hubSeries.Title, aniListId);
-                    var airingTimes = _aniListEnricher.GetAiringTimes(aniListId);
-                    if (airingTimes.Any())
-                    {
-                        foreach (var ep in allEpisodes)
-                        {
-                            // Note: AniList enrichment targets AbsoluteEpisodeNumber if present (continuous numbering),
-                            // otherwise falls back to EpisodeNumber (for single season series).
-                            var timeOfDay = default(TimeSpan);
-                            var hasMatch = false;
-
-                            if (ep.AbsoluteEpisodeNumber.HasValue && airingTimes.TryGetValue(ep.AbsoluteEpisodeNumber.Value, out var absTime))
-                            {
-                                timeOfDay = absTime;
-                                hasMatch = true;
-                            }
-                            else if (airingTimes.TryGetValue(ep.EpisodeNumber, out var relTime))
-                            {
-                                timeOfDay = relTime;
-                                hasMatch = true;
-                            }
-
-                            if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && hasMatch)
-                            {
-                                // Combine the AniDB date with the precise AniList time (in JST)
-                                var jstDate = DateTime.Parse(ep.AirDate);
-                                var preciseJstTime = jstDate.Add(timeOfDay);
-                                ep.AirDateUtc = DateTime.SpecifyKind(preciseJstTime.AddHours(-9), DateTimeKind.Utc); // Convert JST to UTC and ensure Kind is Utc
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn(ex, "Failed to enrich AniDB series {0} with AniList time data. Falling back to default date-only calendar behavior.", hubSeries.Title);
-                }
             }
 
             hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
