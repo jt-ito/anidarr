@@ -61,6 +61,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             Series hubSeries = null;
             var allEpisodes = new List<Episode>();
             var mappings = new List<AniDbSeriesMapping>();
+            var seasonMetadata = new Dictionary<int, (string Title, List<MediaCover.MediaCover> Images)>();
             var seasonNumber = 1;
             var absoluteEpisodeOffset = 0;
             var specialEpisodeCounter = 1;
@@ -78,9 +79,10 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     continue;
                 }
 
+                var currentSeriesMetadata = MapSeries(doc.Root, id);
                 if (hubSeries == null)
                 {
-                    hubSeries = MapSeries(doc.Root, id);
+                    hubSeries = currentSeriesMetadata;
                 }
 
                 var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
@@ -142,6 +144,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     SeasonNumber = assignedSeasonNumber,
                     RelationType = id == hubId ? "Hub" : "Auto-Sequel"
                 });
+
+                if (assignedSeasonNumber > 0)
+                {
+                    seasonMetadata[assignedSeasonNumber] = (currentSeriesMetadata.Title, currentSeriesMetadata.Images);
+                }
 
                 if (assignedSeasonNumber != -1)
                 {
@@ -218,7 +225,17 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
                 .Distinct()
                 .OrderBy(s => s)
-                .Select(s => new Season { SeasonNumber = s, Monitored = s > 0 })
+                .Select(s =>
+                {
+                    var season = new Season { SeasonNumber = s, Monitored = s > 0 };
+                    if (seasonMetadata.TryGetValue(s, out var meta))
+                    {
+                        season.Title = meta.Title;
+                        season.Images = meta.Images;
+                    }
+
+                    return season;
+                })
                 .ToList();
 
             hubSeries.AniDbMappings = mappings;
