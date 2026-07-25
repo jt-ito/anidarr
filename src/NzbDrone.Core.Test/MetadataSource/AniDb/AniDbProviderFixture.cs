@@ -7,10 +7,11 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.AniDb;
+using NzbDrone.Core.MetadataSource.AniList;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Test.Common;
-
 namespace NzbDrone.Core.Test.MetadataSource.AniDb
 {
     [TestFixture]
@@ -195,6 +196,178 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
 
             season2.Title.Should().Be("Season 2 Spinoff");
             season2.Images.Should().NotBeNull();
+        }
+
+        [Test]
+        public void should_enrich_air_times_using_both_episode_and_absolute_episode_matching()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+            var timeOfDay = new TimeSpan(23, 0, 0); // 23:00 JST
+
+            // AniList data: we pretend AniList uses relative numbering 1,2,3 for this cour
+            var airingTimes = new Dictionary<int, TimeSpan>
+            {
+                { 1, timeOfDay }
+            };
+
+            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+
+            // Hub is Bleach TYBW Cour 1, this is Cour 4 (Kashin-tan)
+            GivenXmlResponse(1, BuildAnimeXml(1, "BLEACH TYBW", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel") }, 13));
+            GivenXmlResponse(2, BuildAnimeXml(2, "BLEACH TYBW Cour 2", new List<Tuple<int, string>> { Tuple.Create(1, "Prequel"), Tuple.Create(3, "Sequel") }, 13));
+            GivenXmlResponse(3, BuildAnimeXml(3, "BLEACH TYBW Cour 3", new List<Tuple<int, string>> { Tuple.Create(2, "Prequel"), Tuple.Create(4, "Sequel") }, 13));
+
+            // Kashin-tan (Cour 4)
+            // It has an AniList ID 185874. It has 1 episode in the XML (Episode 1).
+            var kashinTanXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""4"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">BLEACH: Sennen Kessen-hen - Kashin-tan</title>
+  </titles>
+  <type>TV Series</type>
+  <relatedanime>
+    <anime id=""3"" type=""Prequel"">Related</anime>
+  </relatedanime>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-25</airdate></episode>
+  </episodes>
+</anime>";
+
+            GivenXmlResponse(4, kashinTanXml);
+
+            // Mock finding AniList ID for the hub
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var hubSeriesMock = new AnimeOfflineTitle { AniDbId = 1, AniListId = 185874 };
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(hubSeriesMock);
+            var details = Subject.GetSeriesInfo("1");
+
+            // Assert
+            var episodes = details.Item2;
+            var episode = episodes.Single(e => e.SeasonNumber == 4 && e.EpisodeNumber == 1);
+
+            // Expected precise time is 14:00 UTC (since 14:00 UTC = 23:00 JST, and the AniDb date is 2026-07-25)
+            episode.AirDateUtc.Should().Be(new DateTime(2026, 7, 25, 14, 0, 0, DateTimeKind.Utc));
+            episode.AirDateUtc.Value.Kind.Should().Be(DateTimeKind.Utc);
+        }
+
+        [Test]
+        public void should_handle_calendar_day_rollover_when_jst_crosses_midnight_relative_to_utc()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+            var timeOfDay = new TimeSpan(2, 0, 0); // 02:00 JST
+
+            // Mock AniList response (using episode 1 relative numbering)
+            var airingTimes = new Dictionary<int, TimeSpan>
+            {
+                { 1, timeOfDay }
+            };
+
+            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+
+            // AniDb date is July 26th
+            var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">Test Anime</title>
+  </titles>
+  <type>TV Series</type>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
+  </episodes>
+</anime>";
+
+            GivenXmlResponse(1, testXml);
+
+            // Mock mapping
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var localSeries = new AnimeOfflineTitle { AniDbId = 1, AniListId = 185874 };
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+
+            var details = Subject.GetSeriesInfo("1");
+            var episode = details.Item2.First();
+
+            // 02:00 JST on July 26th = 17:00 UTC on July 25th (rolls backwards across calendar boundary)
+            episode.AirDateUtc.Should().Be(new DateTime(2026, 7, 25, 17, 0, 0, DateTimeKind.Utc));
+            episode.AirDateUtc.Value.Kind.Should().Be(DateTimeKind.Utc);
+        }
+
+        [Test]
+        public void should_fallback_to_title_search_and_cache_result_when_anilist_id_missing()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+            var timeOfDay = new TimeSpan(14, 0, 0);
+
+            var airingTimes = new Dictionary<int, TimeSpan> { { 1, timeOfDay } };
+            anilistEnricherMock.Setup(c => c.GetAiringTimes(185874)).Returns(airingTimes);
+
+            // Mock the title fallback search to return our ID
+            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle("Test Anime Fallback", 2026, 1)).Returns(185874);
+
+            var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">Test Anime Fallback</title>
+  </titles>
+  <type>TV Series</type>
+  <startdate>2026-07-26</startdate>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
+  </episodes>
+</anime>";
+
+            GivenXmlResponse(1, testXml);
+
+            // Mock mapping: Series found in DB, but NO AniList ID!
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var localSeries = new AnimeOfflineTitle { AniDbId = 1, Title = "Test Anime Fallback" }; // Missing AniListId
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+
+            var details = Subject.GetSeriesInfo("1");
+            var episode = details.Item2.First();
+
+            episode.AirDateUtc.Should().NotBeNull();
+
+            // Verify fallback was called
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Test Anime Fallback", 2026, 1), Times.Once);
+
+            // Verify caching occurred
+            titleSearchMock.Verify(c => c.UpdateAniListId(1, 185874), Times.Once);
+        }
+
+        [Test]
+        public void should_ignore_ambiguous_matches_during_fallback_search()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+
+            // Mock the title fallback search to return null (ambiguous match or not found)
+            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle("Ambiguous Anime", 2026, 1)).Returns((int?)null);
+
+            var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">Ambiguous Anime</title>
+  </titles>
+  <type>TV Series</type>
+  <startdate>2026-07-26</startdate>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
+  </episodes>
+</anime>";
+
+            GivenXmlResponse(1, testXml);
+
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var localSeries = new AnimeOfflineTitle { AniDbId = 1, Title = "Ambiguous Anime" }; // Missing AniListId
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+
+            var details = Subject.GetSeriesInfo("1");
+            var episode = details.Item2.First();
+
+            // Enrichment should fail/be skipped, meaning default fallback of 23:59:59 should be used
+            episode.AirDateUtc.Should().Be(new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc));
+
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Ambiguous Anime", 2026, 1), Times.Once);
+            titleSearchMock.Verify(c => c.UpdateAniListId(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
         }
     }
 }

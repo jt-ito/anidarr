@@ -192,6 +192,39 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 throw new Exception($"Could not fetch primary series data for AniDB ID {externalId}");
             }
 
+            if (hubSeries.AniListIds == null || !hubSeries.AniListIds.Any())
+            {
+                try
+                {
+                    var local = _titleSearch.GetSeriesById("anidb", hubSeries.AniDbId.Value);
+                    if (local != null && local.AniListId.HasValue)
+                    {
+                        hubSeries.AniListIds = new HashSet<int> { local.AniListId.Value };
+                    }
+                    else if (!string.IsNullOrWhiteSpace(hubSeries.Title))
+                    {
+                        var expectedYear = hubSeries.Year > 0 ? hubSeries.Year : (allEpisodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
+                        if (expectedYear > 0)
+                        {
+                            var expectedEpisodeCount = allEpisodes.Count(e => e.SeasonNumber > 0);
+
+                            _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", hubSeries.AniDbId, hubSeries.Title);
+                            var fallbackId = _aniListEnricher.SearchAniListIdByTitle(hubSeries.Title, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
+
+                            if (fallbackId.HasValue)
+                            {
+                                hubSeries.AniListIds = new HashSet<int> { fallbackId.Value };
+                                _titleSearch.UpdateAniListId(hubSeries.AniDbId.Value, fallbackId.Value);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Failed to resolve AniList ID for AniDB ID {0}", hubSeries.AniDbId);
+                }
+            }
+
             if (hubSeries.AniListIds != null && hubSeries.AniListIds.Any())
             {
                 var aniListId = hubSeries.AniListIds.First();
@@ -205,13 +238,26 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         {
                             // Note: AniList enrichment targets AbsoluteEpisodeNumber if present (continuous numbering),
                             // otherwise falls back to EpisodeNumber (for single season series).
-                            var episodeNumberForMatch = ep.AbsoluteEpisodeNumber ?? ep.EpisodeNumber;
-                            if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && airingTimes.TryGetValue(episodeNumberForMatch, out var timeOfDay))
+                            var timeOfDay = default(TimeSpan);
+                            var hasMatch = false;
+
+                            if (ep.AbsoluteEpisodeNumber.HasValue && airingTimes.TryGetValue(ep.AbsoluteEpisodeNumber.Value, out var absTime))
+                            {
+                                timeOfDay = absTime;
+                                hasMatch = true;
+                            }
+                            else if (airingTimes.TryGetValue(ep.EpisodeNumber, out var relTime))
+                            {
+                                timeOfDay = relTime;
+                                hasMatch = true;
+                            }
+
+                            if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && hasMatch)
                             {
                                 // Combine the AniDB date with the precise AniList time (in JST)
                                 var jstDate = DateTime.Parse(ep.AirDate);
                                 var preciseJstTime = jstDate.Add(timeOfDay);
-                                ep.AirDateUtc = preciseJstTime.AddHours(-9); // Convert JST to UTC
+                                ep.AirDateUtc = DateTime.SpecifyKind(preciseJstTime.AddHours(-9), DateTimeKind.Utc); // Convert JST to UTC and ensure Kind is Utc
                             }
                         }
                     }

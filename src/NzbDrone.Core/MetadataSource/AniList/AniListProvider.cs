@@ -341,6 +341,7 @@ query ($search: String) {
         public string Status { get; set; }
         public AniListDate StartDate { get; set; }
         public AniListDate EndDate { get; set; }
+        public string Format { get; set; }
         public int? Episodes { get; set; }
         public int? Duration { get; set; }
         public List<string> Genres { get; set; }

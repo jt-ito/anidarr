@@ -20,6 +20,7 @@ namespace NzbDrone.Core.MetadataSource
         AnimeOfflineTitle GetSeriesById(string providerKey, int id);
         void ForceDownloadDump();
         void UpdateMetadata(Series series);
+        void UpdateAniListId(int aniDbId, int aniListId);
     }
 
     public class AnimeOfflineDatabase : IAnimeOfflineDatabase
@@ -87,6 +88,17 @@ namespace NzbDrone.Core.MetadataSource
                         _logger.Debug("Updated local AnimeOfflineTitle for AniDB {0} with rich metadata.", series.AniDbId.Value);
                     }
                 }
+            }
+        }
+
+        public void UpdateAniListId(int aniDbId, int aniListId)
+        {
+            var existing = _animeOfflineTitleRepository.FindByAniDbId(aniDbId);
+            if (existing != null)
+            {
+                existing.AniListId = aniListId;
+                _animeOfflineTitleRepository.Update(existing);
+                _logger.Debug("Updated local AnimeOfflineTitle for AniDB {0} with fallback AniList ID {1}.", aniDbId, aniListId);
             }
         }
 
