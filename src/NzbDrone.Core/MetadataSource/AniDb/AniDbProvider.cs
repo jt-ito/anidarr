@@ -610,9 +610,16 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             }
 
             var endDate = root?.Element(ns + "enddate")?.Value;
-            if (endDate.IsNotNullOrWhiteSpace())
+            if (endDate.IsNotNullOrWhiteSpace() && !endDate.Contains('?'))
             {
-                series.Status = SeriesStatusType.Ended;
+                if (DateTime.TryParse(endDate, out var parsedEndDate) && parsedEndDate > DateTime.UtcNow)
+                {
+                    series.Status = SeriesStatusType.Continuing;
+                }
+                else
+                {
+                    series.Status = SeriesStatusType.Ended;
+                }
             }
             else
             {

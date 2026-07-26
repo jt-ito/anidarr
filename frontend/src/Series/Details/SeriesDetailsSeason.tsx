@@ -45,6 +45,43 @@ import SeasonInfo from './SeasonInfo';
 import SeasonProgressLabel from './SeasonProgressLabel';
 import styles from './SeriesDetailsSeason.css';
 
+function ProgressiveEpisodeList({
+  items,
+  isExpanded,
+  children,
+}: {
+  items: Episode[];
+  isExpanded?: boolean;
+  children: (visibleItems: Episode[]) => React.ReactNode;
+}) {
+  const [renderedCount, setRenderedCount] = useState(100);
+
+  useEffect(() => {
+    if (!isExpanded) {
+      setRenderedCount(100);
+      return;
+    }
+
+    if (renderedCount >= items.length) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setRenderedCount((prev) => Math.min(prev + 100, items.length));
+    }, 16);
+
+    return () => clearTimeout(timer);
+  }, [isExpanded, items.length, renderedCount]);
+
+  if (items.length <= 100) {
+    return <>{children(items)}</>;
+  }
+
+  const visibleItems = items.slice(0, renderedCount);
+
+  return <>{children(visibleItems)}</>;
+}
+
 function getSeasonStatistics(episodes: Episode[]) {
   let episodeCount = 0;
   let episodeFileCount = 0;
@@ -502,29 +539,33 @@ function SeriesDetailsSeason({
         {isExpanded ? (
           <div className={styles.episodes}>
             {items.length ? (
-              <Table
-                columns={columns}
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                onSortPress={handleSortPress}
-                onTableOptionChange={handleTableOptionChange}
-              >
-                <TableBody>
-                  {items.map((item) => {
-                    return (
-                      <EpisodeRow
-                        key={item.id}
-                        columns={columns}
-                        {...item}
-                        isSaving={
-                          isToggling && togglingEpisodeIds.includes(item.id)
-                        }
-                        onMonitorEpisodePress={handleMonitorEpisodePress}
-                      />
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <ProgressiveEpisodeList items={items} isExpanded={isExpanded}>
+                {(visibleItems) => (
+                  <Table
+                    columns={columns}
+                    sortKey={sortKey}
+                    sortDirection={sortDirection}
+                    onSortPress={handleSortPress}
+                    onTableOptionChange={handleTableOptionChange}
+                  >
+                    <TableBody>
+                      {visibleItems.map((item) => {
+                        return (
+                          <EpisodeRow
+                            key={item.id}
+                            columns={columns}
+                            {...item}
+                            isSaving={
+                              isToggling && togglingEpisodeIds.includes(item.id)
+                            }
+                            onMonitorEpisodePress={handleMonitorEpisodePress}
+                          />
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </ProgressiveEpisodeList>
             ) : (
               <div className={styles.noEpisodes}>
                 {translate('NoEpisodesInThisSeason')}

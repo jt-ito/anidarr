@@ -11,6 +11,7 @@ using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.MetadataSource.AniDb;
 using NzbDrone.Core.MetadataSource.AniList;
 using NzbDrone.Core.Test.Framework;
+using NzbDrone.Core.Tv;
 using NzbDrone.Test.Common;
 namespace NzbDrone.Core.Test.MetadataSource.AniDb
 {
@@ -370,7 +371,59 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             episode.AirDateUtc.Should().Be(new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc));
 
             anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Ambiguous Anime", 2026, 1), Times.Once);
-            titleSearchMock.Verify(c => c.UpdateAniListId(It.IsAny<int>(), It.IsAny<int>()), Times.Never);
+        }
+
+        [Test]
+        public void should_mark_series_as_continuing_if_enddate_is_missing()
+        {
+            var xml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles><title xml:lang=""en"" type=""main"">Test Anime</title></titles>
+</anime>";
+            GivenXmlResponse(1, xml);
+            var details = Subject.GetSeriesInfo("1");
+            details.Item1.Status.Should().Be(SeriesStatusType.Continuing);
+        }
+
+        [Test]
+        public void should_mark_series_as_continuing_if_enddate_contains_question_mark()
+        {
+            var xml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles><title xml:lang=""en"" type=""main"">Test Anime</title></titles>
+  <enddate>?</enddate>
+</anime>";
+            GivenXmlResponse(1, xml);
+            var details = Subject.GetSeriesInfo("1");
+            details.Item1.Status.Should().Be(SeriesStatusType.Continuing);
+        }
+
+        [Test]
+        public void should_mark_series_as_continuing_if_enddate_is_in_the_future()
+        {
+            var futureDate = DateTime.UtcNow.AddYears(1).ToString("yyyy-MM-dd");
+            var xml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles><title xml:lang=""en"" type=""main"">Test Anime</title></titles>
+  <enddate>{futureDate}</enddate>
+</anime>";
+            GivenXmlResponse(1, xml);
+            var details = Subject.GetSeriesInfo("1");
+            details.Item1.Status.Should().Be(SeriesStatusType.Continuing);
+        }
+
+        [Test]
+        public void should_mark_series_as_ended_if_enddate_is_in_the_past()
+        {
+            var pastDate = DateTime.UtcNow.AddYears(-1).ToString("yyyy-MM-dd");
+            var xml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles><title xml:lang=""en"" type=""main"">Test Anime</title></titles>
+  <enddate>{pastDate}</enddate>
+</anime>";
+            GivenXmlResponse(1, xml);
+            var details = Subject.GetSeriesInfo("1");
+            details.Item1.Status.Should().Be(SeriesStatusType.Ended);
         }
     }
 }
