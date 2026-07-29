@@ -439,6 +439,21 @@ function InteractiveImportModalContentInner(
     [selectAll, unselectAll]
   );
 
+  const handleReprocessItems = useCallback(
+    (ids: number[]) => {
+      setReprocessingItems((prev) => {
+        const newSet = new Set(prev);
+
+        ids.forEach((id) => newSet.add(id));
+
+        return newSet;
+      });
+
+      reprocessInteractiveImportItems(ids);
+    },
+    [reprocessInteractiveImportItems]
+  );
+
   const handleSelectedChange = useCallback<OnSelectedChangeCallback>(
     ({ id, value, hasEpisodeFileId, shiftKey = false }) => {
       toggleSelected({
@@ -452,11 +467,55 @@ function InteractiveImportModalContentInner(
           ? without(withoutEpisodeFileIdRowsSelected, id as number)
           : [...withoutEpisodeFileIdRowsSelected, id as number]
       );
+
+      if (
+        value &&
+        items.length > 1 &&
+        folder &&
+        (seriesId || seasonNumber !== undefined || episodeId)
+      ) {
+        const item = items.find((i) => i.id === id);
+
+        if (item) {
+          const updates: Partial<InteractiveImport> = {};
+
+          if (seriesId && !item.series) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            updates.series = { id: seriesId } as any;
+          }
+
+          if (seasonNumber !== undefined && item.seasonNumber === undefined) {
+            updates.seasonNumber = seasonNumber;
+          }
+
+          if (episodeId && (!item.episodes || item.episodes.length === 0)) {
+            if (prefillEpisode) {
+              updates.episodes = [prefillEpisode];
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              updates.episodes = [{ id: episodeId }] as any;
+            }
+          }
+
+          if (Object.keys(updates).length > 0) {
+            updateInteractiveImportItem(id, updates);
+            handleReprocessItems([id]);
+          }
+        }
+      }
     },
     [
       withoutEpisodeFileIdRowsSelected,
       setWithoutEpisodeFileIdRowsSelected,
       toggleSelected,
+      items,
+      folder,
+      seriesId,
+      seasonNumber,
+      episodeId,
+      prefillEpisode,
+      updateInteractiveImportItem,
+      handleReprocessItems,
     ]
   );
 
@@ -697,21 +756,6 @@ function InteractiveImportModalContentInner(
     setSelectModalOpen(null);
   }, [setSelectModalOpen]);
 
-  const handleReprocessItems = useCallback(
-    (ids: number[]) => {
-      setReprocessingItems((prev) => {
-        const newSet = new Set(prev);
-
-        ids.forEach((id) => newSet.add(id));
-
-        return newSet;
-      });
-
-      reprocessInteractiveImportItems(ids);
-    },
-    [reprocessInteractiveImportItems]
-  );
-
   const handleSeriesSelect = useCallback(
     (series: Series) => {
       const updates = {
@@ -777,23 +821,23 @@ function InteractiveImportModalContentInner(
     ) {
       setHasAppliedPrefill(true);
 
-      const ids = items.map((i) => i.id);
-
-      const updates: Partial<InteractiveImport> = {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (seriesId) updates.series = { id: seriesId } as any;
-      if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
-
       if (items.length === 1) {
+        const ids = items.map((i) => i.id);
+
+        const updates: Partial<InteractiveImport> = {};
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (seriesId) updates.series = { id: seriesId } as any;
+        if (seasonNumber !== undefined) updates.seasonNumber = seasonNumber;
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         if (prefillEpisode) updates.episodes = [prefillEpisode];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         else if (episodeId) updates.episodes = [{ id: episodeId }] as any;
-      }
 
-      if (Object.keys(updates).length > 0) {
-        updateInteractiveImportItems(ids, updates);
-        handleReprocessItems(ids);
+        if (Object.keys(updates).length > 0) {
+          updateInteractiveImportItems(ids, updates);
+          handleReprocessItems(ids);
+        }
       }
     }
   }, [
