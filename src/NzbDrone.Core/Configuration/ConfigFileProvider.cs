@@ -79,6 +79,7 @@ namespace NzbDrone.Core.Configuration
         int AniDbClientVersion { get; }
         DateTime? AniDbBanExpiration { get; }
         void SetAniDbBanExpiration(DateTime? expiration);
+        bool IsRelatedSeriesEnabled { get; }
     }
 
     public class ConfigFileProvider : IConfigFileProvider
@@ -350,6 +351,8 @@ namespace NzbDrone.Core.Configuration
                 return null;
             }
         }
+
+        public bool IsRelatedSeriesEnabled => GetValueBoolean("IsRelatedSeriesEnabled", true);
 
         public void SetAniDbBanExpiration(DateTime? expiration)
         {

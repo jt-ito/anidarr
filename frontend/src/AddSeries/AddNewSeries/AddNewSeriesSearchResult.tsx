@@ -12,15 +12,17 @@ import SeriesGenres from 'Series/SeriesGenres';
 import SeriesPoster from 'Series/SeriesPoster';
 import useExistingSeries from 'Series/useExistingSeries';
 import translate from 'Utilities/String/translate';
+import RelatedSeriesList from 'Series/RelatedSeriesList';
 import AddNewSeriesModal from './AddNewSeriesModal';
 import resolveDisplaySeries from './resolveDisplaySeries';
 import styles from './AddNewSeriesSearchResult.css';
 
 interface AddNewSeriesSearchResultProps {
   series: AddSeries;
+  searchTerm?: string;
 }
 
-function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
+function AddNewSeriesSearchResult({ series, searchTerm }: AddNewSeriesSearchResultProps) {
   const existingSeries = useExistingSeries(series);
   const displaySeries = resolveDisplaySeries(series, existingSeries);
 
@@ -56,7 +58,7 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
   }, []);
 
   const linkProps = existingSeries
-    ? { to: `/series/${existingSeries.titleSlug}` }
+    ? { to: `/series/${existingSeries.titleSlug}${searchTerm ? `?returnToAddNew=${encodeURIComponent(searchTerm)}` : ''}` }
     : { onPress: handlePress };
   let seasons = translate('OneSeason');
 
@@ -215,6 +217,8 @@ function AddNewSeriesSearchResult({ series }: AddNewSeriesSearchResultProps) {
 
             return <MetadataAttribution providerName={providerName} />;
           })()}
+
+          <RelatedSeriesList series={displaySeries} />
         </div>
       </div>
 

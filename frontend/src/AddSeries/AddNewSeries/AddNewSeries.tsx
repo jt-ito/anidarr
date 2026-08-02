@@ -131,6 +131,7 @@ function AddNewSeries() {
                     index
                   }
                   series={item}
+                  searchTerm={term}
                 />
               );
             })}

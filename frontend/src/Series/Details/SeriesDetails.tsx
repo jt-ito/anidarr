@@ -21,6 +21,7 @@ import Tooltip from 'Components/Tooltip/Tooltip';
 import useEpisodes from 'Episode/useEpisodes';
 import useEpisodeFiles from 'EpisodeFile/useEpisodeFiles';
 import usePrevious from 'Helpers/Hooks/usePrevious';
+import useQueryParams from 'Helpers/Hooks/useQueryParams';
 import {
   align,
   icons,
@@ -56,6 +57,7 @@ import filterAlternateTitles from 'Utilities/Series/filterAlternateTitles';
 import translate from 'Utilities/String/translate';
 import toggleSelected from 'Utilities/Table/toggleSelected';
 import AniDbMappingsModal from '../AniDbMappings/AniDbMappingsModal';
+import RelatedSeriesList from '../RelatedSeriesList';
 import SeriesAlternateTitles from './SeriesAlternateTitles';
 import SeriesDetailsLinks from './SeriesDetailsLinks';
 import SeriesDetailsProvider from './SeriesDetailsProvider';
@@ -98,6 +100,7 @@ interface SeriesDetailsProps {
 
 function SeriesDetails({ seriesId }: SeriesDetailsProps) {
   const executeCommand = useExecuteCommand();
+  const { returnToAddNew } = useQueryParams<{ returnToAddNew: string }>();
 
   const series = useSingleSeries(seriesId);
 
@@ -478,6 +481,14 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
               onPress={handleSearchPress}
             />
 
+            {returnToAddNew ? (
+              <PageToolbarButton
+                label="Return to Add New"
+                iconName={icons.ARROW_LEFT}
+                to={`/add/new?term=${encodeURIComponent(returnToAddNew)}`}
+              />
+            ) : null}
+
             <PageToolbarSeparator />
 
             <PageToolbarButton
@@ -832,6 +843,8 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
 
                   return <MetadataAttribution providerName={providerName} />;
                 })()}
+
+                <RelatedSeriesList series={series} />
               </div>
             </div>
           </div>

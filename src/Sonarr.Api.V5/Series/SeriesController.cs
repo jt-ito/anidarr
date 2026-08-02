@@ -48,6 +48,8 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
     private readonly IHardlinkSeriesFiles _hardlinkSeriesService; // Anidarr
     private readonly IAnimeOfflineTitleRepository _animeOfflineTitleRepository;
     private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
+    private readonly IAniDbRelatedSeriesService _aniDbRelatedSeriesService;
+    private readonly IAniDbRelatedMetadataCacheRepository _aniDbRelatedMetadataCacheRepository;
 
     private readonly LockByIdPool _seriesLockPool = new();
 
@@ -62,6 +64,8 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                         IHardlinkSeriesFiles hardlinkSeriesService, // Anidarr
                         IAnimeOfflineTitleRepository animeOfflineTitleRepository,
                         IAniDbSeriesMappingService aniDbSeriesMappingService,
+                        IAniDbRelatedSeriesService aniDbRelatedSeriesService,
+                        IAniDbRelatedMetadataCacheRepository aniDbRelatedMetadataCacheRepository,
                         RootFolderValidator rootFolderValidator,
                         MappedNetworkDriveValidator mappedNetworkDriveValidator,
                         SeriesPathValidator seriesPathValidator,
@@ -84,6 +88,8 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         _hardlinkSeriesService = hardlinkSeriesService; // Anidarr
         _animeOfflineTitleRepository = animeOfflineTitleRepository;
         _aniDbSeriesMappingService = aniDbSeriesMappingService;
+        _aniDbRelatedSeriesService = aniDbRelatedSeriesService;
+        _aniDbRelatedMetadataCacheRepository = aniDbRelatedMetadataCacheRepository;
 
         SharedValidator.RuleFor(s => s.Path).Cascade(CascadeMode.Stop)
             .IsValidPath()
@@ -140,6 +146,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         LinkSeriesStatistics(seriesResources, seriesStats.ToDictionary(x => x.SeriesId));
         PopulateAlternateTitles(seriesResources);
         PopulateAniDbMappings(seriesResources);
+        PopulateAniDbRelatedSeries(seriesResources);
         seriesResources.ForEach(LinkRootFolderPath);
 
         return TypedResults.Ok(seriesResources);
@@ -306,6 +313,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         FetchAndLinkSeriesStatistics(resource);
         PopulateAlternateTitles(resource);
         PopulateAniDbMappings(resource);
+        PopulateAniDbRelatedSeries(resource);
         LinkRootFolderPath(resource);
 
         return resource;
@@ -415,6 +423,37 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
                     RelationType = m.RelationType
                 }).ToList();
             }
+        }
+    }
+
+    private void PopulateAniDbRelatedSeries(List<SeriesResource> resources)
+    {
+        foreach (var resource in resources)
+        {
+            PopulateAniDbRelatedSeries(resource);
+        }
+    }
+
+    private void PopulateAniDbRelatedSeries(SeriesResource resource)
+    {
+        var related = _aniDbRelatedSeriesService.GetRelatedSeries(resource.Id);
+        if (related != null && related.Any())
+        {
+            var metadataCache = _aniDbRelatedMetadataCacheRepository.GetByAniDbIds(related.Select(r => r.RelatedAniDbId).Distinct().ToList());
+            var cacheDict = metadataCache.ToDictionary(c => c.AniDbId);
+
+            resource.AniDbRelatedSeries = related.Select(r =>
+            {
+                var cache = cacheDict.GetValueOrDefault(r.RelatedAniDbId);
+                return new AniDbRelatedSeriesResource
+                {
+                    RelatedAniDbId = r.RelatedAniDbId,
+                    RelationType = r.RelationType,
+                    Title = cache?.Title,
+                    PosterUrl = cache?.PosterUrl,
+                    Overview = cache?.Overview
+                };
+            }).ToList();
         }
     }
 

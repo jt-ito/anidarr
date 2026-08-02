@@ -66,11 +66,21 @@ public class SeriesResource : RestResource
     public string? FansubGroup { get; set; }
     public List<int>? MappedAniDbIds { get; set; }
     public List<AniDbMappingResource>? AniDbMappings { get; set; }
+    public List<AniDbRelatedSeriesResource>? AniDbRelatedSeries { get; set; }
 
     // Anidarr: specifies what to do with files when RootFolderPath is changed.
     // Null = legacy MoveFiles behavior for backward compatibility.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public RootFolderAction? RootFolderAction { get; set; }
+}
+
+public class AniDbRelatedSeriesResource
+{
+    public int RelatedAniDbId { get; set; }
+    public string? RelationType { get; set; }
+    public string? Title { get; set; }
+    public string? PosterUrl { get; set; }
+    public string? Overview { get; set; }
 }
 
 public static class SeriesResourceMapper

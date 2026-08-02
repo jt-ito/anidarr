@@ -88,6 +88,17 @@ function MetadataSourceSettings() {
               </FormGroup>
 
               <FormGroup>
+                <FormLabel>Enable Related Series</FormLabel>
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="isRelatedSeriesEnabled"
+                  {...settings.isRelatedSeriesEnabled}
+                  helpText="Enable fetching and displaying related series from AniDB."
+                  onChange={handleInputChange}
+                />
+              </FormGroup>
+
+              <FormGroup>
                 <FormLabel>AniDB Offline Database</FormLabel>
                 <div style={{ marginTop: '10px' }}>
                   <Button

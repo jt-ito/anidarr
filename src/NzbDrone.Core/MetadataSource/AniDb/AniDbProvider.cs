@@ -61,6 +61,9 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             Series hubSeries = null;
             var allEpisodes = new List<Episode>();
             var mappings = new List<AniDbSeriesMapping>();
+            var relatedSeries = new List<AniDbRelatedSeries>();
+            var hubChainIds = new HashSet<int>(chainIds);
+            var seenRelations = new HashSet<int>();
             var seasonMetadata = new Dictionary<int, (string Title, List<MediaCover.MediaCover> Images)>();
             var seasonNumber = 1;
             var absoluteEpisodeOffset = 0;
@@ -146,6 +149,22 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     SeasonNumber = assignedSeasonNumber,
                     RelationType = id == hubId ? "Hub" : "Auto-Sequel"
                 });
+
+                if (_configService.IsRelatedSeriesEnabled)
+                {
+                    var allRelations = GetAllRelations(doc.Root);
+                    foreach (var relation in allRelations)
+                    {
+                        if (!hubChainIds.Contains(relation.Id) && seenRelations.Add(relation.Id))
+                        {
+                            relatedSeries.Add(new AniDbRelatedSeries
+                            {
+                                RelatedAniDbId = relation.Id,
+                                RelationType = relation.RelationType
+                            });
+                        }
+                    }
+                }
 
                 if (assignedSeasonNumber > 0)
                 {
@@ -325,6 +344,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 .ToList();
 
             hubSeries.AniDbMappings = mappings;
+            hubSeries.AniDbRelatedSeries = relatedSeries;
 
             return Tuple.Create(hubSeries, allEpisodes);
         }
@@ -463,6 +483,29 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     {
                         results.Add(id);
                     }
+                }
+            }
+
+            return results;
+        }
+
+        private List<(int Id, string RelationType)> GetAllRelations(XElement root)
+        {
+            var ns = root?.Name.Namespace ?? XNamespace.None;
+            var related = root?.Element(ns + "relatedanime");
+            if (related == null)
+            {
+                return new List<(int, string)>();
+            }
+
+            var results = new List<(int, string)>();
+            foreach (var anime in related.Elements(ns + "anime"))
+            {
+                var type = (string)anime.Attribute("type");
+                var idStr = (string)anime.Attribute("id");
+                if (int.TryParse(idStr, out var id) && id > 0 && !string.IsNullOrWhiteSpace(type))
+                {
+                    results.Add((id, type));
                 }
             }
 

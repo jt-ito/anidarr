@@ -3,6 +3,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AutoTagging;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv.Events;
@@ -44,6 +45,8 @@ namespace NzbDrone.Core.Tv
         private readonly IBuildSeriesPaths _seriesPathBuilder;
         private readonly IAutoTaggingService _autoTaggingService;
         private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
+        private readonly IAniDbRelatedSeriesService _aniDbRelatedSeriesService;
+        private readonly IManageCommandQueue _commandQueueManager;
         private readonly Logger _logger;
 
         public SeriesService(ISeriesRepository seriesRepository,
@@ -52,6 +55,8 @@ namespace NzbDrone.Core.Tv
                              IBuildSeriesPaths seriesPathBuilder,
                              IAutoTaggingService autoTaggingService,
                              IAniDbSeriesMappingService aniDbSeriesMappingService,
+                             IAniDbRelatedSeriesService aniDbRelatedSeriesService,
+                             IManageCommandQueue commandQueueManager,
                              Logger logger)
         {
             _seriesRepository = seriesRepository;
@@ -60,6 +65,8 @@ namespace NzbDrone.Core.Tv
             _seriesPathBuilder = seriesPathBuilder;
             _autoTaggingService = autoTaggingService;
             _aniDbSeriesMappingService = aniDbSeriesMappingService;
+            _aniDbRelatedSeriesService = aniDbRelatedSeriesService;
+            _commandQueueManager = commandQueueManager;
             _logger = logger;
         }
 
@@ -80,6 +87,12 @@ namespace NzbDrone.Core.Tv
             if (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any())
             {
                 _aniDbSeriesMappingService.UpdateMappings(newSeries.Id, newSeries.AniDbMappings);
+            }
+
+            if (newSeries.AniDbRelatedSeries != null && newSeries.AniDbRelatedSeries.Any())
+            {
+                _aniDbRelatedSeriesService.UpdateRelatedSeries(newSeries.Id, newSeries.AniDbRelatedSeries);
+                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(newSeries.Id));
             }
 
             _eventAggregator.PublishEvent(new SeriesAddedEvent(GetSeries(newSeries.Id)));
@@ -238,6 +251,12 @@ namespace NzbDrone.Core.Tv
             if (series.AniDbMappings != null && series.AniDbMappings.Any())
             {
                 _aniDbSeriesMappingService.UpdateMappings(series.Id, series.AniDbMappings);
+            }
+
+            if (series.AniDbRelatedSeries != null && series.AniDbRelatedSeries.Any())
+            {
+                _aniDbRelatedSeriesService.UpdateRelatedSeries(series.Id, series.AniDbRelatedSeries);
+                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(series.Id));
             }
 
             if (publishUpdatedEvent)

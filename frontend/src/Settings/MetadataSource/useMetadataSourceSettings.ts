@@ -8,6 +8,7 @@ export interface MetadataSourceSettings {
   malClientId: string;
   aniDbClientName: string;
   aniDbClientVersion: number;
+  isRelatedSeriesEnabled: boolean;
 }
 
 const SETTINGS_PATH = '/settings/metadatasource';

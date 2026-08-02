@@ -116,6 +116,13 @@ interface Series extends ModelBase {
     seasonNumber: number;
     relationType: string;
   }[];
+  aniDbRelatedSeries?: {
+    relatedAniDbId: number;
+    relationType?: string;
+    title?: string;
+    posterUrl?: string;
+    overview?: string;
+  }[];
   malIds?: number[];
   aniListIds?: number[];
   primaryMetadataProvider?: string;
