@@ -618,10 +618,17 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var alternateTitles = new List<string>();
             if (titleElements != null)
             {
+                var xjatTitle = titleElements.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat" || (string)t.Attribute("lang") == "x-jat")?.Value?.Trim();
+
+                if (!string.IsNullOrWhiteSpace(xjatTitle))
+                {
+                    alternateTitles.Add(xjatTitle);
+                }
+
                 foreach (var tElement in titleElements)
                 {
                     var val = tElement.Value?.Trim();
-                    if (!string.IsNullOrWhiteSpace(val))
+                    if (!string.IsNullOrWhiteSpace(val) && val != xjatTitle)
                     {
                         alternateTitles.Add(val);
                     }

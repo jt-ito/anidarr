@@ -38,5 +38,22 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
         {
             SearchCriteriaBase.NormalizeAnimeTitle(input).Should().Be(expected);
         }
+
+        [Test]
+        public void should_prioritize_romaji_title_for_anidb_series()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "English Title",
+                AlternateTitles = new List<string> { "Romaji Title", "Japanese Title" },
+                PrimaryMetadataProvider = "anidb"
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.First().Should().Be("Romaji Title");
+            titles.Skip(1).First().Should().Be("English Title");
+            titles.Should().HaveCount(3);
+        }
     }
 }

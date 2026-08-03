@@ -34,6 +34,12 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
             get
             {
                 var titles = new List<string>();
+
+                if (Series?.PrimaryMetadataProvider == "anidb" && Series?.AlternateTitles != null && Series.AlternateTitles.Any())
+                {
+                    titles.Add(Series.AlternateTitles.First());
+                }
+
                 if (Series?.Title != null)
                 {
                     titles.Add(Series.Title);
