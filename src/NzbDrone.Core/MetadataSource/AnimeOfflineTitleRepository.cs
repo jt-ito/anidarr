@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
@@ -28,11 +28,13 @@ namespace NzbDrone.Core.MetadataSource
             IEnumerable<AnimeOfflineTitle> results = Query(c =>
                 c.CleanTitle != null && c.CleanTitle.Contains(cleanQuery));
 
-            // Add synonym matches that weren't caught by the CleanTitle query
-            var synonymMatches = Query(c =>
-                    (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
-                    c.SearchSynonyms != null && c.SearchSynonyms.Contains(cleanQuery))
-                .Where(c => c.SearchSynonyms.Any(s => s.Contains(cleanQuery)));
+            // Add synonym matches that weren't caught by the CleanTitle query.
+            // SearchSynonyms is a serialized JSON List<string>. To avoid engine-specific JSON parsing
+            // limitations or case-sensitivity differences between SQLite and Postgres on raw LIKE
+            // evaluations, we fetch the subset of records with synonyms and filter in memory.
+            var synonymMatches = Query(c => c.SearchSynonyms != null)
+                .Where(c => (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
+                            c.SearchSynonyms.Any(s => s.Contains(cleanQuery)));
 
             results = results.Union(synonymMatches);
 

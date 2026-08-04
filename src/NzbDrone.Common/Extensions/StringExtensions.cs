@@ -248,5 +248,15 @@ namespace NzbDrone.Common.Extensions
 
             return new string(array);
         }
+
+        public static string CleanForSearch(this string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return string.Empty;
+            }
+
+            return new string(title.RemoveDiacritics().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        }
     }
 }

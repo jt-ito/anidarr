@@ -373,6 +373,19 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
     {
         resource.AlternateTitles ??= new List<AlternateTitleResource>();
 
+        var unaccentedTitles = resource.AlternateTitles
+            .Select(a => a.Title?.RemoveDiacritics())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToList();
+
+        foreach (var unaccented in unaccentedTitles)
+        {
+            if (!resource.AlternateTitles.Any(a => string.Equals(a.Title, unaccented, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                resource.AlternateTitles.Add(new AlternateTitleResource { Title = unaccented, Comment = "Normalized" });
+            }
+        }
+
         if (resource.TvdbId > 0)
         {
             var mappings = _sceneMappingService.FindByTvdbId(resource.TvdbId);

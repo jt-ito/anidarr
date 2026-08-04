@@ -106,7 +106,7 @@ namespace NzbDrone.Core.MetadataSource
         {
             EnsureCache();
 
-            var cleanQuery = new string(query.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+            var cleanQuery = query.CleanForSearch();
 
             _logger.Info("Searching AnimeOfflineDatabase for {0} (Provider: {1})", cleanQuery, providerKey);
             var orderedMatches = _animeOfflineTitleRepository.FindSearchMatches(cleanQuery, providerKey);
@@ -288,7 +288,7 @@ namespace NzbDrone.Core.MetadataSource
                                 entry.Title = titleProp.GetString();
                                 if (entry.Title != null)
                                 {
-                                    entry.CleanTitle = new string(entry.Title.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+                                    entry.CleanTitle = entry.Title.CleanForSearch();
                                 }
                             }
 
@@ -302,7 +302,7 @@ namespace NzbDrone.Core.MetadataSource
                                         var syn = synElement.GetString();
                                         if (syn != null)
                                         {
-                                            entry.SearchSynonyms.Add(new string(syn.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant());
+                                            entry.SearchSynonyms.Add(syn.CleanForSearch());
                                         }
                                     }
                                 }
@@ -412,7 +412,7 @@ namespace NzbDrone.Core.MetadataSource
                                 continue;
                             }
 
-                            var cleanTitlePart = new string(title.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+                            var cleanTitlePart = title.CleanForSearch();
 
                             if (!manamiDict.TryGetValue(anidbId, out var entry))
                             {
