@@ -1,5 +1,6 @@
 import moment from 'moment';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 import CommandNames from 'Commands/CommandNames';
 import { useCommands, useExecuteCommand } from 'Commands/useCommands';
 import Alert from 'Components/Alert';
@@ -100,6 +101,7 @@ interface SeriesDetailsProps {
 
 function SeriesDetails({ seriesId }: SeriesDetailsProps) {
   const executeCommand = useExecuteCommand();
+  const navigate = useNavigate();
   const { returnToAddNew } = useQueryParams<{ returnToAddNew: string }>();
 
   const series = useSingleSeries(seriesId);
@@ -107,6 +109,10 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
   const { toggleSeriesMonitored, isTogglingSeriesMonitored } =
     useToggleSeriesMonitored(seriesId);
   const { data: allSeries } = useSeries();
+
+  const handleReturnToAddNewPress = useCallback(() => {
+    navigate(`/add/new?term=${encodeURIComponent(returnToAddNew || '')}`);
+  }, [navigate, returnToAddNew]);
 
   const {
     isFetching: isEpisodesFetching,
@@ -485,7 +491,7 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
               <PageToolbarButton
                 label="Return to Add New"
                 iconName={icons.ARROW_LEFT}
-                to={`/add/new?term=${encodeURIComponent(returnToAddNew)}`}
+                onPress={handleReturnToAddNewPress}
               />
             ) : null}
 
