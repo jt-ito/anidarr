@@ -16,15 +16,29 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
   }
 
   return (
-    <div className={className} style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '10px' }}>
-      <strong style={{ alignSelf: 'center', marginRight: '5px' }}>{translate('Related')}:</strong>
+    <div
+      className={className}
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '5px',
+        marginTop: '10px',
+      }}
+    >
+      <strong style={{ alignSelf: 'center', marginRight: '5px' }}>
+        {translate('Related')}:
+      </strong>
       {series.aniDbRelatedSeries.map((related) => {
         const title = related.title || `AniDB ${related.relatedAniDbId}`;
         const searchUrl = `/add/new?term=${encodeURIComponent(title)}`;
 
         return (
           <Link key={related.relatedAniDbId} to={searchUrl}>
-            <Label size={sizes.SMALL} kind={kinds.INFO} title={related.relationType}>
+            <Label
+              size={sizes.SMALL}
+              kind={kinds.INFO}
+              title={related.relationType}
+            >
               {title}
             </Label>
           </Link>

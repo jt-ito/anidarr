@@ -7,12 +7,12 @@ import Label from 'Components/Label';
 import Link from 'Components/Link/Link';
 import MetadataAttribution from 'Components/MetadataAttribution';
 import { icons, kinds, sizes } from 'Helpers/Props';
+import RelatedSeriesList from 'Series/RelatedSeriesList';
 import { Statistics } from 'Series/Series';
 import SeriesGenres from 'Series/SeriesGenres';
 import SeriesPoster from 'Series/SeriesPoster';
 import useExistingSeries from 'Series/useExistingSeries';
 import translate from 'Utilities/String/translate';
-import RelatedSeriesList from 'Series/RelatedSeriesList';
 import AddNewSeriesModal from './AddNewSeriesModal';
 import resolveDisplaySeries from './resolveDisplaySeries';
 import styles from './AddNewSeriesSearchResult.css';
@@ -22,7 +22,10 @@ interface AddNewSeriesSearchResultProps {
   searchTerm?: string;
 }
 
-function AddNewSeriesSearchResult({ series, searchTerm }: AddNewSeriesSearchResultProps) {
+function AddNewSeriesSearchResult({
+  series,
+  searchTerm,
+}: AddNewSeriesSearchResultProps) {
   const existingSeries = useExistingSeries(series);
   const displaySeries = resolveDisplaySeries(series, existingSeries);
 
@@ -58,7 +61,11 @@ function AddNewSeriesSearchResult({ series, searchTerm }: AddNewSeriesSearchResu
   }, []);
 
   const linkProps = existingSeries
-    ? { to: `/series/${existingSeries.titleSlug}${searchTerm ? `?returnToAddNew=${encodeURIComponent(searchTerm)}` : ''}` }
+    ? {
+        to: `/series/${existingSeries.titleSlug}${
+          searchTerm ? `?returnToAddNew=${encodeURIComponent(searchTerm)}` : ''
+        }`,
+      }
     : { onPress: handlePress };
   let seasons = translate('OneSeason');
 
