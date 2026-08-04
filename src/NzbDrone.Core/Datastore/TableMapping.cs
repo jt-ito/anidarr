@@ -176,6 +176,7 @@ namespace NzbDrone.Core.Datastore
 
             Mapper.Entity<AutoTagging.AutoTag>("AutoTagging").RegisterModel();
             Mapper.Entity<AniDbSeriesMapping>("AniDbSeriesMappings").RegisterModel();
+            Mapper.Entity<AniDbRelatedSeries>("AniDbRelatedSeries").RegisterModel();
         }
 
         private static void RegisterMappers()
