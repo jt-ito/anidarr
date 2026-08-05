@@ -189,14 +189,51 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                             hubSeries.AniListIds.Add(local.AniListId.Value);
                         }
-                        else if (!string.IsNullOrWhiteSpace(currentSeriesMetadata.Title))
+                        else
                         {
                             var expectedYear = currentSeriesMetadata.Year > 0 ? currentSeriesMetadata.Year : (episodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
                             if (expectedYear > 0)
                             {
                                 var expectedEpisodeCount = episodes.Count(e => e.SeasonNumber > 0);
-                                _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", id, currentSeriesMetadata.Title);
-                                currentAniListId = _aniListEnricher.SearchAniListIdByTitle(currentSeriesMetadata.Title, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
+                                var fallbackTitles = new List<string>();
+
+                                if (local != null)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(local.RomajiTitle))
+                                    {
+                                        fallbackTitles.Add(local.RomajiTitle);
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(local.NativeTitle))
+                                    {
+                                        fallbackTitles.Add(local.NativeTitle);
+                                    }
+
+                                    if (!string.IsNullOrWhiteSpace(local.EnglishTitle))
+                                    {
+                                        fallbackTitles.Add(local.EnglishTitle);
+                                    }
+
+                                    if (local.SearchSynonyms != null)
+                                    {
+                                        fallbackTitles.AddRange(local.SearchSynonyms);
+                                    }
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(currentSeriesMetadata.Title) && !fallbackTitles.Contains(currentSeriesMetadata.Title))
+                                {
+                                    fallbackTitles.Add(currentSeriesMetadata.Title);
+                                }
+
+                                foreach (var titleToSearch in fallbackTitles)
+                                {
+                                    _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", id, titleToSearch);
+                                    currentAniListId = _aniListEnricher.SearchAniListIdByTitle(titleToSearch, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
+                                    if (currentAniListId.HasValue)
+                                    {
+                                        break;
+                                    }
+                                }
 
                                 if (currentAniListId.HasValue)
                                 {
@@ -345,6 +382,51 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             hubSeries.AniDbMappings = mappings;
             hubSeries.AniDbRelatedSeries = relatedSeries;
+
+            if (hubSeries.AlternateTitles == null)
+            {
+                hubSeries.AlternateTitles = new List<string>();
+            }
+
+            var existingCleanTitles = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(hubSeries.Title))
+            {
+                existingCleanTitles.Add(hubSeries.Title.CleanForSearch());
+            }
+
+            foreach (var altTitle in hubSeries.AlternateTitles)
+            {
+                if (!string.IsNullOrWhiteSpace(altTitle))
+                {
+                    existingCleanTitles.Add(altTitle.CleanForSearch());
+                }
+            }
+
+            foreach (var anilistId in allAniListIds)
+            {
+                try
+                {
+                    var anilistTitles = _aniListEnricher.GetTitles(anilistId);
+                    foreach (var anilistTitle in anilistTitles)
+                    {
+                        if (string.IsNullOrWhiteSpace(anilistTitle))
+                        {
+                            continue;
+                        }
+
+                        var cleanAnilistTitle = anilistTitle.CleanForSearch();
+                        if (!existingCleanTitles.Contains(cleanAnilistTitle))
+                        {
+                            hubSeries.AlternateTitles.Add(anilistTitle);
+                            existingCleanTitles.Add(cleanAnilistTitle);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Failed to fetch AniList titles for enrichment.");
+                }
+            }
 
             return Tuple.Create(hubSeries, allEpisodes);
         }

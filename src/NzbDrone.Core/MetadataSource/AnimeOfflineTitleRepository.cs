@@ -1,5 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Events;
 
@@ -34,7 +35,7 @@ namespace NzbDrone.Core.MetadataSource
             // evaluations, we fetch the subset of records with synonyms and filter in memory.
             var synonymMatches = Query(c => c.SearchSynonyms != null)
                 .Where(c => (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
-                            c.SearchSynonyms.Any(s => s.Contains(cleanQuery)));
+                            c.SearchSynonyms.Any(s => s.CleanForSearch().Contains(cleanQuery)));
 
             results = results.Union(synonymMatches);
 

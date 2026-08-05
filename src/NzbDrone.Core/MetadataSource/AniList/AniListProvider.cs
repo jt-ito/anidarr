@@ -337,6 +337,7 @@ query ($search: String) {
         public int Id { get; set; }
         public int? IdMal { get; set; }
         public AniListTitle Title { get; set; }
+        public List<string> Synonyms { get; set; }
         public string Description { get; set; }
         public string Status { get; set; }
         public AniListDate StartDate { get; set; }

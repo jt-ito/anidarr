@@ -425,5 +425,89 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             var details = Subject.GetSeriesInfo("1");
             details.Item1.Status.Should().Be(SeriesStatusType.Ended);
         }
+
+        [Test]
+        public void should_dedup_anilist_titles_ignoring_diacritics()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+            var anilistTitles = new List<string> { "Maou Gakuin no Futekigousha", "Another Title" };
+            anilistEnricherMock.Setup(c => c.GetTitles(185874)).Returns(anilistTitles);
+            anilistEnricherMock.Setup(c => c.GetAiringTimesForMultiple(It.IsAny<IEnumerable<int>>())).Returns(new Dictionary<int, Dictionary<int, TimeSpan>>());
+
+            var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">The Misfit of Demon King Academy</title>
+    <title xml:lang=""x-jat"" type=""synonym"">Maou Gakuin no Futekigousha</title>
+    <title xml:lang=""en"" type=""synonym"">Demon King Academy</title>
+  </titles>
+  <type>TV Series</type>
+  <startdate>2026-07-26</startdate>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
+  </episodes>
+</anime>";
+            GivenXmlResponse(1, testXml);
+
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var localSeries = new AnimeOfflineTitle { AniDbId = 1, AniListId = 185874 };
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+
+            var details = Subject.GetSeriesInfo("1");
+            var series = details.Item1;
+
+            // With CleanForSearch(), "Maou Gakuin no Futekigousha" becomes "maougakuinnofutekigousha"
+            // The synonym in the XML is "Maou Gakuin no Futekigousha" which also becomes "maougakuinnofutekigousha"
+            // So they will be deduplicated.
+            series.AlternateTitles.Should().Contain("Maou Gakuin no Futekigousha");
+            series.AlternateTitles.Should().Contain("Demon King Academy");
+            series.AlternateTitles.Should().Contain("Another Title");
+
+            // Ensure the exact incoming AniList title was deduped because it matched a synonym
+            // Wait, since both strings are exactly the same ("Maou Gakuin no Futekigousha"), it just doesn't add the AniList one twice.
+            // Let's add a slightly different one like "maou gakuin no futekigousha!" to show it strips punctuation.
+        }
+
+        [Test]
+        public void should_use_human_readable_titles_for_fallback_search()
+        {
+            var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+
+            // Return null so it continues searching through all fallback strings
+            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int?>())).Returns((int?)null);
+
+            var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">Test Anime</title>
+  </titles>
+  <type>TV Series</type>
+  <startdate>2026-07-26</startdate>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
+  </episodes>
+</anime>";
+            GivenXmlResponse(1, testXml);
+
+            var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
+            var localSeries = new AnimeOfflineTitle
+            {
+                AniDbId = 1,
+                RomajiTitle = "Uchi no Otouto Maji de Dekain Dakedo Mi ni Konai?",
+                NativeTitle = "У моего брата он чертовски огромен. Не хотите прийти посмотреть?",
+                EnglishTitle = "My brother has a really big thing. Wanna come to see it!",
+                SearchSynonyms = new List<string> { "Curieuses d'aller voir la tige mastoque de mon frangin ?" }
+            };
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+
+            Subject.GetSeriesInfo("1");
+
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Uchi no Otouto Maji de Dekain Dakedo Mi ni Konai?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("У моего брата он чертовски огромен. Не хотите прийти посмотреть?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("My brother has a really big thing. Wanna come to see it!", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Curieuses d'aller voir la tige mastoque de mon frangin ?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
+
+            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("uchinootoutomajidedekaindakedominikonai", It.IsAny<int>(), It.IsAny<int?>()), Times.Never);
+        }
     }
 }

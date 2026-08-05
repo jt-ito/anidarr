@@ -11,6 +11,9 @@ namespace NzbDrone.Core.MetadataSource
         public int? AniListId { get; set; }
         public string Title { get; set; }
         public string CleanTitle { get; set; }
+        public string RomajiTitle { get; set; }
+        public string NativeTitle { get; set; }
+        public string EnglishTitle { get; set; }
         public List<string> SearchSynonyms { get; set; } = new List<string>();
         public string PictureUrl { get; set; }
         public int? Year { get; set; }

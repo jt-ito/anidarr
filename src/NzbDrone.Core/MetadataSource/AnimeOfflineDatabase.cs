@@ -302,7 +302,7 @@ namespace NzbDrone.Core.MetadataSource
                                         var syn = synElement.GetString();
                                         if (syn != null)
                                         {
-                                            entry.SearchSynonyms.Add(syn.CleanForSearch());
+                                            entry.SearchSynonyms.Add(syn);
                                         }
                                     }
                                 }
@@ -454,9 +454,24 @@ namespace NzbDrone.Core.MetadataSource
                                 titlePriorities[anidbId] = priority;
                             }
 
-                            if (!entry.SearchSynonyms.Contains(cleanTitlePart))
+                            if (type == "1" && language.Equals("x-jat", StringComparison.OrdinalIgnoreCase))
                             {
-                                entry.SearchSynonyms.Add(cleanTitlePart);
+                                entry.RomajiTitle = title;
+                            }
+
+                            if (type == "4" && language.Equals("ja", StringComparison.OrdinalIgnoreCase))
+                            {
+                                entry.NativeTitle = title;
+                            }
+
+                            if (type == "4" && language.Equals("en", StringComparison.OrdinalIgnoreCase))
+                            {
+                                entry.EnglishTitle = title;
+                            }
+
+                            if (!entry.SearchSynonyms.Contains(title))
+                            {
+                                entry.SearchSynonyms.Add(title);
                             }
                         }
                     }
@@ -483,6 +498,24 @@ namespace NzbDrone.Core.MetadataSource
                     if (existing.CleanTitle != entry.CleanTitle)
                     {
                         existing.CleanTitle = entry.CleanTitle;
+                        changed = true;
+                    }
+
+                    if (existing.RomajiTitle != entry.RomajiTitle)
+                    {
+                        existing.RomajiTitle = entry.RomajiTitle;
+                        changed = true;
+                    }
+
+                    if (existing.NativeTitle != entry.NativeTitle)
+                    {
+                        existing.NativeTitle = entry.NativeTitle;
+                        changed = true;
+                    }
+
+                    if (existing.EnglishTitle != entry.EnglishTitle)
+                    {
+                        existing.EnglishTitle = entry.EnglishTitle;
                         changed = true;
                     }
 

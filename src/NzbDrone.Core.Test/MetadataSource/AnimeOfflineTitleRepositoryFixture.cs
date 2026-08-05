@@ -1,6 +1,7 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using FluentAssertions;
 using NUnit.Framework;
+using NzbDrone.Common.Extensions;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
 
@@ -73,9 +74,11 @@ namespace NzbDrone.Core.Test.MetadataSource
         [Test]
         public void should_find_by_native_title()
         {
-            // CleanForSearch preserves non-alphanumeric CJK characters.
-            // In the real pipeline, the Title parsing converts it using CleanForSearch.
-            var results = Subject.FindSearchMatches("é€²æ’ƒã®å·¨äºº", "anidb");
+            // CleanForSearch preserves CJK letter/digit characters.
+            // The real code path (AnimeOfflineDatabase.Search) always calls CleanForSearch()
+            // on the query before passing it to FindSearchMatches.
+            var cleanQuery = "é€²æ'ƒã®å·¨äºº".CleanForSearch();
+            var results = Subject.FindSearchMatches(cleanQuery, "anidb");
 
             results.Should().HaveCount(1);
             results[0].Title.Should().Be("Shingeki no Kyojin");
