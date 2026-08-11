@@ -126,8 +126,9 @@ To ensure an excellent `Unknown` release from a highly trusted group doesn't aut
 
 **The Recommended Setup:**
 1. Go to **Settings > Profiles** and edit your Quality Profile.
-2. Group `Unknown` together with your baseline acceptable qualities (e.g., drag it into a single group alongside `480p` and `720p`). You can leave `1080p` in a higher tier if you want it to always win.
-3. Because qualities in the same group are treated as a tie, Sonarr will fall back to your **Custom Format Scores** to pick the winner. An `Unknown` release with a +100 score will rightfully beat a `480p` release with a -50 score!
+2. Group `Unknown` together with **all** your acceptable qualities (e.g., drag `Unknown`, `480p`, `720p`, and `1080p` into a single, unified group). 
+3. Because qualities in the same group are treated as a tie, Sonarr will fall back to your **Custom Format Scores** to pick the winner. An `Unknown` or `720p` release with a +100 score will rightfully beat a `1080p` release with a -50 score!
+4. *(Optional but Recommended)* Create Custom Formats for resolutions (e.g., 1080p = +50, 720p = +30) so resolution still carries weight in the final score!
 
 ### 🐳 Docker Compose Example
 
