@@ -10,10 +10,10 @@ namespace NzbDrone.Core.CustomFormats
     {
         public IndexerFlagSpecificationValidator()
         {
-            RuleFor(c => c.Value).NotEmpty();
+            RuleFor(c => c.Value).NotNull();
             RuleFor(c => c.Value).Custom((flag, context) =>
             {
-                if (!Enum.IsDefined(typeof(IndexerFlags), flag))
+                if (flag.HasValue && !Enum.IsDefined(typeof(IndexerFlags), flag.Value))
                 {
                     context.AddFailure($"Invalid indexer flag condition value: {flag}");
                 }
@@ -29,11 +29,11 @@ namespace NzbDrone.Core.CustomFormats
         public override string ImplementationName => "Indexer Flag";
 
         [FieldDefinition(1, Label = "CustomFormatsSpecificationFlag", Type = FieldType.Select, SelectOptions = typeof(IndexerFlags))]
-        public int Value { get; set; }
+        public int? Value { get; set; }
 
         protected override bool IsSatisfiedByWithoutNegate(CustomFormatInput input)
         {
-            return input.IndexerFlags.HasFlag((IndexerFlags)Value);
+            return input.IndexerFlags.HasFlag((IndexerFlags)Value.GetValueOrDefault());
         }
 
         public override NzbDroneValidationResult Validate()

@@ -9,7 +9,7 @@ namespace NzbDrone.Core.CustomFormats
     {
         public ResolutionSpecificationValidator()
         {
-            RuleFor(c => c.Value).NotEmpty();
+            RuleFor(c => c.Value).NotNull();
         }
     }
 
@@ -21,11 +21,11 @@ namespace NzbDrone.Core.CustomFormats
         public override string ImplementationName => "Resolution";
 
         [FieldDefinition(1, Label = "CustomFormatsSpecificationResolution", Type = FieldType.Select, SelectOptions = typeof(Resolution))]
-        public int Value { get; set; }
+        public int? Value { get; set; }
 
         protected override bool IsSatisfiedByWithoutNegate(CustomFormatInput input)
         {
-            return (input.EpisodeInfo?.Quality?.Quality?.Resolution ?? (int)Resolution.Unknown) == Value;
+            return (input.EpisodeInfo?.Quality?.Quality?.Resolution ?? (int)Resolution.Unknown) == Value.GetValueOrDefault();
         }
 
         public override NzbDroneValidationResult Validate()

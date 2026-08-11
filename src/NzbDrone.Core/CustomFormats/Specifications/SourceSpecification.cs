@@ -9,7 +9,7 @@ namespace NzbDrone.Core.CustomFormats
     {
         public SourceSpecificationValidator()
         {
-            RuleFor(c => c.Value).NotEmpty();
+            RuleFor(c => c.Value).NotNull();
         }
     }
 
@@ -21,11 +21,11 @@ namespace NzbDrone.Core.CustomFormats
         public override string ImplementationName => "Source";
 
         [FieldDefinition(1, Label = "CustomFormatsSpecificationSource", Type = FieldType.Select, SelectOptions = typeof(QualitySource))]
-        public int Value { get; set; }
+        public int? Value { get; set; }
 
         protected override bool IsSatisfiedByWithoutNegate(CustomFormatInput input)
         {
-            return (input.EpisodeInfo?.Quality?.Quality?.Source ?? (int)QualitySource.Unknown) == (QualitySource)Value;
+            return (input.EpisodeInfo?.Quality?.Quality?.Source ?? (int)QualitySource.Unknown) == (QualitySource)Value.GetValueOrDefault();
         }
 
         public override NzbDroneValidationResult Validate()
