@@ -91,6 +91,11 @@ function QualityProfileItems({
 
       <div>
         <FormInputHelpText text={translate('QualitiesHelpText')} />
+        <FormInputHelpText
+          text={translate(
+            'Qualities grouped together are treated equally. Sonarr will use your Custom Format scores to break the tie between them.'
+          )}
+        />
 
         {errors.map((error, index) => {
           return (

@@ -102,6 +102,15 @@ function QualityProfileItem({
           )}
         >
           {name}
+          {qualityId === 0 && mode !== 'editSizes' ? (
+            <Icon
+              name={icons.INFO}
+              style={{ marginLeft: '8px', opacity: 0.6 }}
+              title={translate(
+                'Anime Softsub Fallback: Drag and drop this into the same group as your target resolution (e.g., 1080p). This forces Sonarr to treat them equally, allowing your Custom Formats to pick the best release group!'
+              )}
+            />
+          ) : null}
         </div>
       </label>
 

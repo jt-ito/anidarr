@@ -25,7 +25,7 @@ function DownloadBackupModal({
 }: DownloadBackupModalProps) {
   return (
     <Modal isOpen={isOpen} onModalClose={onModalClose}>
-      <ModalContent className={styles.modalContent} onModalClose={onModalClose}>
+      <ModalContent style={{ width: '450px' }} onModalClose={onModalClose}>
         <ModalHeader>{translate('Download Backup')}</ModalHeader>
 
         <ModalBody className={styles.modalBody}>

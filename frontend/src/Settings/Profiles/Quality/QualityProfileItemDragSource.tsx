@@ -115,7 +115,7 @@ function QualityProfileItemDragSource({
       const { qualityIndex: dragQualityIndex, isGroup: isDragGroup } = item;
 
       const dropQualityIndex = qualityIndex;
-      const isDropGroupItem = !!(qualityId && groupId);
+      const isDropGroupItem = !!(qualityId != null && groupId != null);
 
       const hoverBoundingRect = ref.current?.getBoundingClientRect();
       const hoverHeight = hoverBoundingRect.bottom - hoverBoundingRect.top;
@@ -172,7 +172,7 @@ function QualityProfileItemDragSource({
         qualityIndex,
         groupId,
         qualityId,
-        isGroup: !qualityId,
+        isGroup: qualityId == null,
         name,
         allowed,
         height,
@@ -223,7 +223,7 @@ function QualityProfileItemDragSource({
           />
         ) : null}
 
-        {!('items' in otherProps) && qualityId ? (
+        {!('items' in otherProps) && qualityId != null ? (
           <QualityProfileItem
             {...otherProps}
             dragRef={dragRef}
