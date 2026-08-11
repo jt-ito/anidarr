@@ -29,4 +29,39 @@ namespace NzbDrone.Core.Test.CustomFormats
             return new List<ProfileFormatItem>();
         }
     }
+
+    [NUnit.Framework.TestFixture]
+    public class ResolutionSpecificationFixture
+    {
+        [NUnit.Framework.Test]
+        public void should_allow_unknown_resolution()
+        {
+            var spec = new NzbDrone.Core.CustomFormats.ResolutionSpecification { Value = 0 };
+            var result = spec.Validate();
+            FluentAssertions.AssertionExtensions.Should(result.IsValid).BeTrue();
+        }
+
+        [NUnit.Framework.Test]
+        public void should_reject_null_resolution()
+        {
+            var spec = new NzbDrone.Core.CustomFormats.ResolutionSpecification { Value = null };
+            var result = spec.Validate();
+            FluentAssertions.AssertionExtensions.Should(result.IsValid).BeFalse();
+            FluentAssertions.AssertionExtensions.Should(result.Errors).Contain(e => e.PropertyName == "Value");
+        }
+
+        [NUnit.Framework.Test]
+        public void should_match_unknown_release()
+        {
+            var spec = new NzbDrone.Core.CustomFormats.ResolutionSpecification { Value = 0 };
+            var input = new CustomFormatInput
+            {
+                EpisodeInfo = new NzbDrone.Core.Parser.Model.ParsedEpisodeInfo
+                {
+                    Quality = new NzbDrone.Core.Qualities.QualityModel(NzbDrone.Core.Qualities.Quality.Unknown, new NzbDrone.Core.Qualities.Revision())
+                }
+            };
+            FluentAssertions.AssertionExtensions.Should(spec.IsSatisfiedBy(input)).BeTrue();
+        }
+    }
 }
