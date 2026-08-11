@@ -109,14 +109,25 @@ yarn start
 
 ## ⚙️ Configuration
 
-Once installed, head over to **Settings > Metadata** to configure your AniDB client name and credentials. The UI links directly to AniDB (and, per-season, to each individual AniDB ID) instead of TVDB wherever a series is AniDB-sourced.
+Once installed, head over to **Settings > Metadata Source** to configure your AniDB client name and credentials. The UI links directly to AniDB (and, per-season, to each individual AniDB ID) instead of TVDB wherever a series is AniDB-sourced.
 
 A few things worth knowing:
 
 * **Rate limiting is automatic and non-configurable by design** — Anidarr enforces a strict minimum delay between AniDB requests to protect your account from being rate-limited or banned. This applies globally, across background scans and manual actions alike.
 * **Root folders** must be configured under **Settings > Media Management** before adding series, same as stock Sonarr.
 * **Release selection mode** (points-based or rule-based) can be set per quality profile under **Settings > Profiles**.
-* **Backups** are available under **Settings > General > Backup**, with a choice between a full Anidarr backup or a Sonarr-compatible backup for migrating away.
+* **Backups** are available under **System > Backup**, with a choice between a full Anidarr backup or a Sonarr-compatible backup for migrating away.
+
+### ❓ Handling "Unknown" Quality Releases
+
+Because anime release groups frequently omit standard resolution or source tags from their file names, Anidarr uniquely allows you to build **Custom Formats** that explicitly target the `Unknown` quality. 
+
+To ensure an excellent `Unknown` release from a highly trusted group doesn't automatically lose to a poor `720p` release from a bad group, you must set up your **Quality Profile** correctly. In Sonarr's decision engine, **Quality Rank always overrides Custom Format Score**. If you place `Unknown` at the bottom of your list, it will *never* beat a known quality, no matter how high its score is.
+
+**The Recommended Setup:**
+1. Go to **Settings > Profiles** and edit your Quality Profile.
+2. Group `Unknown` together with your baseline acceptable qualities (e.g., drag it into a single group alongside `480p` and `720p`). You can leave `1080p` in a higher tier if you want it to always win.
+3. Because qualities in the same group are treated as a tie, Sonarr will fall back to your **Custom Format Scores** to pick the winner. An `Unknown` release with a +100 score will rightfully beat a `480p` release with a -50 score!
 
 ### 🐳 Docker Compose Example
 
@@ -170,7 +181,7 @@ Your library folders (`/data/tv-shows/`, etc.) and download folder (`/data/downl
 
 **If your download client reports a different path** (e.g., qBittorrent reports files at `/downloads/...` because its own container mounts the download directory there), add a **Remote Path Mapping** in Anidarr so it knows how to translate:
 
-1. Go to **Settings → Download Clients → Remote Path Mappings**
+1. Go to **Settings > Download Clients > Remote Path Mappings**
 2. Add a mapping:
 
    | Field | Value |
