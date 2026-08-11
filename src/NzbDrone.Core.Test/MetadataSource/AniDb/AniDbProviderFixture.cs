@@ -469,15 +469,17 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         }
 
         [Test]
-        public void should_use_human_readable_titles_for_fallback_search()
+        public void should_use_exact_fallback_order_for_anidb_16067()
         {
             var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
+            var sequence = new List<string>();
 
-            // Return null so it continues searching through all fallback strings
-            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int?>())).Returns((int?)null);
+            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int?>()))
+                .Returns((int?)null)
+                .Callback<string, int, int?>((t, y, e) => sequence.Add(t));
 
             var testXml = $@"<?xml version=""1.0"" encoding=""UTF-8""?>
-<anime id=""1"">
+<anime id=""16067"">
   <titles>
     <title xml:lang=""en"" type=""main"">Test Anime</title>
   </titles>
@@ -487,27 +489,27 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
     <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title><airdate>2026-07-26</airdate></episode>
   </episodes>
 </anime>";
-            GivenXmlResponse(1, testXml);
+            GivenXmlResponse(16067, testXml);
 
             var titleSearchMock = Mocker.GetMock<IAnimeOfflineDatabase>();
             var localSeries = new AnimeOfflineTitle
             {
-                AniDbId = 1,
+                AniDbId = 16067,
                 RomajiTitle = "Uchi no Otouto Maji de Dekain Dakedo Mi ni Konai?",
-                NativeTitle = "У моего брата он чертовски огромен. Не хотите прийти посмотреть?",
-                EnglishTitle = "My brother has a really big thing. Wanna come to see it!",
-                SearchSynonyms = new List<string> { "Curieuses d'aller voir la tige mastoque de mon frangin ?" }
+                NativeTitle = "ウチの弟マジでデカイんだけど見にこない",
+                EnglishTitle = "My Little Brother Is Huge as Hell. Wanna Come over and See?",
+                SearchSynonyms = new List<string> { "우리동생진짜큰데보러안올래" }
             };
-            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 1)).Returns(localSeries);
+            titleSearchMock.Setup(x => x.GetSeriesById("anidb", 16067)).Returns(localSeries);
 
-            Subject.GetSeriesInfo("1");
+            Subject.GetSeriesInfo("16067");
 
-            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Uchi no Otouto Maji de Dekain Dakedo Mi ni Konai?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
-            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("У моего брата он чертовски огромен. Не хотите прийти посмотреть?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
-            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("My brother has a really big thing. Wanna come to see it!", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
-            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("Curieuses d'aller voir la tige mastoque de mon frangin ?", It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
-
-            anilistEnricherMock.Verify(c => c.SearchAniListIdByTitle("uchinootoutomajidedekaindakedominikonai", It.IsAny<int>(), It.IsAny<int?>()), Times.Never);
+            sequence.Should().Equal(
+                "Uchi no Otouto Maji de Dekain Dakedo Mi ni Konai?",
+                "ウチの弟マジでデカイんだけど見にこない",
+                "My Little Brother Is Huge as Hell. Wanna Come over and See?",
+                "우리동생진짜큰데보러안올래",
+                "Test Anime");
         }
     }
 }

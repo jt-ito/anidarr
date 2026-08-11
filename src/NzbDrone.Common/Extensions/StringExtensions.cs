@@ -61,8 +61,9 @@ namespace NzbDrone.Common.Extensions
         }
 
         private static readonly Regex CollapseSpace = new Regex(@"\s+", RegexOptions.Compiled);
-
-        public static string Replace(this string text, int index, int length, string replacement)
+        private static readonly Regex RomajiWoRegex = new Regex(@"\bwo\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RomajiHaRegex = new Regex(@"\bha\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        private static readonly Regex RomajiHeRegex = new Regex(@"\bhe\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);        public static string Replace(this string text, int index, int length, string replacement)
         {
             text = text.Remove(index, length);
             text = text.Insert(index, replacement);
@@ -256,7 +257,21 @@ namespace NzbDrone.Common.Extensions
                 return string.Empty;
             }
 
-            return new string(title.RemoveDiacritics().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+            return new string(title.RemoveDiacritics().NormalizeRomajiParticles().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+        }
+
+        public static string NormalizeRomajiParticles(this string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return title;
+            }
+
+            title = RomajiWoRegex.Replace(title, "o");
+            title = RomajiHaRegex.Replace(title, "wa");
+            title = RomajiHeRegex.Replace(title, "e");
+
+            return title;
         }
     }
 }

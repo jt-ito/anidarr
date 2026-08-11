@@ -88,7 +88,7 @@ EXPOSE 8989
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8989/ping || exit 1
+    CMD port="${PORT:-$(grep -oPm1 '(?<=<Port>)[0-9]+' /config/config.xml 2>/dev/null || echo 8989)}"; curl -f "http://localhost:$port/ping" || exit 1
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["./Anidarr", "-nobrowser", "-data=/config"]

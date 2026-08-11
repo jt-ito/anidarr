@@ -143,6 +143,16 @@ namespace NzbDrone.Host
 
             var bindAddress = config.GetValue<string>($"Sonarr:Server:{nameof(ServerOptions.BindAddress)}") ?? config.GetValue(nameof(ConfigFileProvider.BindAddress), "*");
             var port = config.GetValue<int?>($"Sonarr:Server:{nameof(ServerOptions.Port)}") ?? config.GetValue(nameof(ConfigFileProvider.Port), 8989);
+
+            var appFolder = new AppFolderInfo(context);
+            var xmlConfig = new ConfigurationBuilder().AddXmlFile(appFolder.GetConfigPath(), optional: true).Build();
+            var xmlPort = xmlConfig.GetValue<int?>("Port") ?? 8989;
+
+            if (port != xmlPort)
+            {
+                Logger.Warn($"PORT environment variable ({port}) differs from configured Port in config.xml ({xmlPort}) — the environment variable takes precedence and the Web UI value will not take effect until PORT is updated or removed.");
+            }
+
             var sslPort = config.GetValue<int?>($"Sonarr:Server:{nameof(ServerOptions.SslPort)}") ?? config.GetValue(nameof(ConfigFileProvider.SslPort), 9898);
             var enableSsl = config.GetValue<bool?>($"Sonarr:Server:{nameof(ServerOptions.EnableSsl)}") ?? config.GetValue(nameof(ConfigFileProvider.EnableSsl), false);
             var sslCertPath = config.GetValue<string>($"Sonarr:Server:{nameof(ServerOptions.SslCertPath)}") ?? config.GetValue<string>(nameof(ConfigFileProvider.SslCertPath));

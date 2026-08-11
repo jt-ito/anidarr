@@ -1,5 +1,6 @@
 /* eslint-disable react/jsx-no-bind */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import Alert from 'Components/Alert';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
@@ -12,6 +13,7 @@ import useDebounce from 'Helpers/Hooks/useDebounce';
 import useQueryParams from 'Helpers/Hooks/useQueryParams';
 import { icons, kinds } from 'Helpers/Props';
 import { useHasSeries } from 'Series/useSeries';
+import { setProvider } from 'Store/Actions/addSeriesActions';
 import { InputChanged } from 'typings/inputs';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
@@ -26,7 +28,9 @@ function AddNewSeries() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isFetching, setIsFetching] = useState(false);
   const query = useDebounce(term, term ? 300 : 0);
-  const [provider, setProvider] = useState<string>(''); // Anidarr: empty string = All
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const provider = useSelector((state: any) => state.addSeries?.provider || ''); // Anidarr: empty string = All
+  const dispatch = useDispatch();
 
   const handleSearchInputChange = useCallback(
     ({ value }: InputChanged<string>) => {
@@ -93,7 +97,7 @@ function AddNewSeries() {
         {/* Anidarr: Provider selector tabs */}
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           {['', 'Tvdb', 'AniDb'].map((p) => {
-            const handlePress = () => setProvider(p);
+            const handlePress = () => dispatch(setProvider(p));
             return (
               <Button
                 key={p}

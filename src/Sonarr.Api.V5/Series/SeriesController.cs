@@ -374,7 +374,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         resource.AlternateTitles ??= new List<AlternateTitleResource>();
 
         var unaccentedTitles = resource.AlternateTitles
-            .Select(a => a.Title?.RemoveDiacritics())
+            .Select(a => a.Title?.RemoveDiacritics()?.NormalizeRomajiParticles())
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .ToList();
 

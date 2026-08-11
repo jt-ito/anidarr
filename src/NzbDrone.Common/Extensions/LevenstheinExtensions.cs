@@ -57,5 +57,11 @@ namespace NzbDrone.Common.Extensions
 
             return expected.LevenshteinDistance(other, 1, 3, 3);
         }
+
+        public static int GetAllowedEdits(this string text, string other)
+        {
+            var maxLen = Math.Max(text.Length, other.Length);
+            return (int)Math.Max(1, Math.Floor(maxLen * 0.2));
+        }
     }
 }

@@ -169,6 +169,26 @@ namespace NzbDrone.Core.MetadataSource
             // Only download if the table is empty (first run or migration reset).
             if (_animeOfflineTitleRepository.HasItems())
             {
+                // Check if backfill is required for the new title fields (RomajiTitle).
+                // We count how many entries lack a Romaji title to know if data wasn't backfilled.
+                var missingCount = _animeOfflineTitleRepository.GetUnpopulatedRomajiCount();
+                if (missingCount > 0)
+                {
+                    _logger.Info($"Detected {missingCount} unpopulated RomajiTitle fields. Forcing a local database re-parse.");
+
+                    // We only want to parse existing local dumps, not force a re-download if they exist.
+                    var datPath = Path.Combine(_appFolderInfo.AppDataFolder, "anidb_titles.json");
+                    var officialDatPath = Path.Combine(_appFolderInfo.AppDataFolder, "anime-titles.dat.gz");
+                    if (File.Exists(datPath) && File.Exists(officialDatPath))
+                    {
+                        ParseAndSyncDumps(datPath, officialDatPath);
+                    }
+                    else
+                    {
+                        ForceDownloadDump();
+                    }
+                }
+
                 return;
             }
 
@@ -218,7 +238,7 @@ namespace NzbDrone.Core.MetadataSource
             }
         }
 
-        private void ParseAndSyncDumps(string jsonPath, string officialDatPath)
+        internal void ParseAndSyncDumps(string jsonPath, string officialDatPath)
         {
             _logger.Info("Syncing Anime Offline Titles to database...");
 
@@ -464,9 +484,14 @@ namespace NzbDrone.Core.MetadataSource
                                 entry.NativeTitle = title;
                             }
 
-                            if (type == "4" && language.Equals("en", StringComparison.OrdinalIgnoreCase))
+                            // English titles can be Official (4), Synonym (2), or Primary (1)
+                            if ((type == "4" || type == "2" || type == "1") && language.Equals("en", StringComparison.OrdinalIgnoreCase))
                             {
-                                entry.EnglishTitle = title;
+                                // Prefer Official over Synonym/Primary if multiple exist
+                                if (string.IsNullOrWhiteSpace(entry.EnglishTitle) || type == "4")
+                                {
+                                    entry.EnglishTitle = title;
+                                }
                             }
 
                             if (!entry.SearchSynonyms.Contains(title))

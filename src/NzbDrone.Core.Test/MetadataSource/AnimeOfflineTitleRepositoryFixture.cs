@@ -114,5 +114,55 @@ namespace NzbDrone.Core.Test.MetadataSource
             var malResults = Subject.FindSearchMatches("testsynonym", "mal");
             malResults.Should().HaveCount(1);
         }
+
+        [Test]
+        public void should_match_fuzzy_single_char_missing_added_swapped()
+        {
+            // "shingekinokyojin" len 16 -> 16*0.2 = 3 edits allowed
+            Subject.FindSearchMatches("shingeknokyojin", "anidb").Should().HaveCount(1); // missing i
+            Subject.FindSearchMatches("shingekinnokyojin", "anidb").Should().HaveCount(1); // added n
+            Subject.FindSearchMatches("shingkeinokyojin", "anidb").Should().HaveCount(1); // swapped e/k (distance 2)
+
+            // "bokunoheroacademia" len 18 -> 3 edits allowed
+            Subject.FindSearchMatches("bokunoheracademia", "anidb").Should().HaveCount(1); // missing o
+        }
+
+        [Test]
+        public void should_not_produce_duplicates_when_substring_matches()
+        {
+            // Exact substring matches "attackontitan", it shouldn't be duplicated by fuzzy match
+            var results = Subject.FindSearchMatches("attackontitan", "anidb");
+            results.Should().HaveCount(1);
+        }
+
+        [Test]
+        public void should_not_match_wildly_different_titles()
+        {
+            // "kon" length 3. query "xyz" length 3 -> dist 3. allowed is max(1, 0) = 1.
+            var title4 = new AnimeOfflineTitle
+            {
+                Title = "K-On",
+                CleanTitle = "kon",
+                AniDbId = 4,
+                SearchSynonyms = new List<string>()
+            };
+            Subject.Insert(title4);
+
+            var results = Subject.FindSearchMatches("xyz", "anidb");
+            results.Should().BeEmpty();
+        }
+
+        [Test]
+        public void should_handle_native_script_fuzzy_matches_if_applicable()
+        {
+            // CJK characters: é€²æ'ƒã®å·¨äºº (Shingeki no Kyojin)
+            // Query with one missing character: é€²æ'ƒãå·¨äºº
+            // Real CleanForSearch will preserve these CJK characters
+            var cleanQuery = "é€²æ'ƒãå·¨äºº".CleanForSearch();
+            var results = Subject.FindSearchMatches(cleanQuery, "anidb");
+
+            // Assuming distance is 1 and length is ~8, allowed is 1
+            results.Should().HaveCount(1);
+        }
     }
 }

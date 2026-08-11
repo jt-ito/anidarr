@@ -42,5 +42,15 @@ namespace NzbDrone.Common.Test
         {
             text.ToLower().LevenshteinDistanceClean(other.ToLower()).Should().Be(expected);
         }
+
+        [TestCase("kon", "k-on", 1)] // Length 4 vs 3 (max 4). 4 * 0.2 = 0.8 -> floor 0 -> max(1,0) = 1.
+        [TestCase("bleach", "bleech", 1)] // Length 6. 6 * 0.2 = 1.2 -> floor 1 -> max(1,1) = 1.
+        [TestCase("naruto shippuden", "naruto shipuden", 3)] // Length 16 vs 15. 16 * 0.2 = 3.2 -> max(1,3) = 3.
+        [TestCase("a", "b", 1)]
+        [TestCase("long title test", "long title test", 3)] // length 15 * 0.2 = 3
+        public void GetAllowedEdits(string text, string other, int expected)
+        {
+            text.GetAllowedEdits(other).Should().Be(expected);
+        }
     }
 }

@@ -165,3 +165,7 @@ src/.idea/
 
 # Ignore Jetbrains IntelliJ Workspace Directories
 .idea/
+
+release-artifacts/
+
+release-artifacts/

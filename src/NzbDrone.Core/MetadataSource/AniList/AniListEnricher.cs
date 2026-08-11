@@ -251,10 +251,10 @@ query ($search: String) {
 
                             var cleanOther = titleCandidate.CleanForSearch();
                             var dist = cleanSearchTitle.LevenshteinDistance(cleanOther);
-                            var maxLen = Math.Max(cleanSearchTitle.Length, cleanOther.Length);
+                            var allowed = cleanSearchTitle.GetAllowedEdits(cleanOther);
 
-                            // Standard Levenshtein distance (cost=1). We allow a 20% edit rate.
-                            return dist <= Math.Floor(maxLen * 0.2);
+                            // Standard Levenshtein distance (cost=1). We allow a 20% edit rate (minimum 1).
+                            return dist <= allowed;
                         }
 
                         if (CheckMatch(node.Title?.Romaji) ||

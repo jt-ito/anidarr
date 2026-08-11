@@ -139,6 +139,16 @@ services:
     restart: unless-stopped
 ```
 
+### 🐳 Docker: Custom Internal Port
+
+Anidarr natively supports changing its internal listening port dynamically using the `PORT` environment variable (e.g., `-e PORT=12345`). When set, the `PORT` environment variable takes highest precedence and will always override any port configured in the Web UI.
+
+> [!WARNING]
+> **Web UI Conflict:** If you set a custom port via the `PORT` environment variable, changing the port later via the Web UI will appear to save, but **will not take effect** on restart because the environment variable always wins. To change the port via the Web UI, you must first remove the `PORT` environment variable from your container deployment.
+
+> [!NOTE]
+> **Reverse Proxy Caveat:** The Docker image's `EXPOSE` metadata is statically set to `8989` at build time. If you use an automated reverse proxy (like Traefik) that relies on `EXPOSE` for auto-discovery, it will not automatically detect your custom port. You must manually configure your routing rules to point to your new custom internal port.
+
 ### 🐳 Docker: Hardlinks & Volume Mounts
 
 If you're running Anidarr in Docker and want hardlinks to work (instead of slow, space-wasting file copies), **all paths must be accessible from a single volume mount**. The Linux kernel rejects hardlinks across different mount boundaries — even if both mounts point to the same physical drive.
