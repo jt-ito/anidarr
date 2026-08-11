@@ -109,7 +109,17 @@ yarn start
 
 ## ⚙️ Configuration
 
-Once installed, head over to **Settings > Metadata Source** to configure your AniDB client name and credentials. The UI links directly to AniDB (and, per-season, to each individual AniDB ID) instead of TVDB wherever a series is AniDB-sourced.
+Once installed, you must configure your AniDB client name and credentials in Anidarr. The UI links directly to AniDB (and, per-season, to each individual AniDB ID) instead of TVDB wherever a series is AniDB-sourced.
+
+### 🔑 Creating an AniDB Client
+
+Before Anidarr can fetch data from AniDB, you need to register a software client with your AniDB account:
+1. Go to the [AniDB Client Management page](https://anidb.net/perl-bin/animedb.pl?show=client) (log in if necessary).
+2. Create a new project. The "Public Project" setting can be left as private or public — it does not matter.
+3. Once the project is created, click to create a **Client** inside it.
+4. Name your client, select **HTTP API** for the client type, and enter `http://api.anidb.net:9001/httpapi` as the URL.
+5. Give it a version number (e.g., `1`).
+6. Save the client. Finally, go to **Settings > Metadata Source** in Anidarr and enter your exact Client Name and Version.
 
 A few things worth knowing:
 
