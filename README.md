@@ -115,7 +115,7 @@ Once installed, you must configure your AniDB client name and credentials in Ani
 
 Before Anidarr can fetch data from AniDB, you need to register a software client with your AniDB account:
 1. Go to the [AniDB Client Management page](https://anidb.net/perl-bin/animedb.pl?show=client) (log in if necessary).
-2. Create a new project. You must enter `http://api.anidb.net:9001/httpapi` as the URL for the project. The "Public Project" setting can be left as private or public — it does not matter.
+2. Create a new project. Enter `http://api.anidb.net:9001/httpapi` as the URL for the project. The "Public Project" setting can be left as private or public — it does not matter.
 3. Once the project is created, click to create a **Client** inside it.
 4. Name your client and select **HTTP API** for the client type.
 5. Give it a version number (e.g., `1`).
