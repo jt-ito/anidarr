@@ -362,6 +362,13 @@ namespace NzbDrone.Core.Configuration
             set { SetValue("ShowRelativeDates", value); }
         }
 
+        public bool ShowAbsoluteEpisodeNumbers
+        {
+            get { return GetValueBoolean("ShowAbsoluteEpisodeNumbers", false); }
+
+            set { SetValue("ShowAbsoluteEpisodeNumbers", value); }
+        }
+
         public bool EnableColorImpairedMode
         {
             get { return GetValueBoolean("EnableColorImpairedMode", false); }

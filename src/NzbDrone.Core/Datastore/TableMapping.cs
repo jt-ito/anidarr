@@ -47,6 +47,8 @@ namespace NzbDrone.Core.Datastore
 {
     public static class TableMapping
     {
+        private static bool _isMapped;
+
         static TableMapping()
         {
             Mapper = new TableMapper();
@@ -56,6 +58,13 @@ namespace NzbDrone.Core.Datastore
 
         public static void Map()
         {
+            if (_isMapped)
+            {
+                return;
+            }
+
+            _isMapped = true;
+
             RegisterMappers();
 
             Mapper.Entity<Config>("Config").RegisterModel();
@@ -177,6 +186,7 @@ namespace NzbDrone.Core.Datastore
             Mapper.Entity<AutoTagging.AutoTag>("AutoTagging").RegisterModel();
             Mapper.Entity<AniDbSeriesMapping>("AniDbSeriesMappings").RegisterModel();
             Mapper.Entity<AniDbRelatedSeries>("AniDbRelatedSeries").RegisterModel();
+            Mapper.Entity<AniDbRelatedMetadataCache>("AniDbRelatedMetadataCache").RegisterModel();
         }
 
         private static void RegisterMappers()

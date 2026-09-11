@@ -5,7 +5,6 @@ interface CssExports {
   'description': string;
   'linkButton': string;
   'modalBody': string;
-  'modalContent': string;
   'options': string;
 }
 export const cssExports: CssExports;

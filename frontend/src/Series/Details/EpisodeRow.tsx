@@ -18,6 +18,7 @@ import { useEpisodeFile } from 'EpisodeFile/EpisodeFileProvider';
 import MediaInfo from 'EpisodeFile/MediaInfo';
 import { icons } from 'Helpers/Props';
 import { useSingleSeries } from 'Series/useSeries';
+import { useUiSettingsValues } from 'Settings/UI/useUiSettings';
 import MediaInfoModel from 'typings/MediaInfo';
 import formatBytes from 'Utilities/Number/formatBytes';
 import formatCustomFormatScore from 'Utilities/Number/formatCustomFormatScore';
@@ -90,7 +91,9 @@ function EpisodeRow({
     monitored: seriesMonitored,
     seriesType,
     alternateTitles = [],
+    seasons = [],
   } = useSingleSeries(seriesId)!;
+  const { showAbsoluteEpisodeNumbers } = useUiSettingsValues();
   const episodeFile = useEpisodeFile(episodeFileId);
 
   const customFormats = episodeFile?.customFormats ?? [];
@@ -146,6 +149,8 @@ function EpisodeRow({
                 sceneEpisodeNumber={sceneEpisodeNumber}
                 sceneAbsoluteEpisodeNumber={sceneAbsoluteEpisodeNumber}
                 alternateTitles={alternateTitles}
+                showAbsoluteEpisodeNumbers={showAbsoluteEpisodeNumbers}
+                seasons={seasons}
               />
             </TableRowCell>
           );

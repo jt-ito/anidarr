@@ -109,6 +109,12 @@ namespace NzbDrone.Core.Download
                             break;
                         }
 
+                    case ProcessedDecisionResult.AlreadyInClient:
+                        {
+                            PreparePending(pendingAddQueue, grabbed, pending, report, PendingReleaseReason.AlreadyInDownloadClient);
+                            break;
+                        }
+
                     case ProcessedDecisionResult.Skipped:
                         {
                             break;
@@ -148,6 +154,10 @@ namespace NzbDrone.Core.Download
             if (result == ProcessedDecisionResult.Failed)
             {
                 _pendingReleaseService.Add(decision, PendingReleaseReason.DownloadClientUnavailable);
+            }
+            else if (result == ProcessedDecisionResult.AlreadyInClient)
+            {
+                _pendingReleaseService.Add(decision, PendingReleaseReason.AlreadyInDownloadClient);
             }
 
             return result;
@@ -212,7 +222,12 @@ namespace NzbDrone.Core.Download
             }
             catch (Exception ex)
             {
-                if (ex is DownloadClientUnavailableException || ex is DownloadClientAuthenticationException)
+                if (ex is DownloadClientItemExistsException)
+                {
+                    _logger.Info("Release '{0}' from Indexer {1} already exists in the download client, storing as pending.", remoteEpisode, remoteIndexer);
+                    return ProcessedDecisionResult.AlreadyInClient;
+                }
+                else if (ex is DownloadClientUnavailableException || ex is DownloadClientAuthenticationException)
                 {
                     _logger.Debug(ex, "Failed to send release '{0}' from Indexer {1} to download client, storing until later.", remoteEpisode, remoteIndexer);
                     return ProcessedDecisionResult.Failed;

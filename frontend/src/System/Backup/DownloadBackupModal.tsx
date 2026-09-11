@@ -30,16 +30,18 @@ function DownloadBackupModal({
 
         <ModalBody className={styles.modalBody}>
           <div className={styles.options}>
-            <a
-              href={`${window.Sonarr.urlBase}${path}`}
-              className={styles.linkButton}
-              onClick={onModalClose}
+            <Button
+              className={styles.button}
+              to={`${window.Sonarr.urlBase}${path}?apikey=${encodeURIComponent(
+                window.Sonarr.apiKey
+              )}`}
+              noRouter={true}
+              download={true}
+              onPress={onModalClose}
             >
-              <Button className={styles.button}>
-                <Icon name={icons.DOWNLOAD} />
-                <span>{translate('Download Anidarr Backup (full)')}</span>
-              </Button>
-            </a>
+              <Icon name={icons.DOWNLOAD} />
+              <span>{translate('Download Anidarr Backup (full)')}</span>
+            </Button>
 
             <p className={styles.description}>
               {translate(
@@ -47,16 +49,20 @@ function DownloadBackupModal({
               )}
             </p>
 
-            <a
-              href={`${window.Sonarr.urlBase}/api/v3/system/backup/download/sonarr-compatible/${id}`}
-              className={styles.linkButton}
-              onClick={onModalClose}
+            <Button
+              className={styles.button}
+              to={`${
+                window.Sonarr.urlBase
+              }/api/v3/system/backup/download/sonarr-compatible/${id}?apikey=${encodeURIComponent(
+                window.Sonarr.apiKey
+              )}`}
+              noRouter={true}
+              download={true}
+              onPress={onModalClose}
             >
-              <Button className={styles.button}>
-                <Icon name={icons.DOWNLOAD} />
-                <span>{translate('Download Sonarr-Compatible Backup')}</span>
-              </Button>
-            </a>
+              <Icon name={icons.DOWNLOAD} />
+              <span>{translate('Download Sonarr-Compatible Backup')}</span>
+            </Button>
 
             <p className={styles.description}>
               {translate(

@@ -108,6 +108,12 @@ function QueueStatus(props: QueueStatusProps) {
     title = translate('Pending');
   }
 
+  if (status === 'alreadyInDownloadClient') {
+    iconName = icons.PENDING;
+    iconKind = kinds.INFO;
+    title = translate('PendingAlreadyInDownloadClient');
+  }
+
   if (status === 'downloadClientUnavailable') {
     iconName = icons.PENDING;
     iconKind = kinds.WARNING;

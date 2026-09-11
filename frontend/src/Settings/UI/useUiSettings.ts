@@ -8,6 +8,7 @@ import {
 export interface UiSettingsModel {
   theme: 'auto' | 'dark' | 'light';
   showRelativeDates: boolean;
+  showAbsoluteEpisodeNumbers: boolean;
   shortDateFormat: string;
   longDateFormat: string;
   timeFormat: string;

@@ -11,6 +11,7 @@ namespace NzbDrone.Core.Queue
         Warning,
         Delay,
         DownloadClientUnavailable,
-        Fallback
+        Fallback,
+        AlreadyInDownloadClient
     }
 }

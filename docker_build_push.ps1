@@ -11,6 +11,10 @@ if ($buildInfoContent -match 'new Version\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)') 
 
 Write-Host "Building Docker image for jteaito/anidarr:$version and latest..."
 docker build -t jteaito/anidarr:$version -t jteaito/anidarr:latest .
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Docker build failed!"
+    exit 1
+}
 
 Write-Host "Pushing Docker images to Docker Hub..."
 docker push jteaito/anidarr:$version

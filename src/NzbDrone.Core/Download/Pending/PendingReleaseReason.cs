@@ -4,6 +4,7 @@ namespace NzbDrone.Core.Download.Pending
     {
         Delay = 0,
         DownloadClientUnavailable = 1,
-        Fallback = 2
+        Fallback = 2,
+        AlreadyInDownloadClient = 3
     }
 }

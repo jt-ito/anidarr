@@ -41,7 +41,7 @@ namespace Sonarr.Http.Frontend.Mappers
             return filePath.StartsWith(parentPath) ? filePath : null;
         }
 
-        public Task<IActionResult> GetResponse(HttpContext context, string resourceUrl)
+        public virtual Task<IActionResult> GetResponse(HttpContext context, string resourceUrl)
         {
             var filePath = Map(resourceUrl);
 
@@ -57,15 +57,28 @@ namespace Sonarr.Http.Frontend.Mappers
                     contentType = "application/octet-stream";
                 }
 
-                return Task.FromResult<IActionResult>(new FileStreamResult(GetContentStream(context, filePath), new MediaTypeHeaderValue(contentType)
+                var result = new FileStreamResult(GetContentStream(context, filePath), new MediaTypeHeaderValue(contentType)
                 {
                     Encoding = contentType == "text/plain" ? Encoding.UTF8 : null
-                }));
+                });
+
+                var downloadName = GetDownloadFileName(filePath);
+                if (downloadName != null)
+                {
+                    result.FileDownloadName = downloadName;
+                }
+
+                return Task.FromResult<IActionResult>(result);
             }
 
             _logger.Warn("File {0} not found", filePath);
 
             return Task.FromResult<IActionResult>(null);
+        }
+
+        protected virtual string GetDownloadFileName(string filePath)
+        {
+            return null;
         }
 
         protected virtual Stream GetContentStream(HttpContext context, string filePath)

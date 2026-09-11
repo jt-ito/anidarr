@@ -250,6 +250,19 @@ function UISettings() {
               </FormGroup>
             </FieldSet>
 
+            <FieldSet legend={translate('Episodes')}>
+              <FormGroup>
+                <FormLabel>{translate('ShowAbsoluteEpisodeNumbers')}</FormLabel>
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="showAbsoluteEpisodeNumbers"
+                  helpText={translate('ShowAbsoluteEpisodeNumbersHelpText')}
+                  onChange={handleInputChange}
+                  {...settings.showAbsoluteEpisodeNumbers}
+                />
+              </FormGroup>
+            </FieldSet>
+
             <FieldSet legend={translate('Language')}>
               <FormGroup>
                 <FormLabel>{translate('UiLanguage')}</FormLabel>

@@ -2,7 +2,8 @@ import React from 'react';
 import Icon from 'Components/Icon';
 import Popover from 'Components/Tooltip/Popover';
 import { icons, kinds, tooltipPositions } from 'Helpers/Props';
-import { AlternateTitle, SeriesType } from 'Series/Series';
+import { AlternateTitle, Season, SeriesType } from 'Series/Series';
+import { getEpisodeDisplayNumber } from 'Utilities/Episode/getEpisodeDisplayNumber';
 import padNumber from 'Utilities/Number/padNumber';
 import filterAlternateTitles from 'Utilities/Series/filterAlternateTitles';
 import translate from 'Utilities/String/translate';
@@ -39,6 +40,8 @@ export interface EpisodeNumberProps {
   alternateTitles?: AlternateTitle[];
   seriesType?: SeriesType;
   showSeasonNumber?: boolean;
+  showAbsoluteEpisodeNumbers?: boolean;
+  seasons?: Season[];
 }
 
 function EpisodeNumber(props: EpisodeNumberProps) {
@@ -54,6 +57,8 @@ function EpisodeNumber(props: EpisodeNumberProps) {
     alternateTitles: seriesAlternateTitles = [],
     seriesType,
     showSeasonNumber = false,
+    showAbsoluteEpisodeNumbers = false,
+    seasons = [],
   } = props;
 
   const alternateTitles = filterAlternateTitles(
@@ -76,28 +81,45 @@ function EpisodeNumber(props: EpisodeNumberProps) {
     absoluteEpisodeNumber
   );
 
+  const customDisplayNumber = getEpisodeDisplayNumber({
+    seasonNumber,
+    episodeNumber,
+    absoluteEpisodeNumber,
+    seriesType,
+    showAbsoluteEpisodeNumbers,
+    seasons,
+  });
+
+  const renderNumber = () => {
+    if (customDisplayNumber) {
+      return (
+        <span className={styles.absoluteEpisodeNumber}>
+          {customDisplayNumber}
+        </span>
+      );
+    }
+
+    if (seriesType === 'anime' && !!absoluteEpisodeNumber) {
+      return (
+        <span className={styles.absoluteEpisodeNumber}>
+          {padNumber(absoluteEpisodeNumber, 2)}
+        </span>
+      );
+    }
+
+    return (
+      <>
+        {showSeasonNumber && seasonNumber != null && <>{seasonNumber}x</>}
+        {showSeasonNumber ? padNumber(episodeNumber, 2) : episodeNumber}
+      </>
+    );
+  };
+
   return (
     <span>
       {hasSceneInformation ? (
         <Popover
-          anchor={
-            <span>
-              {seriesType === 'anime' && !!absoluteEpisodeNumber ? (
-                <span className={styles.absoluteEpisodeNumber}>
-                  {padNumber(absoluteEpisodeNumber, 2)}
-                </span>
-              ) : (
-                <>
-                  {showSeasonNumber && seasonNumber != null && (
-                    <>{seasonNumber}x</>
-                  )}
-                  {showSeasonNumber
-                    ? padNumber(episodeNumber, 2)
-                    : episodeNumber}
-                </>
-              )}
-            </span>
-          }
+          anchor={<span>{renderNumber()}</span>}
           title={translate('SceneInformation')}
           body={
             <SceneInfo
@@ -113,18 +135,7 @@ function EpisodeNumber(props: EpisodeNumberProps) {
           position={tooltipPositions.RIGHT}
         />
       ) : (
-        <span>
-          {seriesType === 'anime' && !!absoluteEpisodeNumber ? (
-            <span className={styles.absoluteEpisodeNumber}>
-              {padNumber(absoluteEpisodeNumber, 2)}
-            </span>
-          ) : (
-            <>
-              {showSeasonNumber && seasonNumber != null && <>{seasonNumber}x</>}
-              {showSeasonNumber ? padNumber(episodeNumber, 2) : episodeNumber}
-            </>
-          )}
-        </span>
+        <span>{renderNumber()}</span>
       )}
 
       {warningMessage ? (

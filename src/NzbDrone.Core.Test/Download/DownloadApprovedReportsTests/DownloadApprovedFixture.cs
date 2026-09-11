@@ -289,5 +289,53 @@ namespace NzbDrone.Core.Test.Download.DownloadApprovedReportsTests
 
             ExceptionVerification.ExpectedWarns(1);
         }
+
+        [Test]
+        public async Task should_add_to_pending_with_already_in_download_client_reason_when_DownloadClientItemExistsException_thrown()
+        {
+            var episodes = new List<Episode> { GetEpisode(1) };
+            var remoteEpisode = GetRemoteEpisode(episodes, new QualityModel(Quality.HDTV720p), DownloadProtocol.Torrent);
+
+            var decisions = new List<DownloadDecision>();
+            decisions.Add(new DownloadDecision(remoteEpisode));
+
+            Mocker.GetMock<IDownloadService>()
+                  .Setup(s => s.DownloadReport(It.IsAny<RemoteEpisode>(), null))
+                  .Throws(new DownloadClientItemExistsException("Torrent already exists in qBittorrent"));
+
+            await Subject.ProcessDecisions(decisions);
+
+            Mocker.GetMock<IPendingReleaseService>()
+                  .Verify(v => v.AddMany(It.Is<List<Tuple<DownloadDecision, PendingReleaseReason>>>(list => list.Count == 1 && list[0].Item2 == PendingReleaseReason.AlreadyInDownloadClient)), Times.Once());
+        }
+
+        [Test]
+        public async Task should_not_mark_protocol_as_failed_for_subsequent_releases_when_DownloadClientItemExistsException_thrown()
+        {
+            var episodes1 = new List<Episode> { GetEpisode(1) };
+            var episodes2 = new List<Episode> { GetEpisode(2) };
+            var remoteEpisode1 = GetRemoteEpisode(episodes1, new QualityModel(Quality.HDTV720p), DownloadProtocol.Torrent);
+            var remoteEpisode2 = GetRemoteEpisode(episodes2, new QualityModel(Quality.HDTV720p), DownloadProtocol.Torrent);
+
+            var decisions = new List<DownloadDecision>
+            {
+                new DownloadDecision(remoteEpisode1),
+                new DownloadDecision(remoteEpisode2)
+            };
+
+            Mocker.GetMock<IDownloadService>()
+                  .Setup(s => s.DownloadReport(remoteEpisode1, null))
+                  .Throws(new DownloadClientItemExistsException("Torrent already exists in qBittorrent"));
+
+            Mocker.GetMock<IDownloadService>()
+                  .Setup(s => s.DownloadReport(remoteEpisode2, null))
+                  .Returns(Task.CompletedTask);
+
+            var result = await Subject.ProcessDecisions(decisions);
+
+            // The second release should be attempted and grabbed, NOT skipped/failed due to protocol client unavailability
+            Mocker.GetMock<IDownloadService>().Verify(v => v.DownloadReport(remoteEpisode2, null), Times.Once());
+            result.Grabbed.Should().Contain(decisions[1]);
+        }
     }
 }

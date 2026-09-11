@@ -97,6 +97,10 @@ namespace NzbDrone.Core.Download
 
                     return;
                 }
+                catch (DownloadClientItemExistsException)
+                {
+                    throw;
+                }
                 catch (DownloadClientException ex)
                 {
                     _logger.Trace(ex, "Unable to add report to download client: {0}", downloadClient.Definition.Name);

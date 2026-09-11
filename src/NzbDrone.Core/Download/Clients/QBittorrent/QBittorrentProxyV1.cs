@@ -152,12 +152,19 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 request.AddFormParameter("paused", true);
             }
 
-            var result = ProcessRequest(request, settings);
-
-            // Note: Older qbit versions returned nothing, so we can't do != "Ok." here.
-            if (result == "Fails.")
+            try
             {
-                throw new DownloadClientException("Download client failed to add torrent by url");
+                var result = ProcessRequest(request, settings);
+
+                // Note: Older qbit versions returned nothing, so we can't do != "Ok." here.
+                if (result == "Fails.")
+                {
+                    throw new DownloadClientException("Download client failed to add torrent by url");
+                }
+            }
+            catch (DownloadClientException ex) when (ex.InnerException is HttpException httpEx && httpEx.Response.StatusCode == HttpStatusCode.Conflict)
+            {
+                throw new DownloadClientItemExistsException("Torrent already exists in qBittorrent", ex);
             }
         }
 
@@ -182,12 +189,19 @@ namespace NzbDrone.Core.Download.Clients.QBittorrent
                 request.AddFormParameter("paused", true);
             }
 
-            var result = ProcessRequest(request, settings);
-
-            // Note: Current qbit versions return nothing, so we can't do != "Ok." here.
-            if (result == "Fails.")
+            try
             {
-                throw new DownloadClientException("Download client failed to add torrent");
+                var result = ProcessRequest(request, settings);
+
+                // Note: Current qbit versions return nothing, so we can't do != "Ok." here.
+                if (result == "Fails.")
+                {
+                    throw new DownloadClientException("Download client failed to add torrent");
+                }
+            }
+            catch (DownloadClientException ex) when (ex.InnerException is HttpException httpEx && httpEx.Response.StatusCode == HttpStatusCode.Conflict)
+            {
+                throw new DownloadClientItemExistsException("Torrent already exists in qBittorrent", ex);
             }
         }
 

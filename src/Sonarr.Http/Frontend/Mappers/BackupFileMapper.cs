@@ -28,5 +28,10 @@ namespace Sonarr.Http.Frontend.Mappers
         {
             return resourceUrl.StartsWith("/backup/") && BackupService.BackupFileRegex.IsMatch(resourceUrl);
         }
+
+        protected override string GetDownloadFileName(string filePath)
+        {
+            return Path.GetFileName(filePath);
+        }
     }
 }

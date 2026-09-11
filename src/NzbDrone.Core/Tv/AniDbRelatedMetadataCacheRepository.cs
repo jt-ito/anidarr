@@ -25,6 +25,11 @@ namespace NzbDrone.Core.Tv
 
         public List<AniDbRelatedMetadataCache> GetByAniDbIds(List<int> aniDbIds)
         {
+            if (aniDbIds == null || !aniDbIds.Any())
+            {
+                return new List<AniDbRelatedMetadataCache>();
+            }
+
             return Query(c => aniDbIds.Contains(c.AniDbId)).ToList();
         }
     }

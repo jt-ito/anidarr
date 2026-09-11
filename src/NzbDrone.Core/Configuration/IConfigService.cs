@@ -70,6 +70,7 @@ namespace NzbDrone.Core.Configuration
         string TimeFormat { get; set; }
         string TimeZone { get; set; }
         bool ShowRelativeDates { get; set; }
+        bool ShowAbsoluteEpisodeNumbers { get; set; }
         bool EnableColorImpairedMode { get; set; }
         int UILanguage { get; set; }
         string InteractiveImportFolders { get; set; }

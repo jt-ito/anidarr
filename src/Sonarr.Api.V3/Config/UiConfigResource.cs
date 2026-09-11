@@ -15,6 +15,7 @@ namespace Sonarr.Api.V3.Config
         public string TimeFormat { get; set; }
         public string TimeZone { get; set; }
         public bool ShowRelativeDates { get; set; }
+        public bool ShowAbsoluteEpisodeNumbers { get; set; }
 
         public bool EnableColorImpairedMode { get; set; }
         public string Theme { get; set; }
@@ -35,6 +36,7 @@ namespace Sonarr.Api.V3.Config
                 TimeFormat = model.TimeFormat,
                 TimeZone = model.TimeZone,
                 ShowRelativeDates = model.ShowRelativeDates,
+                ShowAbsoluteEpisodeNumbers = model.ShowAbsoluteEpisodeNumbers,
 
                 EnableColorImpairedMode = model.EnableColorImpairedMode,
                 Theme = config.Theme,

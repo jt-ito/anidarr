@@ -69,6 +69,12 @@ public class BackupController : Controller
 
         _diskProvider.DeleteFile(path);
 
+        var cachedFilePath = Path.Combine(_backupService.GetBackupFolder(), "sonarr-compatible", $"sonarr-compatible_{backup.Name}");
+        if (_diskProvider.FileExists(cachedFilePath))
+        {
+            _diskProvider.DeleteFile(cachedFilePath);
+        }
+
         return TypedResults.NoContent();
     }
 
@@ -134,6 +140,7 @@ public class BackupController : Controller
     }
 
     [HttpGet("download/sonarr-compatible/{id:int}")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "UI")]
     public IActionResult DownloadSonarrCompatible([FromRoute] int id, [FromServices] ISonarrCompatibleBackupScrubber scrubber, [FromServices] NzbDrone.Common.IArchiveService archiveService)
     {
         var backup = GetBackupById(id);
@@ -148,13 +155,30 @@ public class BackupController : Controller
             return NotFound();
         }
 
+        var cacheFolder = Path.Combine(_backupService.GetBackupFolder(), "sonarr-compatible");
+        _diskProvider.EnsureFolder(cacheFolder);
+        var cachedFilePath = Path.Combine(cacheFolder, $"sonarr-compatible_{backup.Name}");
+
+        if (_diskProvider.FileExists(cachedFilePath))
+        {
+            var sourceTime = _diskProvider.FileGetLastWrite(path);
+            var cachedTime = _diskProvider.FileGetLastWrite(cachedFilePath);
+
+            if (cachedTime >= sourceTime && _diskProvider.GetFileSize(cachedFilePath) > 0)
+            {
+                var cachedStream = new FileStream(cachedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                return File(cachedStream, "application/zip", backup.Name.Replace("sonarr_backup_", "sonarr-compatible_backup_"));
+            }
+        }
+
         var guidStr = global::System.Guid.NewGuid().ToString("N");
         var tempWorkDir = Path.Combine(_appFolderInfo.TempFolder, $"sonarr_compatible_backup_{guidStr}");
+        var tempZipOutput = Path.Combine(_appFolderInfo.TempFolder, $"temp_sonarr_compatible_{guidStr}.zip");
         _diskProvider.EnsureFolder(tempWorkDir);
 
         try
         {
-            archiveService.Extract(path, tempWorkDir);
+            global::System.IO.Compression.ZipFile.ExtractToDirectory(path, tempWorkDir, true);
 
             var dbPath = Path.Combine(tempWorkDir, "sonarr.db");
             if (_diskProvider.FileExists(dbPath))
@@ -162,15 +186,21 @@ public class BackupController : Controller
                 scrubber.ScrubDatabase(dbPath);
             }
 
-            var outputPath = Path.Combine(_appFolderInfo.TempFolder, $"sonarr-compatible_{backup.Name}");
-            if (_diskProvider.FileExists(outputPath))
+            if (_diskProvider.FileExists(tempZipOutput))
             {
-                _diskProvider.DeleteFile(outputPath);
+                _diskProvider.DeleteFile(tempZipOutput);
             }
 
-            archiveService.CreateZip(outputPath, _diskProvider.GetFiles(tempWorkDir, true));
+            global::System.IO.Compression.ZipFile.CreateFromDirectory(tempWorkDir, tempZipOutput, global::System.IO.Compression.CompressionLevel.Fastest, false);
 
-            var fileStream = new FileStream(outputPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.DeleteOnClose);
+            if (_diskProvider.FileExists(cachedFilePath))
+            {
+                _diskProvider.DeleteFile(cachedFilePath);
+            }
+
+            _diskProvider.MoveFile(tempZipOutput, cachedFilePath);
+
+            var fileStream = new FileStream(cachedFilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             return File(fileStream, "application/zip", backup.Name.Replace("sonarr_backup_", "sonarr-compatible_backup_"));
         }
         finally
@@ -178,6 +208,11 @@ public class BackupController : Controller
             if (_diskProvider.FolderExists(tempWorkDir))
             {
                 _diskProvider.DeleteFolder(tempWorkDir, true);
+            }
+
+            if (_diskProvider.FileExists(tempZipOutput))
+            {
+                _diskProvider.DeleteFile(tempZipOutput);
             }
         }
     }

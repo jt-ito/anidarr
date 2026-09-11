@@ -13,6 +13,7 @@ export type LinkProps<C extends ElementType = 'button'> =
     component?: C;
     to?: string;
     target?: string;
+    download?: boolean | string;
     isDisabled?: LinkProps<C>['disabled'];
     noRouter?: boolean;
     onPress?(event: SyntheticEvent): void;

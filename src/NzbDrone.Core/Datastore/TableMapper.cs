@@ -25,7 +25,7 @@ namespace NzbDrone.Core.Datastore
             where TEntity : ModelBase
         {
             var type = typeof(TEntity);
-            TableMap.Add(type, tableName);
+            TableMap[type] = tableName;
 
             if (IgnoreList.TryGetValue(type, out var list))
             {
@@ -49,17 +49,32 @@ namespace NzbDrone.Core.Datastore
 
         public string SelectTemplate(Type x)
         {
-            return $"SELECT /**select**/ FROM \"{TableMap[x]}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
+            if (!TableMap.TryGetValue(x, out var table))
+            {
+                throw new InvalidOperationException($"No table mapping found for type '{x.FullName}'. Please ensure Mapper.Entity<{x.Name}>(\"...\").RegisterModel() is called in TableMapping.Map().");
+            }
+
+            return $"SELECT /**select**/ FROM \"{table}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/ /**groupby**/ /**having**/ /**orderby**/";
         }
 
         public string DeleteTemplate(Type x)
         {
-            return $"DELETE FROM \"{TableMap[x]}\" /**where**/";
+            if (!TableMap.TryGetValue(x, out var table))
+            {
+                throw new InvalidOperationException($"No table mapping found for type '{x.FullName}'. Please ensure Mapper.Entity<{x.Name}>(\"...\").RegisterModel() is called in TableMapping.Map().");
+            }
+
+            return $"DELETE FROM \"{table}\" /**where**/";
         }
 
         public string PageCountTemplate(Type x)
         {
-            return $"SELECT /**select**/ FROM \"{TableMap[x]}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/";
+            if (!TableMap.TryGetValue(x, out var table))
+            {
+                throw new InvalidOperationException($"No table mapping found for type '{x.FullName}'. Please ensure Mapper.Entity<{x.Name}>(\"...\").RegisterModel() is called in TableMapping.Map().");
+            }
+
+            return $"SELECT /**select**/ FROM \"{table}\" /**join**/ /**innerjoin**/ /**leftjoin**/ /**where**/";
         }
 
         public bool IsValidSortKey(string sortKey)

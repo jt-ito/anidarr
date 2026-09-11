@@ -128,7 +128,8 @@ namespace NzbDrone.Core.Download.Pending
 
                         if (matchingReport.Reason != reason)
                         {
-                            if (matchingReport.Reason == PendingReleaseReason.DownloadClientUnavailable)
+                            if (matchingReport.Reason == PendingReleaseReason.DownloadClientUnavailable ||
+                                matchingReport.Reason == PendingReleaseReason.AlreadyInDownloadClient)
                             {
                                 _logger.Debug("The release {0} is already pending with reason {1}, not changing reason", decision.RemoteEpisode, matchingReport.Reason);
                             }

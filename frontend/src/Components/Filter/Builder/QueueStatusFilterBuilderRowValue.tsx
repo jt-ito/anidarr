@@ -54,6 +54,12 @@ const statusTagList = [
     },
   },
   {
+    id: 'alreadyInDownloadClient',
+    get name() {
+      return translate('AlreadyInDownloadClient');
+    },
+  },
+  {
     id: 'fallback',
     get name() {
       return translate('Fallback');

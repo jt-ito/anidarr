@@ -81,6 +81,11 @@ namespace NzbDrone.Core.Datastore
             var type = typeof(TModel);
 
             _table = TableMapping.Mapper.TableNameMapping(type);
+            if (_table == null)
+            {
+                throw new InvalidOperationException($"No table mapping found for type '{type.FullName}'. Please ensure Mapper.Entity<{type.Name}>(\"...\").RegisterModel() is called in TableMapping.Map().");
+            }
+
             _keyProperty = type.GetProperty(nameof(ModelBase.Id));
 
             var excluded = TableMapping.Mapper.ExcludeProperties(type).Select(x => x.Name).ToList();

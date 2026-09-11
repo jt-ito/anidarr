@@ -25,12 +25,10 @@ The following features were deliberately removed from the Anidarr UI. Do **not**
 
 ## Active Metadata Providers
 
-The project supports **four** metadata providers only:
+The project supports **three** metadata providers only:
 1. **TVDB** — for live-action / non-anime
 2. **AniDB** — primary anime source (AniDB XML + offline DB)
-3. **Simkl** — secondary anime source
-4. *(No AniList UI)*
-5. *(No MyAnimeList UI)*
+3. *(No AniList UI)*
 
 > AniList and MAL IDs may still be stored internally on `Series` objects for cross-referencing, but they must **not** be exposed as search provider filters or add-series options in the UI.
 
@@ -41,3 +39,9 @@ The project supports **four** metadata providers only:
 - Backend: `dotnet run --project src/NzbDrone.Console/Sonarr.Console.csproj` from repo root
 - Frontend: `yarn start` from repo root (webpack watch mode, outputs to `_output/UI`)
 - After making frontend changes, the browser must **hard-refresh** (Ctrl+Shift+R) to pick up the new compiled output
+
+---
+
+## Versioning
+
+The backend `src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs` is the single source of truth for versions. When asked to bump the version, always update `BuildInfo.cs` first. Additionally, ensure the `package.json` major version matches the major version specified in `BuildInfo.cs`.
