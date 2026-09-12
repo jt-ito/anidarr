@@ -912,5 +912,30 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             task2.Result.Item1.Title.Should().Be(task1.Result.Item1.Title);
             Mocker.GetMock<IHttpClient>().Verify(v => v.Execute(It.Is<HttpRequest>(r => r.Url.ToString().Contains("aid=5678"))), Times.Once());
         }
+
+        [Test]
+        public void should_prefer_english_title_over_romaji_main_title()
+        {
+            var xml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""4823"">
+  <titles>
+    <title type=""main"" xml:lang=""x-jat"">Ane Jiru The Animation: Shirakawa San Shimai ni Omakase</title>
+    <title type=""synonym"" xml:lang=""en"">Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa</title>
+    <title type=""official"" xml:lang=""ja"">アネジル The Animation 白川三姉妹におまかせ</title>
+  </titles>
+  <type>OVA</type>
+  <episodecount>2</episodecount>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title></episode>
+  </episodes>
+</anime>";
+            GivenXmlResponse(4823, xml);
+
+            var details = Subject.GetSeriesInfo("4823");
+            var series = details.Item1;
+
+            series.Title.Should().Be("Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa");
+            series.AlternateTitles.Should().Contain("Ane Jiru The Animation: Shirakawa San Shimai ni Omakase");
+        }
     }
 }

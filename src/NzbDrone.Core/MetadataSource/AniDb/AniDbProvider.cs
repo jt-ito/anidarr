@@ -1195,20 +1195,20 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 return officialEn;
             }
 
-            // 2. Main title (e.g. "Animation Seisaku Shinkou Kuromi-chan")
-            var mainTitle = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetType(t), "main", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(mainTitle))
-            {
-                return mainTitle;
-            }
-
-            // 3. Any non-short English title (synonym)
+            // 2. Any non-short English title (e.g. "Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa")
             var anyEn = candidatePool.FirstOrDefault(t =>
                 string.Equals(GetLang(t), "en", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
             if (!string.IsNullOrWhiteSpace(anyEn))
             {
                 return anyEn;
+            }
+
+            // 3. Main title (e.g. "Animation Seisaku Shinkou Kuromi-chan")
+            var mainTitle = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetType(t), "main", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(mainTitle))
+            {
+                return mainTitle;
             }
 
             // 4. x-jat (Romaji) title

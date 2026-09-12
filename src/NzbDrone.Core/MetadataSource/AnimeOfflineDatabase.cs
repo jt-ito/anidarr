@@ -190,7 +190,9 @@ namespace NzbDrone.Core.MetadataSource
 
             foreach (var match in orderedMatches)
             {
-                var title = match.Title ?? "Unknown Title";
+                var title = !string.IsNullOrWhiteSpace(match.EnglishTitle)
+                    ? match.EnglishTitle
+                    : (!string.IsNullOrWhiteSpace(match.RomajiTitle) ? match.RomajiTitle : (match.Title ?? "Unknown Title"));
                 var series = new Series
                 {
                     Title = title,
@@ -520,20 +522,17 @@ namespace NzbDrone.Core.MetadataSource
                             }
 
                             var priority = 0;
-                            if (type == "1" || type == "4")
+                            if (language.Equals("en", StringComparison.OrdinalIgnoreCase))
                             {
-                                if (language.Equals("en", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    priority = 4;
-                                }
-                                else if (language.Equals("x-jat", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    priority = 3;
-                                }
-                                else
-                                {
-                                    priority = 1;
-                                }
+                                priority = (type == "4" || type == "1") ? 5 : 4;
+                            }
+                            else if (language.Equals("x-jat", StringComparison.OrdinalIgnoreCase))
+                            {
+                                priority = (type == "1" || type == "4") ? 3 : 2;
+                            }
+                            else if (type == "1" || type == "4")
+                            {
+                                priority = 1;
                             }
 
                             if (!titlePriorities.TryGetValue(anidbId, out var currentPriority))
@@ -837,14 +836,32 @@ namespace NzbDrone.Core.MetadataSource
                             }
                         }
 
-                        // 6. Title if missing
-                        if (string.IsNullOrWhiteSpace(existing.Title))
+                        // 6. Title and EnglishTitle
+                        var titles = root.Element(ns + "titles")?.Elements(ns + "title");
+                        if (titles != null)
                         {
-                            var titleElement = root.Element(ns + "titles")?.Elements(ns + "title").FirstOrDefault(t => (string)t.Attribute("type") == "main" || (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat");
-                            if (titleElement != null && !string.IsNullOrWhiteSpace(titleElement.Value))
+                            var enTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "en" || (string)t.Attribute("lang") == "en")?.Value?.Trim();
+                            if (!string.IsNullOrWhiteSpace(enTitle) && existing.EnglishTitle != enTitle)
                             {
-                                existing.Title = titleElement.Value;
-                                existing.CleanTitle = existing.Title.CleanForSearch();
+                                existing.EnglishTitle = enTitle;
+                                updated = true;
+                            }
+
+                            var romajiTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat" || (string)t.Attribute("lang") == "x-jat" || (string)t.Attribute("type") == "main")?.Value?.Trim();
+                            if (!string.IsNullOrWhiteSpace(romajiTitle) && existing.RomajiTitle != romajiTitle)
+                            {
+                                existing.RomajiTitle = romajiTitle;
+                                updated = true;
+                            }
+
+                            var preferredTitle = !string.IsNullOrWhiteSpace(existing.EnglishTitle)
+                                ? existing.EnglishTitle
+                                : (!string.IsNullOrWhiteSpace(existing.RomajiTitle) ? existing.RomajiTitle : existing.Title);
+
+                            if (!string.IsNullOrWhiteSpace(preferredTitle) && existing.Title != preferredTitle)
+                            {
+                                existing.Title = preferredTitle;
+                                existing.CleanTitle = preferredTitle.CleanForSearch();
                                 updated = true;
                             }
                         }
