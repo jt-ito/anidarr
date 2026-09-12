@@ -102,7 +102,12 @@ interface SeriesDetailsProps {
 function SeriesDetails({ seriesId }: SeriesDetailsProps) {
   const executeCommand = useExecuteCommand();
   const navigate = useNavigate();
-  const { returnToAddNew } = useQueryParams<{ returnToAddNew: string }>();
+  const { returnToAddNew, returnToSeries, returnToSeriesTitle } =
+    useQueryParams<{
+      returnToAddNew?: string;
+      returnToSeries?: string;
+      returnToSeriesTitle?: string;
+    }>();
 
   const series = useSingleSeries(seriesId);
 
@@ -113,6 +118,24 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
   const handleReturnToAddNewPress = useCallback(() => {
     navigate(`/add/new?term=${encodeURIComponent(returnToAddNew || '')}`);
   }, [navigate, returnToAddNew]);
+
+  const handleReturnToSeriesPress = useCallback(() => {
+    if (returnToSeries) {
+      navigate(`/series/${returnToSeries}`);
+    }
+  }, [navigate, returnToSeries]);
+
+  const returnToSeriesLabel = useMemo(() => {
+    if (!returnToSeriesTitle) {
+      return 'Return to Previous Series';
+    }
+
+    if (returnToSeriesTitle.length > 25) {
+      return `Return to ${returnToSeriesTitle.substring(0, 22)}...`;
+    }
+
+    return `Return to ${returnToSeriesTitle}`;
+  }, [returnToSeriesTitle]);
 
   const {
     isFetching: isEpisodesFetching,
@@ -492,6 +515,19 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
                 label="Return to Add New"
                 iconName={icons.ARROW_LEFT}
                 onPress={handleReturnToAddNewPress}
+              />
+            ) : null}
+
+            {returnToSeries ? (
+              <PageToolbarButton
+                label={returnToSeriesLabel}
+                title={
+                  returnToSeriesTitle
+                    ? `Return to ${returnToSeriesTitle}`
+                    : 'Return to Previous Series'
+                }
+                iconName={icons.ARROW_LEFT}
+                onPress={handleReturnToSeriesPress}
               />
             ) : null}
 

@@ -1,6 +1,7 @@
 /* eslint-disable react/jsx-no-bind */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router';
 import Alert from 'Components/Alert';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
@@ -22,7 +23,16 @@ import { useLookupSeries } from './useAddSeries';
 import styles from './AddNewSeries.css';
 
 function AddNewSeries() {
-  const { term: initialTerm = '' } = useQueryParams<{ term: string }>();
+  const {
+    term: initialTerm = '',
+    returnToSeries = '',
+    returnToSeriesTitle = '',
+  } = useQueryParams<{
+    term?: string;
+    returnToSeries?: string;
+    returnToSeriesTitle?: string;
+  }>();
+  const navigate = useNavigate();
   const hasSeries = useHasSeries();
   const [term, setTerm] = useState(initialTerm);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +55,12 @@ function AddNewSeries() {
     setIsFetching(false);
     searchInputRef.current?.focus();
   }, []);
+
+  const handleReturnToSeriesPress = useCallback(() => {
+    if (returnToSeries) {
+      navigate(`/series/${returnToSeries}`);
+    }
+  }, [navigate, returnToSeries]);
 
   const {
     isFetching: isFetchingApi,
@@ -71,6 +87,15 @@ function AddNewSeries() {
   return (
     <PageContent title={translate('AddNewSeries')}>
       <PageContentBody>
+        {returnToSeries ? (
+          <div style={{ marginBottom: '15px' }}>
+            <Button kind={kinds.DEFAULT} onPress={handleReturnToSeriesPress}>
+              <Icon name={icons.ARROW_LEFT} style={{ marginRight: '8px' }} />
+              Return to {returnToSeriesTitle || 'Series'}
+            </Button>
+          </div>
+        ) : null}
+
         <div className={styles.searchContainer}>
           <div className={styles.searchIconContainer}>
             <Icon name={icons.SEARCH} size={20} />
@@ -136,6 +161,8 @@ function AddNewSeries() {
                   }
                   series={item}
                   searchTerm={term}
+                  returnToSeries={returnToSeries}
+                  returnToSeriesTitle={returnToSeriesTitle}
                 />
               );
             })}

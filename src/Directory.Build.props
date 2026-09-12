@@ -75,7 +75,7 @@
     <Copyright>Copyright 2014-$([System.DateTime]::Now.ToString('yyyy')) sonarr.tv (GNU General Public v3)</Copyright>
     
     <!-- Should be replaced by CI -->
-    <AssemblyVersion>10.0.5.*</AssemblyVersion>
+    <AssemblyVersion>10.0.6.*</AssemblyVersion>
     <AssemblyConfiguration>$(Configuration)-dev</AssemblyConfiguration>
     <NeutralLanguage>en</NeutralLanguage>
 

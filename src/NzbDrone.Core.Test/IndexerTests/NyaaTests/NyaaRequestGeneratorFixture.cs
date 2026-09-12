@@ -102,5 +102,33 @@ namespace NzbDrone.Core.Test.IndexerTests.NyaaTests
 
             page.Url.FullUri.Should().Contain("term=Naruto+Shippuuden+s03");
         }
+
+        [Test]
+        public void should_search_multiple_tiers_for_anime_series_with_alternate_titles()
+        {
+            var animeCriteria = new AnimeEpisodeSearchCriteria()
+            {
+                Series = new NzbDrone.Core.Tv.Series
+                {
+                    SeriesType = NzbDrone.Core.Tv.SeriesTypes.Anime,
+                    Title = "Frieren: Beyond Journey's End",
+                    AlternateTitles = new List<string> { "Sousou no Frieren" },
+                    PrimaryMetadataProvider = "anidb"
+                },
+                AbsoluteEpisodeNumber = 12,
+                SeasonNumber = 1,
+                EpisodeNumber = 12
+            };
+
+            var results = Subject.GetSearchRequests(animeCriteria);
+
+            results.Tiers.Should().BeGreaterThanOrEqualTo(2);
+
+            var tier0 = results.GetTier(0).Select(t => t.First()).ToList();
+            tier0.First().Url.FullUri.Should().Contain("Sousou+no+Frieren+12");
+
+            var tier1 = results.GetTier(1).Select(t => t.First()).ToList();
+            tier1.First().Url.FullUri.Should().Contain("Frieren");
+        }
     }
 }

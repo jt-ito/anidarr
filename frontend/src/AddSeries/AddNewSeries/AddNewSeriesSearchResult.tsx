@@ -20,11 +20,15 @@ import styles from './AddNewSeriesSearchResult.css';
 interface AddNewSeriesSearchResultProps {
   series: AddSeries;
   searchTerm?: string;
+  returnToSeries?: string;
+  returnToSeriesTitle?: string;
 }
 
 function AddNewSeriesSearchResult({
   series,
   searchTerm,
+  returnToSeries,
+  returnToSeriesTitle,
 }: AddNewSeriesSearchResultProps) {
   const existingSeries = useExistingSeries(series);
   const displaySeries = resolveDisplaySeries(series, existingSeries);
@@ -60,10 +64,26 @@ function AddNewSeriesSearchResult({
     event.stopPropagation();
   }, []);
 
+  const linkParams = new URLSearchParams();
+
+  if (searchTerm) {
+    linkParams.set('returnToAddNew', searchTerm);
+  }
+
+  if (returnToSeries) {
+    linkParams.set('returnToSeries', returnToSeries);
+  }
+
+  if (returnToSeriesTitle) {
+    linkParams.set('returnToSeriesTitle', returnToSeriesTitle);
+  }
+
+  const queryString = linkParams.toString();
+
   const linkProps = existingSeries
     ? {
         to: `/series/${existingSeries.titleSlug}${
-          searchTerm ? `?returnToAddNew=${encodeURIComponent(searchTerm)}` : ''
+          queryString ? `?${queryString}` : ''
         }`,
       }
     : { onPress: handlePress };

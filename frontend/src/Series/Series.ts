@@ -70,6 +70,15 @@ export interface SeriesAddOptions {
   searchForCutoffUnmetEpisodes: boolean;
 }
 
+export interface AniDbRelatedSeries {
+  relatedAniDbId: number;
+  relationType?: string;
+  title?: string;
+  posterUrl?: string;
+  overview?: string;
+  existingTitleSlug?: string;
+}
+
 interface Series extends ModelBase {
   added: string;
   alternateTitles: AlternateTitle[];
@@ -116,14 +125,7 @@ interface Series extends ModelBase {
     seasonNumber: number;
     relationType: string;
   }[];
-  aniDbRelatedSeries?: {
-    relatedAniDbId: number;
-    relationType?: string;
-    title?: string;
-    posterUrl?: string;
-    overview?: string;
-    existingTitleSlug?: string;
-  }[];
+  aniDbRelatedSeries?: AniDbRelatedSeries[];
   malIds?: number[];
   aniListIds?: number[];
   primaryMetadataProvider?: string;
