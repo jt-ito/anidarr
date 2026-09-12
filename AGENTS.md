@@ -48,3 +48,54 @@ When the guardrails activate:
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guidelines, including the AI usage policy.
+
+---
+
+## Versioning & Bump Process
+
+The backend `src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs` is the primary source of truth for versions. When asked to bump the version (e.g. to `10.0.X.Y` / `10.0.5.42705`), update the following files:
+
+### 1. Primary Version Bump
+- **`src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs`**:
+  Update `Version`:
+  ```csharp
+  public static Version Version { get; } = new Version(10, 0, X, Y);
+  ```
+
+### 2. Files Updated for the Pipeline & Packaging
+- **`.github/workflows/build_v5.yml`**:
+  Update the environment variables:
+  ```yaml
+  SONARR_MAJOR_VERSION: 10
+  VERSION: 10.0.X
+  ```
+- **`src/Directory.Build.props`**:
+  Update `<AssemblyVersion>`:
+  ```xml
+  <AssemblyVersion>10.0.X.*</AssemblyVersion>
+  ```
+- **`package.json`**:
+  Update `"version"`:
+  ```json
+  "version": "10.0.X"
+  ```
+- **`distribution/macOS/Anidarr.app/Contents/Info.plist`**:
+  Ensure version placeholders are `10.0.0.0` (for `CFBundleShortVersionString` and `CFBundleVersion`) to match the pipeline's sed substitution command in `.github/actions/build/action.yml`:
+  ```bash
+  sed -i'' -e "s/<string>10.0.0.0<\/string>/<string>$SONARR_VERSION<\/string>/g" distribution/macOS/Anidarr.app/Contents/Info.plist
+  ```
+- **`distribution/windows/setup/sonarr.iss`**:
+  Update fallback `BuildNumber`:
+  ```iss
+  #define BuildNumber "10.0"
+  ```
+
+### 3. Git Release Tag & Push
+- Stage all changes (`git add -A`)
+- Commit: `git commit -m "chore: release v10.0.X.Y with ..."`
+- Tag: `git tag v10.0.X.Y`
+- Push commit and tag:
+  ```bash
+  git push origin master
+  git push origin v10.0.X.Y
+  ```
