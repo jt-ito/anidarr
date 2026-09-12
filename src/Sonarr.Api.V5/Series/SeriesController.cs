@@ -13,6 +13,7 @@ using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.RootFolders;
 using NzbDrone.Core.SeriesStats;
 using NzbDrone.Core.Tv;
@@ -441,30 +442,114 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
     private void PopulateAniDbRelatedSeries(List<SeriesResource> resources)
     {
+        if (resources == null || !resources.Any())
+        {
+            return;
+        }
+
+        var allSeries = _seriesService.GetAllSeries();
+        var seriesByAniDbId = new Dictionary<int, string>();
+        var seriesByCleanTitle = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var s in allSeries)
+        {
+            if (s.AniDbId.HasValue && !seriesByAniDbId.ContainsKey(s.AniDbId.Value))
+            {
+                seriesByAniDbId[s.AniDbId.Value] = s.TitleSlug;
+            }
+
+            if (!string.IsNullOrWhiteSpace(s.CleanTitle) && !seriesByCleanTitle.ContainsKey(s.CleanTitle))
+            {
+                seriesByCleanTitle[s.CleanTitle] = s.TitleSlug;
+            }
+        }
+
         foreach (var resource in resources)
         {
-            PopulateAniDbRelatedSeries(resource);
+            PopulateAniDbRelatedSeries(resource, allSeries, seriesByAniDbId, seriesByCleanTitle);
         }
     }
 
     private void PopulateAniDbRelatedSeries(SeriesResource resource)
     {
+        PopulateAniDbRelatedSeries(resource, null, null, null);
+    }
+
+    private void PopulateAniDbRelatedSeries(
+        SeriesResource resource,
+        List<NzbDrone.Core.Tv.Series>? allSeries,
+        Dictionary<int, string>? seriesByAniDbId,
+        Dictionary<string, string>? seriesByCleanTitle)
+    {
         var related = _aniDbRelatedSeriesService.GetRelatedSeries(resource.Id);
         if (related != null && related.Any())
         {
-            var metadataCache = _aniDbRelatedMetadataCacheRepository.GetByAniDbIds(related.Select(r => r.RelatedAniDbId).Distinct().ToList());
+            var relatedIds = related.Select(r => r.RelatedAniDbId).Distinct().ToList();
+            var metadataCache = _aniDbRelatedMetadataCacheRepository.GetByAniDbIds(relatedIds);
             var cacheDict = metadataCache.ToDictionary(c => c.AniDbId);
+
+            if (allSeries == null || seriesByAniDbId == null || seriesByCleanTitle == null)
+            {
+                allSeries = _seriesService.GetAllSeries();
+                seriesByAniDbId = new Dictionary<int, string>();
+                seriesByCleanTitle = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var s in allSeries)
+                {
+                    if (s.AniDbId.HasValue && !seriesByAniDbId.ContainsKey(s.AniDbId.Value))
+                    {
+                        seriesByAniDbId[s.AniDbId.Value] = s.TitleSlug;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(s.CleanTitle) && !seriesByCleanTitle.ContainsKey(s.CleanTitle))
+                    {
+                        seriesByCleanTitle[s.CleanTitle] = s.TitleSlug;
+                    }
+                }
+            }
+
+            foreach (var rid in relatedIds)
+            {
+                if (!seriesByAniDbId.ContainsKey(rid))
+                {
+                    var mapping = _aniDbSeriesMappingService.GetMappingByAniDbId(rid);
+                    if (mapping != null)
+                    {
+                        var mappedSeries = allSeries.FirstOrDefault(s => s.Id == mapping.SeriesId);
+                        if (mappedSeries != null)
+                        {
+                            seriesByAniDbId[rid] = mappedSeries.TitleSlug;
+                        }
+                    }
+                }
+            }
 
             resource.AniDbRelatedSeries = related.Select(r =>
             {
                 var cache = cacheDict.GetValueOrDefault(r.RelatedAniDbId);
+                string? existingSlug = null;
+
+                if (seriesByAniDbId.TryGetValue(r.RelatedAniDbId, out var slug))
+                {
+                    existingSlug = slug;
+                }
+                else if (cache != null && !string.IsNullOrWhiteSpace(cache.Title))
+                {
+                    var cleanCacheTitle = Parser.CleanSeriesTitle(cache.Title);
+                    if (seriesByCleanTitle.TryGetValue(cleanCacheTitle, out var titleMatchSlug))
+                    {
+                        existingSlug = titleMatchSlug;
+                    }
+                }
+
                 return new AniDbRelatedSeriesResource
                 {
                     RelatedAniDbId = r.RelatedAniDbId,
                     RelationType = r.RelationType,
                     Title = cache?.Title,
                     PosterUrl = cache?.PosterUrl,
-                    Overview = cache?.Overview
+                    Overview = cache?.Overview,
+                    ExistingTitleSlug = existingSlug
                 };
             }).ToList();
         }

@@ -32,6 +32,7 @@ namespace NzbDrone.Core.Tv
             foreach (var relation in relatedSeries)
             {
                 relation.SeriesId = seriesId;
+                relation.Id = 0;
                 _repository.Insert(relation);
             }
         }

@@ -177,5 +177,92 @@ namespace NzbDrone.Core.Test.MetadataSource.AniList
             var result = Subject.SearchAniListIdByTitle("Maou Gakuin no Futekigosha: Shijo Saikyo no Mao no Shiso", 2015, 12);
             result.Should().Be(100);
         }
+
+        [Test]
+        public void should_return_null_when_circuit_breaker_is_active()
+        {
+            Mocker.GetMock<IAniListRateLimiter>()
+                .SetupGet(r => r.IsRateLimited)
+                .Returns(true);
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", 2015, 12);
+
+            result.Should().BeNull();
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Post<AniListSearchResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        [Test]
+        public void should_handle_429_gracefully_and_record_failure()
+        {
+            var req = new HttpRequest("https://graphql.anilist.co");
+            var res = new HttpResponse(req, new HttpHeader(), "Too Many Requests", System.Net.HttpStatusCode.TooManyRequests);
+            Mocker.GetMock<IHttpClient>()
+                .Setup(c => c.Post<AniListSearchResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new TooManyRequestsException(req, res));
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", 2015, 12);
+
+            result.Should().BeNull();
+            Mocker.GetMock<IAniListRateLimiter>()
+                .Verify(r => r.RecordFailure(It.IsAny<TimeSpan?>()), Times.AtLeastOnce);
+        }
+
+        [Test]
+        public void should_handle_403_cloudflare_protection_gracefully()
+        {
+            var req = new HttpRequest("https://graphql.anilist.co");
+            var res = new HttpResponse(req, new HttpHeader(), "Forbidden Cloudflare Challenge", System.Net.HttpStatusCode.Forbidden);
+            Mocker.GetMock<IHttpClient>()
+                .Setup(c => c.Post<AniListSearchResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpException(req, res));
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", 2015, 12);
+
+            result.Should().BeNull();
+            Mocker.GetMock<IAniListRateLimiter>()
+                .Verify(r => r.RecordFailure(It.IsAny<TimeSpan?>()), Times.AtLeastOnce);
+        }
+
+        [Test]
+        public void should_handle_500_gracefully()
+        {
+            var req = new HttpRequest("https://graphql.anilist.co");
+            var res = new HttpResponse(req, new HttpHeader(), "Internal Server Error", System.Net.HttpStatusCode.InternalServerError);
+            Mocker.GetMock<IHttpClient>()
+                .Setup(c => c.Post<AniListSearchResponse>(It.IsAny<HttpRequest>()))
+                .Throws(new HttpException(req, res));
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", 2015, 12);
+
+            result.Should().BeNull();
+            Mocker.GetMock<IAniListRateLimiter>()
+                .Verify(r => r.RecordFailure(It.IsAny<TimeSpan?>()), Times.AtLeastOnce);
+        }
+
+        [Test]
+        public void should_return_empty_airing_times_when_circuit_breaker_active()
+        {
+            Mocker.GetMock<IAniListRateLimiter>()
+                .SetupGet(r => r.IsRateLimited)
+                .Returns(true);
+
+            var result = Subject.GetAiringTimes(12345);
+
+            result.Should().BeEmpty();
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Post<AniListMediaResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
+
+        [Test]
+        public void should_return_empty_titles_when_circuit_breaker_active()
+        {
+            Mocker.GetMock<IAniListRateLimiter>()
+                .SetupGet(r => r.IsRateLimited)
+                .Returns(true);
+
+            var result = Subject.GetTitles(12345);
+
+            result.Should().BeEmpty();
+            Mocker.GetMock<IHttpClient>().Verify(c => c.Post<AniListMediaResponse>(It.IsAny<HttpRequest>()), Times.Never);
+        }
     }
 }

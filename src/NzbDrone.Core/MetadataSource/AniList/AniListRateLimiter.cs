@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using NzbDrone.Common.Http;
 
 namespace NzbDrone.Core.MetadataSource.AniList
 {
@@ -10,6 +11,10 @@ namespace NzbDrone.Core.MetadataSource.AniList
     {
         Task<T> ExecuteAsync<T>(Func<T> action);
         void SetRetryAfter(TimeSpan delay);
+        void RecordFailure(TimeSpan? explicitDelay = null);
+        void RecordSuccess();
+        bool IsRateLimited { get; }
+        DateTime RetryAfterUtc { get; }
     }
 
     public class AniListRateLimiter : IAniListRateLimiter
@@ -28,6 +33,7 @@ namespace NzbDrone.Core.MetadataSource.AniList
         private static readonly TimeSpan MinRequestInterval = TimeSpan.FromMilliseconds(1000);
         private static DateTime _lastRequestTime = DateTime.MinValue;
         private static DateTime _retryAfterTime = DateTime.MinValue;
+        private static int _consecutiveFailures;
         private static Logger _staticLogger = LogManager.GetCurrentClassLogger();
 
         static AniListRateLimiter()
@@ -40,20 +46,92 @@ namespace NzbDrone.Core.MetadataSource.AniList
             _logger = logger;
         }
 
-        public void SetRetryAfter(TimeSpan delay)
+        public bool IsRateLimited
         {
-            var newRetryTime = DateTime.UtcNow + delay;
-            lock (_lock)
+            get
             {
-                if (newRetryTime > _retryAfterTime)
+                lock (_lock)
                 {
-                    _retryAfterTime = newRetryTime;
+                    return DateTime.UtcNow < _retryAfterTime;
                 }
             }
         }
 
+        public DateTime RetryAfterUtc
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _retryAfterTime;
+                }
+            }
+        }
+
+        public void RecordFailure(TimeSpan? explicitDelay = null)
+        {
+            lock (_lock)
+            {
+                _consecutiveFailures++;
+                var backoffMinutes = _consecutiveFailures switch
+                {
+                    1 => 2,
+                    2 => 5,
+                    3 => 15,
+                    _ => 30
+                };
+
+                var delay = TimeSpan.FromMinutes(backoffMinutes);
+                if (explicitDelay.HasValue && explicitDelay.Value > delay)
+                {
+                    delay = explicitDelay.Value;
+                }
+
+                var newRetryTime = DateTime.UtcNow + delay;
+                if (newRetryTime > _retryAfterTime)
+                {
+                    _retryAfterTime = newRetryTime;
+                }
+
+                _staticLogger.Warn(
+                    "AniList API circuit breaker active: consecutive failures={0}, backing off until {1:u} UTC ({2} min)",
+                    _consecutiveFailures,
+                    _retryAfterTime,
+                    (int)delay.TotalMinutes);
+            }
+        }
+
+        public void RecordSuccess()
+        {
+            lock (_lock)
+            {
+                _consecutiveFailures = 0;
+            }
+        }
+
+        public void SetRetryAfter(TimeSpan delay)
+        {
+            if (delay <= TimeSpan.Zero)
+            {
+                RecordFailure();
+                return;
+            }
+
+            RecordFailure(delay);
+        }
+
         public Task<T> ExecuteAsync<T>(Func<T> action)
         {
+            lock (_lock)
+            {
+                if (DateTime.UtcNow < _retryAfterTime)
+                {
+                    var tcsFast = new TaskCompletionSource<T>();
+                    tcsFast.SetException(new HttpException(new HttpRequest("https://graphql.anilist.co"), null, $"AniList API is currently unavailable (circuit breaker active until {_retryAfterTime:u} UTC)"));
+                    return tcsFast.Task;
+                }
+            }
+
             var tcs = new TaskCompletionSource<T>();
 
             Func<Task> wrappedAction = () =>
@@ -61,6 +139,7 @@ namespace NzbDrone.Core.MetadataSource.AniList
                 try
                 {
                     var result = action();
+                    RecordSuccess();
                     tcs.SetResult(result);
                 }
                 catch (Exception ex)

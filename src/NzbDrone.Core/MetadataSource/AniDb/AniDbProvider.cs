@@ -12,6 +12,7 @@ using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaCover;
+using NzbDrone.Core.MetadataSource.AniList;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv;
 
@@ -55,8 +56,8 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 throw new ArgumentException($"Invalid AniDB ID: {externalId}");
             }
 
-            var hubId = FindHubId(aniDbId);
-            var chainIds = GetLinearChain(hubId);
+            var (hubId, hubDocs) = FindHubId(aniDbId);
+            var (chainIds, chainDocs) = GetLinearChain(hubId, hubDocs);
 
             Series hubSeries = null;
             var allEpisodes = new List<Episode>();
@@ -71,16 +72,38 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             var chainData = new List<(int AssignedSeasonNumber, List<Episode> Episodes, int? AniListId)>();
 
+            // Derive hasTvOrWebAnchor from already-fetched chain documents (no redundant fetches).
+            // Consult AniList advisory if an entry has an unknown or missing AniDB type.
+            var hasTvOrWebAnchor = false;
+            foreach (var kvp in chainDocs)
+            {
+                var docNs = kvp.Value.Root?.Name.Namespace ?? XNamespace.None;
+                var docType = kvp.Value.Root?.Element(docNs + "type")?.Value;
+                if (string.Equals(docType, "TV Series", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(docType, "Web", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasTvOrWebAnchor = true;
+                    break;
+                }
+
+                if (string.IsNullOrWhiteSpace(docType) ||
+                    docType.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                    docType.Equals("Other", StringComparison.OrdinalIgnoreCase))
+                {
+                    var adv = GetAdvisoryAniListInfo(kvp.Key);
+                    if (adv != null && (string.Equals(adv.Format, "TV", StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(adv.Format, "TV_SHORT", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hasTvOrWebAnchor = true;
+                        break;
+                    }
+                }
+            }
+
             foreach (var id in chainIds)
             {
-                XDocument doc;
-                try
+                if (!chainDocs.TryGetValue(id, out var doc))
                 {
-                    doc = GetAnimeXml(id);
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0} while parsing series. Skipping.", id);
                     continue;
                 }
 
@@ -115,9 +138,60 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         isAmbiguousHubRelation = true;
                     }
 
-                    if (string.IsNullOrWhiteSpace(animeType) || animeType.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+                    AniListMediaInfo advisory = null;
+                    var advisoryChecked = false;
+                    AniListMediaInfo GetAdvisory()
                     {
-                        assignedSeasonNumber = -1; // Flag for manual review
+                        if (!advisoryChecked)
+                        {
+                            advisoryChecked = true;
+                            advisory = GetAdvisoryAniListInfo(id);
+                        }
+
+                        return advisory;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(animeType) ||
+                        animeType.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        animeType.Equals("Other", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var adv = GetAdvisory();
+                        if (adv != null && !string.IsNullOrWhiteSpace(adv.Format))
+                        {
+                            if (adv.Format.Equals("TV", StringComparison.OrdinalIgnoreCase) ||
+                                adv.Format.Equals("TV_SHORT", StringComparison.OrdinalIgnoreCase))
+                            {
+                                assignedSeasonNumber = seasonNumber;
+                                seasonNumber++;
+                            }
+                            else if (adv.Format.Equals("MOVIE", StringComparison.OrdinalIgnoreCase) ||
+                                     adv.Format.Equals("SPECIAL", StringComparison.OrdinalIgnoreCase) ||
+                                     adv.Format.Equals("MUSIC", StringComparison.OrdinalIgnoreCase))
+                            {
+                                assignedSeasonNumber = 0;
+                            }
+                            else if (adv.Format.Equals("OVA", StringComparison.OrdinalIgnoreCase) ||
+                                     adv.Format.Equals("ONA", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (hasTvOrWebAnchor)
+                                {
+                                    assignedSeasonNumber = 0;
+                                }
+                                else
+                                {
+                                    assignedSeasonNumber = seasonNumber;
+                                    seasonNumber++;
+                                }
+                            }
+                            else
+                            {
+                                assignedSeasonNumber = -1; // Flag for manual review
+                            }
+                        }
+                        else
+                        {
+                            assignedSeasonNumber = -1; // Flag for manual review
+                        }
                     }
                     else if (isAmbiguousHubRelation)
                     {
@@ -131,14 +205,53 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     else
                     {
                         // OVA, Movie, Special, Music Video, etc.
-                        if (hasQualifyingHubRelation)
+                        if (!hasQualifyingHubRelation)
                         {
+                            assignedSeasonNumber = seasonNumber;
+                            seasonNumber++;
+                        }
+                        else if (animeType.Equals("Movie", StringComparison.OrdinalIgnoreCase) ||
+                                 animeType.Equals("Music Video", StringComparison.OrdinalIgnoreCase) ||
+                                 (GetAdvisory()?.Format?.Equals("MOVIE", StringComparison.OrdinalIgnoreCase) == true))
+                        {
+                            // Movies belong in Radarr; music videos are never canonical seasons.
+                            // Also consult AniList advisory: if AniList classifies it as MOVIE, delegate to Radarr.
+                            assignedSeasonNumber = 0;
+                        }
+                        else if (hasTvOrWebAnchor)
+                        {
+                            // In a TV/Web-anchored chain, non-TV entries (OVAs) default to Specials (Season 0)
                             assignedSeasonNumber = 0;
                         }
                         else
                         {
-                            assignedSeasonNumber = seasonNumber;
-                            seasonNumber++;
+                            // In an OVA-native chain (no TV/Web anchor), use the AniDB type to
+                            // distinguish canonical entries from supplements:
+                            //   - "Special" type entries are bonus content → Season 0
+                            //   - "OVA" type entries are canonical sequels → numbered season
+                            // For 1-episode entries, check AniList advisory in case AniList classifies it as SPECIAL or MUSIC
+                            if (animeType.Equals("Special", StringComparison.OrdinalIgnoreCase))
+                            {
+                                assignedSeasonNumber = 0;
+                            }
+                            else
+                            {
+                                var epCount = doc.Root?.Element(ns + "episodecount") != null
+                                    ? (int?)doc.Root.Element(ns + "episodecount")
+                                    : (int?)null;
+
+                                var adv = epCount <= 1 ? GetAdvisory() : null;
+                                if (adv != null && (string.Equals(adv.Format, "SPECIAL", StringComparison.OrdinalIgnoreCase) ||
+                                                    string.Equals(adv.Format, "MUSIC", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    assignedSeasonNumber = 0;
+                                }
+                                else
+                                {
+                                    assignedSeasonNumber = seasonNumber;
+                                    seasonNumber++;
+                                }
+                            }
                         }
                     }
                 }
@@ -227,6 +340,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                                 foreach (var titleToSearch in fallbackTitles)
                                 {
+                                    if (_aniListEnricher.IsRateLimited)
+                                    {
+                                        _logger.Debug("AniList circuit breaker active; skipping remaining title fallbacks for AniDB ID {0}.", id);
+                                        break;
+                                    }
+
                                     _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", id, titleToSearch);
                                     currentAniListId = _aniListEnricher.SearchAniListIdByTitle(titleToSearch, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
                                     if (currentAniListId.HasValue)
@@ -250,7 +369,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     }
                     catch (Exception ex)
                     {
-                        _logger.Warn(ex, "Failed to resolve AniList ID for AniDB ID {0}", id);
+                        _logger.Warn("Failed to resolve AniList ID for AniDB ID {0}: {1}", id, ex.Message);
                     }
 
                     chainData.Add((assignedSeasonNumber, episodes, currentAniListId));
@@ -265,16 +384,16 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 try
                 {
                     _logger.Debug("Batch fetching time-of-day data for {0} AniList IDs", allAniListIds.Count);
-                    allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds);
+                    allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds) ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn(ex, "Failed to batch fetch AniList airing times.");
+                    _logger.Warn("Failed to batch fetch AniList airing times: {0}", ex.Message);
                 }
             }
 
             TimeSpan? globalDefaultTime = null;
-            var allTimes = allAiringTimes.Values.SelectMany(x => x.Values).ToList();
+            var allTimes = allAiringTimes?.Values?.Where(x => x != null).SelectMany(x => x.Values).ToList() ?? new List<TimeSpan>();
             if (allTimes.Any())
             {
                 globalDefaultTime = allTimes.GroupBy(t => t).OrderByDescending(g => g.Count()).First().Key;
@@ -424,7 +543,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn(ex, "Failed to fetch AniList titles for enrichment.");
+                    _logger.Warn("Failed to fetch AniList titles for enrichment: {0}", ex.Message);
                 }
             }
 
@@ -450,11 +569,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             return doc;
         }
 
-        private int FindHubId(int startId)
+        private (int HubId, Dictionary<int, XDocument> FetchedDocs) FindHubId(int startId)
         {
             var currentId = startId;
             var visited = new HashSet<int> { currentId };
             var lastValidId = startId;
+            var fetchedDocs = new Dictionary<int, XDocument>();
 
             while (true)
             {
@@ -462,11 +582,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 try
                 {
                     doc = GetAnimeXml(currentId);
+                    fetchedDocs[currentId] = doc;
                 }
                 catch (Exception ex)
                 {
                     _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0}. Falling back to earliest available entry {1} as hub.", currentId, lastValidId);
-                    return lastValidId;
+                    return (lastValidId, fetchedDocs);
                 }
 
                 var prequels = GetRelations(doc, "Prequel");
@@ -494,26 +615,35 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            return currentId;
+            return (currentId, fetchedDocs);
         }
 
-        private List<int> GetLinearChain(int hubId)
+        private (List<int> Chain, Dictionary<int, XDocument> AllDocs) GetLinearChain(int hubId, Dictionary<int, XDocument> existingDocs)
         {
             var chain = new List<int>();
+            var allDocs = new Dictionary<int, XDocument>(existingDocs);
             var currentId = hubId;
             var visited = new HashSet<int> { currentId };
 
             while (true)
             {
                 XDocument doc;
-                try
+                if (allDocs.TryGetValue(currentId, out var cachedDoc))
                 {
-                    doc = GetAnimeXml(currentId);
+                    doc = cachedDoc;
                 }
-                catch (Exception ex)
+                else
                 {
-                    _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0} while building chain. Stopping traversal.", currentId);
-                    break;
+                    try
+                    {
+                        doc = GetAnimeXml(currentId);
+                        allDocs[currentId] = doc;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn(ex, "AniDB relation traversal hit an unavailable entry at ID {0} while building chain. Stopping traversal.", currentId);
+                        break;
+                    }
                 }
 
                 chain.Add(currentId);
@@ -542,7 +672,30 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            return chain;
+            return (chain, allDocs);
+        }
+
+        private AniListMediaInfo GetAdvisoryAniListInfo(int anidbId)
+        {
+            if (_aniListEnricher == null || _aniListEnricher.IsRateLimited)
+            {
+                return null;
+            }
+
+            try
+            {
+                var local = _titleSearch.GetSeriesById("anidb", anidbId);
+                if (local?.AniListId != null)
+                {
+                    return _aniListEnricher.GetMediaInfo(local.AniListId.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug("AniList advisory lookup failed for AniDB ID {0}: {1}", anidbId, ex.Message);
+            }
+
+            return null;
         }
 
         private List<int> GetRelations(XDocument doc, string relationType)
@@ -831,25 +984,55 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 return defaultTitle;
             }
 
-            var enTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "en" || (string)t.Attribute("lang") == "en")?.Value;
-            if (!string.IsNullOrWhiteSpace(enTitle))
+            string GetLang(XElement t) => ((string)t.Attribute(XNamespace.Xml + "lang") ?? (string)t.Attribute("lang"))?.Trim();
+            string GetType(XElement t) => ((string)t.Attribute("type"))?.Trim();
+
+            // Exclude 'short' titles (abbreviations such as 'ark', 'EVA', 'SAO') from primary title selection
+            var nonShortTitles = titles.Where(t => !string.Equals(GetType(t), "short", StringComparison.OrdinalIgnoreCase)).ToList();
+            var candidatePool = nonShortTitles.Any() ? nonShortTitles : titles.ToList();
+
+            // 1. Official English title (e.g. "Animation Runner Kuromi")
+            var officialEn = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetType(t), "official", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(GetLang(t), "en", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(officialEn))
             {
-                return enTitle;
+                return officialEn;
             }
 
-            var xjatTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat" || (string)t.Attribute("lang") == "x-jat")?.Value;
+            // 2. Main title (e.g. "Animation Seisaku Shinkou Kuromi-chan")
+            var mainTitle = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetType(t), "main", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(mainTitle))
+            {
+                return mainTitle;
+            }
+
+            // 3. Any non-short English title (synonym)
+            var anyEn = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetLang(t), "en", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
+            if (!string.IsNullOrWhiteSpace(anyEn))
+            {
+                return anyEn;
+            }
+
+            // 4. x-jat (Romaji) title
+            var xjatTitle = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetLang(t), "x-jat", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
             if (!string.IsNullOrWhiteSpace(xjatTitle))
             {
                 return xjatTitle;
             }
 
-            var jaTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "ja" || (string)t.Attribute("lang") == "ja")?.Value;
+            // 5. Japanese title
+            var jaTitle = candidatePool.FirstOrDefault(t =>
+                string.Equals(GetLang(t), "ja", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
             if (!string.IsNullOrWhiteSpace(jaTitle))
             {
                 return jaTitle;
             }
 
-            return titles.FirstOrDefault()?.Value ?? defaultTitle;
+            return candidatePool.FirstOrDefault()?.Value?.Trim() ?? defaultTitle;
         }
     }
 }

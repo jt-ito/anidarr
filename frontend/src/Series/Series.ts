@@ -122,6 +122,7 @@ interface Series extends ModelBase {
     title?: string;
     posterUrl?: string;
     overview?: string;
+    existingTitleSlug?: string;
   }[];
   malIds?: number[];
   aniListIds?: number[];

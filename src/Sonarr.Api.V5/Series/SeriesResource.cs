@@ -81,6 +81,7 @@ public class AniDbRelatedSeriesResource
     public string? Title { get; set; }
     public string? PosterUrl { get; set; }
     public string? Overview { get; set; }
+    public string? ExistingTitleSlug { get; set; }
 }
 
 public static class SeriesResourceMapper
