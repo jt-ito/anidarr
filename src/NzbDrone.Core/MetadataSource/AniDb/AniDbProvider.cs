@@ -374,70 +374,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                             hubSeries.AniListIds.Add(local.AniListId.Value);
                         }
-                        else
-                        {
-                            var expectedYear = currentSeriesMetadata.Year > 0 ? currentSeriesMetadata.Year : (episodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
-                            if (expectedYear > 0)
-                            {
-                                var expectedEpisodeCount = episodes.Count(e => e.SeasonNumber > 0);
-                                var fallbackTitles = new List<string>();
-
-                                if (local != null)
-                                {
-                                    if (!string.IsNullOrWhiteSpace(local.RomajiTitle))
-                                    {
-                                        fallbackTitles.Add(local.RomajiTitle);
-                                    }
-
-                                    if (!string.IsNullOrWhiteSpace(local.NativeTitle))
-                                    {
-                                        fallbackTitles.Add(local.NativeTitle);
-                                    }
-
-                                    if (!string.IsNullOrWhiteSpace(local.EnglishTitle))
-                                    {
-                                        fallbackTitles.Add(local.EnglishTitle);
-                                    }
-
-                                    if (local.SearchSynonyms != null)
-                                    {
-                                        fallbackTitles.AddRange(local.SearchSynonyms);
-                                    }
-                                }
-
-                                if (!string.IsNullOrWhiteSpace(currentSeriesMetadata.Title) && !fallbackTitles.Contains(currentSeriesMetadata.Title))
-                                {
-                                    fallbackTitles.Add(currentSeriesMetadata.Title);
-                                }
-
-                                foreach (var titleToSearch in fallbackTitles)
-                                {
-                                    if (_aniListEnricher.IsRateLimited)
-                                    {
-                                        _logger.Debug("AniList circuit breaker active; skipping remaining title fallbacks for AniDB ID {0}.", id);
-                                        break;
-                                    }
-
-                                    _logger.Debug("No offline database mapping found for AniDB ID {0}. Attempting title-based fallback for '{1}'.", id, titleToSearch);
-                                    currentAniListId = _aniListEnricher.SearchAniListIdByTitle(titleToSearch, expectedYear, expectedEpisodeCount > 0 ? expectedEpisodeCount : (int?)null);
-                                    if (currentAniListId.HasValue)
-                                    {
-                                        break;
-                                    }
-                                }
-
-                                if (currentAniListId.HasValue)
-                                {
-                                    if (hubSeries.AniListIds == null)
-                                    {
-                                        hubSeries.AniListIds = new HashSet<int>();
-                                    }
-
-                                    hubSeries.AniListIds.Add(currentAniListId.Value);
-                                    _titleSearch.UpdateAniListId(id, currentAniListId.Value);
-                                }
-                            }
-                        }
                     }
                     catch (Exception ex)
                     {
@@ -451,29 +387,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var allAniListIds = chainData.Where(x => x.AniListId.HasValue).Select(x => x.AniListId.Value).ToList();
             var allAiringTimes = new Dictionary<int, Dictionary<int, TimeSpan>>();
             var allAniListTitles = new Dictionary<int, List<string>>();
-
-            if (allAniListIds.Any())
-            {
-                try
-                {
-                    ReportProgress(aniDbId, $"Fetching episode schedules & titles from AniList for {allAniListIds.Count} season(s)...");
-                    _logger.Debug("Batch fetching enrichment data (airing times + titles) for {0} AniList IDs", allAniListIds.Count);
-                    var enrichment = _aniListEnricher.GetEnrichmentForMultiple(allAniListIds);
-                    if (enrichment != null && (enrichment.AiringTimes.Any() || enrichment.Titles.Any()))
-                    {
-                        allAiringTimes = enrichment.AiringTimes ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
-                        allAniListTitles = enrichment.Titles ?? new Dictionary<int, List<string>>();
-                    }
-                    else
-                    {
-                        allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds) ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn("Failed to batch fetch AniList enrichment data: {0}", ex.Message);
-                }
-            }
 
             TimeSpan? globalDefaultTime = null;
             var allTimes = allAiringTimes?.Values?.Where(x => x != null).SelectMany(x => x.Values).ToList() ?? new List<TimeSpan>();
@@ -651,44 +564,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 catch (Exception ex)
                 {
                     _logger.Debug(ex, "Failed to read local alternate titles for AniDB ID {0}", id);
-                }
-            }
-
-            foreach (var anilistId in allAniListIds)
-            {
-                List<string> anilistTitles = null;
-                if (allAniListTitles.TryGetValue(anilistId, out var titles) && titles != null && titles.Any())
-                {
-                    anilistTitles = titles;
-                }
-                else
-                {
-                    try
-                    {
-                        anilistTitles = _aniListEnricher.GetTitles(anilistId);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Debug(ex, "Failed to fetch AniList titles for ID {0}", anilistId);
-                    }
-                }
-
-                if (anilistTitles != null)
-                {
-                    foreach (var anilistTitle in anilistTitles)
-                    {
-                        if (string.IsNullOrWhiteSpace(anilistTitle))
-                        {
-                            continue;
-                        }
-
-                        var cleanAnilistTitle = anilistTitle.CleanForSearch();
-                        if (!existingCleanTitles.Contains(cleanAnilistTitle))
-                        {
-                            hubSeries.AlternateTitles.Add(anilistTitle);
-                            existingCleanTitles.Add(cleanAnilistTitle);
-                        }
-                    }
                 }
             }
 

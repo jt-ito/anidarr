@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NLog;
@@ -93,6 +94,12 @@ namespace NzbDrone.Core.Tv
             {
                 _aniDbRelatedSeriesService.UpdateRelatedSeries(newSeries.Id, newSeries.AniDbRelatedSeries);
                 _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(newSeries.Id));
+            }
+
+            if (newSeries.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any()))
+            {
+                _commandQueueManager.Push(new Tv.Commands.EnrichSeriesFromAniListCommand(newSeries.Id));
             }
 
             _eventAggregator.PublishEvent(new SeriesAddedEvent(GetSeries(newSeries.Id)));
