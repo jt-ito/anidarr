@@ -44,10 +44,19 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private readonly IAniDbRateLimiter _rateLimiter;
         private readonly IAniDbSeriesMappingService _mappingService;
         private readonly AniList.IAniListEnricher _aniListEnricher;
+        private readonly Messaging.Events.IEventAggregator _eventAggregator;
 
         public MetadataProviderType ProviderType => MetadataProviderType.AniDb;
 
-        public AniDbProvider(IHttpClient httpClient, IConfigFileProvider configService, IAnimeOfflineDatabase titleSearch, IAppFolderInfo appFolderInfo, IAniDbRateLimiter rateLimiter, Logger logger, IAniDbSeriesMappingService mappingService, AniList.IAniListEnricher aniListEnricher)
+        public AniDbProvider(IHttpClient httpClient,
+                             IConfigFileProvider configService,
+                             IAnimeOfflineDatabase titleSearch,
+                             IAppFolderInfo appFolderInfo,
+                             IAniDbRateLimiter rateLimiter,
+                             Logger logger,
+                             IAniDbSeriesMappingService mappingService,
+                             AniList.IAniListEnricher aniListEnricher,
+                             Messaging.Events.IEventAggregator eventAggregator = null)
         {
             _httpClient = httpClient;
             _configService = configService;
@@ -57,6 +66,13 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             _logger = logger;
             _mappingService = mappingService;
             _aniListEnricher = aniListEnricher;
+            _eventAggregator = eventAggregator;
+        }
+
+        private void ReportProgress(int? aniDbId, string message)
+        {
+            _logger.Debug("AniDB Add Progress [{0}]: {1}", aniDbId, message);
+            _eventAggregator?.PublishEvent(new Tv.Events.SeriesAddProgressEvent(message, aniDbId));
         }
 
         public bool CanHandleId(string externalIdKey) =>
@@ -106,8 +122,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
         private Tuple<Series, List<Episode>> FetchSeriesInfoInternal(int aniDbId)
         {
+            ReportProgress(aniDbId, $"Connecting to AniDB for series #{aniDbId}...");
             var (hubId, hubDocs) = FindHubId(aniDbId);
+            ReportProgress(aniDbId, $"Traversing franchise seasons from root #{hubId}...");
             var (chainIds, chainDocs) = GetLinearChain(hubId, hubDocs);
+            ReportProgress(aniDbId, $"Found {chainIds.Count} season(s) in franchise chain...");
 
             Series hubSeries = null;
             var allEpisodes = new List<Episode>();
@@ -158,6 +177,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
 
                 var currentSeriesMetadata = MapSeries(doc.Root, id);
+                ReportProgress(aniDbId, $"Processing season metadata: {currentSeriesMetadata.Title}...");
                 if (hubSeries == null)
                 {
                     hubSeries = currentSeriesMetadata;
@@ -436,6 +456,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             {
                 try
                 {
+                    ReportProgress(aniDbId, $"Fetching episode schedules & titles from AniList for {allAniListIds.Count} season(s)...");
                     _logger.Debug("Batch fetching enrichment data (airing times + titles) for {0} AniList IDs", allAniListIds.Count);
                     var enrichment = _aniListEnricher.GetEnrichmentForMultiple(allAniListIds);
                     if (enrichment != null && (enrichment.AiringTimes.Any() || enrichment.Titles.Any()))
@@ -671,6 +692,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
+            ReportProgress(aniDbId, "Finalizing series and episode metadata...");
             var finalResult = Tuple.Create(hubSeries, allEpisodes);
             foreach (var id in chainIds)
             {
@@ -711,6 +733,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 XDocument doc;
                 try
                 {
+                    ReportProgress(startId, $"Inspecting AniDB entry #{currentId}...");
                     doc = GetAnimeXml(currentId);
                     fetchedDocs[currentId] = doc;
                 }
@@ -986,6 +1009,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 {
                     fetchTask = _rateLimiter.ExecuteAsync(() =>
                     {
+                        ReportProgress(null, "Respecting AniDB rate limit (waiting 2s)...");
                         if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
                         {
                             try

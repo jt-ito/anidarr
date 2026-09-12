@@ -65,6 +65,31 @@ function AddNewSeriesModalContent({
 
   const { isAdding, addError, addSeries } = useAddSeries(onModalClose);
 
+  const [addProgressStatus, setAddProgressStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdding) {
+      setAddProgressStatus(null);
+      return;
+    }
+
+    setAddProgressStatus('Connecting to metadata providers...');
+
+    const handleProgress = (event: CustomEvent<{ aniDbId?: number; message?: string }>) => {
+      if (
+        event.detail?.message &&
+        (!event.detail.aniDbId || !series.aniDbId || event.detail.aniDbId === series.aniDbId)
+      ) {
+        setAddProgressStatus(event.detail.message);
+      }
+    };
+
+    window.addEventListener('seriesaddprogress', handleProgress as EventListener);
+    return () => {
+      window.removeEventListener('seriesaddprogress', handleProgress as EventListener);
+    };
+  }, [isAdding, series.aniDbId]);
+
   const { settings, validationErrors, validationWarnings } = useMemo(() => {
     return {
       ...selectSettings(options, {}),
@@ -311,15 +336,23 @@ function AddNewSeriesModalContent({
           </label>
         </div>
 
-        <SpinnerButton
-          className={styles.addButton}
-          kind={kinds.SUCCESS}
-          isSpinning={isAdding}
-          disabled={isPending || !hasRootFolders}
-          onPress={handleAddSeriesPress}
-        >
-          {translate('AddSeriesWithTitle', { title })}
-        </SpinnerButton>
+        <div className={styles.addButtonContainer}>
+          {isAdding && addProgressStatus && (
+            <span className={styles.progressStatusText} title={addProgressStatus}>
+              {addProgressStatus}
+            </span>
+          )}
+
+          <SpinnerButton
+            className={styles.addButton}
+            kind={kinds.SUCCESS}
+            isSpinning={isAdding}
+            disabled={isPending || !hasRootFolders}
+            onPress={handleAddSeriesPress}
+          >
+            {translate('AddSeriesWithTitle', { title })}
+          </SpinnerButton>
+        </div>
       </ModalFooter>
     </ModalContent>
   );

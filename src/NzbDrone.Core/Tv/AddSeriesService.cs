@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Tv
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IRefreshEpisodeService _refreshEpisodeService;
         private readonly IAddSeriesValidator _addSeriesValidator;
+        private readonly Messaging.Events.IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
         public AddSeriesService(ISeriesService seriesService,
@@ -34,7 +35,8 @@ namespace NzbDrone.Core.Tv
                                 IBuildFileNames fileNameBuilder,
                                 IRefreshEpisodeService refreshEpisodeService,
                                 IAddSeriesValidator addSeriesValidator,
-                                Logger logger)
+                                Logger logger,
+                                Messaging.Events.IEventAggregator eventAggregator = null)
         {
             _seriesService = seriesService;
             _metadataDispatcher = metadataDispatcher;
@@ -42,6 +44,7 @@ namespace NzbDrone.Core.Tv
             _refreshEpisodeService = refreshEpisodeService;
             _addSeriesValidator = addSeriesValidator;
             _logger = logger;
+            _eventAggregator = eventAggregator;
         }
 
         public Series AddSeries(Series newSeries)
@@ -51,6 +54,8 @@ namespace NzbDrone.Core.Tv
             MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
             MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = true;
 
+            _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent("Preparing series metadata...", newSeries.AniDbId));
+
             var (seriesData, episodes) = AddSkyhookData(newSeries);
             seriesData = SetPropertiesAndValidate(seriesData);
 
@@ -59,6 +64,7 @@ namespace NzbDrone.Core.Tv
             // episodes (e.g. during a temporary ban).
             seriesData.LastInfoSync = DateTime.UtcNow;
 
+            _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent($"Saving series and {episodes.Count} episode(s) to library...", newSeries.AniDbId));
             _logger.Info("Adding Series {0} Path: [{1}]", seriesData, seriesData.Path);
             _seriesService.AddSeries(seriesData);
 
@@ -67,6 +73,7 @@ namespace NzbDrone.Core.Tv
                 _refreshEpisodeService.RefreshEpisodeInfo(seriesData, episodes);
             }
 
+            _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent("Series successfully added!", newSeries.AniDbId));
             return seriesData;
         }
 

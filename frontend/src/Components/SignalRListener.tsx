@@ -99,6 +99,13 @@ function SignalRListener() {
 
     const { name, body, version = 0 } = message;
 
+    if (name === 'seriesaddprogress') {
+      window.dispatchEvent(
+        new CustomEvent('seriesaddprogress', { detail: body })
+      );
+      return;
+    }
+
     if (name === 'calendar') {
       if (body.action === 'updated') {
         dispatch(

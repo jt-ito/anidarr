@@ -15,9 +15,17 @@ namespace NzbDrone.Core.Test.MetadataSource.AniList
         [SetUp]
         public void Setup()
         {
+            AniListEnricher.ClearCache();
+
             Mocker.GetMock<IAniListRateLimiter>()
                 .Setup(v => v.ExecuteAsync(It.IsAny<Func<int?>>()))
                 .Returns((Func<int?> action) => Task.FromResult(action()));
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            AniListEnricher.ClearCache();
         }
 
         private void GivenJsonResponse(string json)

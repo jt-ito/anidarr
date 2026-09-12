@@ -35,6 +35,22 @@ namespace NzbDrone.Core.MetadataSource.AniList
     public class AniListEnricher : IAniListEnricher
     {
         private const string GraphQlEndpoint = "https://graphql.anilist.co";
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime CachedAt, int? Id)> _titleSearchCache =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime, int?)>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime CachedAt, AniListEnrichmentData Data)> _enrichmentBatchCache =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime, AniListEnrichmentData)>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, (DateTime CachedAt, AniListMediaInfo Info)> _mediaInfoCache =
+            new System.Collections.Concurrent.ConcurrentDictionary<int, (DateTime, AniListMediaInfo)>();
+
+        public static void ClearCache()
+        {
+            _titleSearchCache.Clear();
+            _enrichmentBatchCache.Clear();
+            _mediaInfoCache.Clear();
+        }
+
         private readonly IHttpClient _httpClient;
         private readonly IAniListRateLimiter _rateLimiter;
         private readonly Logger _logger;
@@ -85,6 +101,12 @@ namespace NzbDrone.Core.MetadataSource.AniList
                 return new AniListEnrichmentData();
             }
 
+            var cacheKey = string.Join(",", idList.OrderBy(x => x));
+            if (_enrichmentBatchCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            {
+                return cached.Data;
+            }
+
             if (_rateLimiter.IsRateLimited)
             {
                 _logger.Debug("AniList circuit breaker active until {0:u} UTC; skipping batch enrichment for {1} IDs.", _rateLimiter.RetryAfterUtc, idList.Count);
@@ -93,7 +115,9 @@ namespace NzbDrone.Core.MetadataSource.AniList
 
             try
             {
-                return _rateLimiter.ExecuteAsync(() => FetchEnrichmentForMultiple(idList)).GetAwaiter().GetResult();
+                var result = _rateLimiter.ExecuteAsync(() => FetchEnrichmentForMultiple(idList)).GetAwaiter().GetResult();
+                _enrichmentBatchCache[cacheKey] = (DateTime.UtcNow, result);
+                return result;
             }
             catch (HttpException ex)
             {
@@ -109,6 +133,11 @@ namespace NzbDrone.Core.MetadataSource.AniList
 
         public AniListMediaInfo GetMediaInfo(int aniListId)
         {
+            if (_mediaInfoCache.TryGetValue(aniListId, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            {
+                return cached.Info;
+            }
+
             if (_rateLimiter.IsRateLimited)
             {
                 _logger.Debug("AniList circuit breaker active until {0:u} UTC; skipping media info for ID {1}.", _rateLimiter.RetryAfterUtc, aniListId);
@@ -117,7 +146,13 @@ namespace NzbDrone.Core.MetadataSource.AniList
 
             try
             {
-                return _rateLimiter.ExecuteAsync(() => FetchMediaInfo(aniListId)).GetAwaiter().GetResult();
+                var result = _rateLimiter.ExecuteAsync(() => FetchMediaInfo(aniListId)).GetAwaiter().GetResult();
+                if (result != null)
+                {
+                    _mediaInfoCache[aniListId] = (DateTime.UtcNow, result);
+                }
+
+                return result;
             }
             catch (HttpException ex)
             {
@@ -407,6 +442,12 @@ query ($ids: [Int]) {
 
         public int? SearchAniListIdByTitle(string title, int expectedYear, int? expectedEpisodeCount)
         {
+            var cacheKey = $"{title}|{expectedYear}|{expectedEpisodeCount}";
+            if (_titleSearchCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            {
+                return cached.Id;
+            }
+
             if (_rateLimiter.IsRateLimited)
             {
                 _logger.Debug("AniList circuit breaker active until {0:u} UTC; skipping title search for '{1}'.", _rateLimiter.RetryAfterUtc, title);
@@ -415,7 +456,9 @@ query ($ids: [Int]) {
 
             try
             {
-                return _rateLimiter.ExecuteAsync(() => FetchAniListIdByTitle(title, expectedYear, expectedEpisodeCount)).GetAwaiter().GetResult();
+                var result = _rateLimiter.ExecuteAsync(() => FetchAniListIdByTitle(title, expectedYear, expectedEpisodeCount)).GetAwaiter().GetResult();
+                _titleSearchCache[cacheKey] = (DateTime.UtcNow, result);
+                return result;
             }
             catch (HttpException ex)
             {
