@@ -15,6 +15,7 @@ namespace NzbDrone.Core.MetadataSource
         AnimeOfflineTitle FindByMalId(int malId);
         AnimeOfflineTitle FindByAniListId(int anilistId);
         int GetUnpopulatedRomajiCount();
+        void ClearFuzzyCache();
     }
 
     public class AnimeOfflineTitleRepository : BasicRepository<AnimeOfflineTitle>, IAnimeOfflineTitleRepository
@@ -22,6 +23,14 @@ namespace NzbDrone.Core.MetadataSource
         private static readonly object _fuzzyCacheLock = new object();
         private static List<AnimeOfflineTitle> _fuzzyCache;
         private static DateTime _fuzzyCacheTime = DateTime.MinValue;
+
+        public void ClearFuzzyCache()
+        {
+            lock (_fuzzyCacheLock)
+            {
+                _fuzzyCache = null;
+            }
+        }
 
         public AnimeOfflineTitleRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)

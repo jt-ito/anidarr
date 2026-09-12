@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
+using System.Xml.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
@@ -21,6 +22,7 @@ namespace NzbDrone.Core.MetadataSource
         void ForceDownloadDump();
         void UpdateMetadata(Series series);
         void UpdateAniListId(int aniDbId, int aniListId);
+        void BackfillFromCachedAniDbXml();
     }
 
     public class AnimeOfflineDatabase : IAnimeOfflineDatabase
@@ -61,32 +63,102 @@ namespace NzbDrone.Core.MetadataSource
             return null;
         }
 
+        private static readonly System.Text.RegularExpressions.Regex AniDbLinkRegex = new System.Text.RegularExpressions.Regex(@"https?://anidb\.net/[^\s\[]+\s*\[(.*?)\]", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        internal static string CleanDescription(string description)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                return description;
+            }
+
+            return AniDbLinkRegex.Replace(description, "$1");
+        }
+
         public void UpdateMetadata(Series series)
         {
             if (series.AniDbId.HasValue && series.AniDbId.Value > 0)
             {
                 var existing = _animeOfflineTitleRepository.FindByAniDbId(series.AniDbId.Value);
-                if (existing != null)
+                var isNew = false;
+                if (existing == null)
                 {
-                    var updated = false;
-                    if (!string.IsNullOrWhiteSpace(series.Overview) && string.IsNullOrWhiteSpace(existing.Overview))
+                    existing = new AnimeOfflineTitle
                     {
-                        existing.Overview = series.Overview;
+                        AniDbId = series.AniDbId.Value,
+                        Title = series.Title,
+                        CleanTitle = series.CleanTitle ?? series.Title?.CleanForSearch(),
+                        Status = series.Status
+                    };
+                    isNew = true;
+                }
+
+                var updated = false;
+
+                // 1. Overview
+                if (!string.IsNullOrWhiteSpace(series.Overview) && existing.Overview != series.Overview)
+                {
+                    existing.Overview = series.Overview;
+                    updated = true;
+                }
+
+                // 2. Poster / Thumbnail (Check both RemoteUrl and Url)
+                var poster = series.Images?.FirstOrDefault(i => i.CoverType == MediaCoverTypes.Poster);
+                var posterUrl = poster?.RemoteUrl.IsNotNullOrWhiteSpace() == true ? poster.RemoteUrl : poster?.Url;
+
+                if (!string.IsNullOrWhiteSpace(posterUrl) && existing.PictureUrl != posterUrl)
+                {
+                    existing.PictureUrl = posterUrl;
+                    updated = true;
+                }
+
+                // 3. Year
+                if (series.Year > 0 && existing.Year != series.Year)
+                {
+                    existing.Year = series.Year;
+                    updated = true;
+                }
+
+                // 4. Status
+                if (series.Status != SeriesStatusType.Upcoming && series.Status != SeriesStatusType.Deleted && existing.Status != series.Status)
+                {
+                    existing.Status = series.Status;
+                    updated = true;
+                }
+
+                // 5. Genres
+                if (series.Genres != null && series.Genres.Any())
+                {
+                    var merged = existing.Genres != null ? existing.Genres.Union(series.Genres).ToList() : series.Genres.ToList();
+                    if (existing.Genres == null || merged.Count != existing.Genres.Count)
+                    {
+                        existing.Genres = merged;
                         updated = true;
                     }
+                }
 
-                    var poster = series.Images?.FirstOrDefault(i => i.CoverType == MediaCoverTypes.Poster);
-                    if (poster != null && !string.IsNullOrWhiteSpace(poster.Url) && string.IsNullOrWhiteSpace(existing.PictureUrl))
+                // 6. Alternate titles / synonyms
+                if (series.AlternateTitles != null && series.AlternateTitles.Any())
+                {
+                    var mergedSyn = existing.SearchSynonyms != null ? existing.SearchSynonyms.Union(series.AlternateTitles).ToList() : series.AlternateTitles.ToList();
+                    if (existing.SearchSynonyms == null || mergedSyn.Count != existing.SearchSynonyms.Count)
                     {
-                        existing.PictureUrl = poster.Url;
+                        existing.SearchSynonyms = mergedSyn;
                         updated = true;
                     }
+                }
 
-                    if (updated)
-                    {
-                        _animeOfflineTitleRepository.Update(existing);
-                        _logger.Debug("Updated local AnimeOfflineTitle for AniDB {0} with rich metadata.", series.AniDbId.Value);
-                    }
+                if (isNew)
+                {
+                    _animeOfflineTitleRepository.Insert(existing);
+                    _animeOfflineTitleRepository.ClearFuzzyCache();
+                    _logger.Debug("Inserted local AnimeOfflineTitle for AniDB {0} with rich metadata.", series.AniDbId.Value);
+                }
+                else if (updated)
+                {
+                    _animeOfflineTitleRepository.Update(existing);
+                    _animeOfflineTitleRepository.ClearFuzzyCache();
+                    _logger.Debug("Updated local AnimeOfflineTitle for AniDB {0} with rich metadata.", series.AniDbId.Value);
                 }
             }
         }
@@ -165,6 +237,8 @@ namespace NzbDrone.Core.MetadataSource
 
         private void EnsureCache()
         {
+            BackfillFromCachedAniDbXml();
+
             // ponytail: no Purge() — incremental upsert in ParseAndSyncDumps keeps data fresh.
             // Only download if the table is empty (first run or migration reset).
             if (_animeOfflineTitleRepository.HasItems())
@@ -571,11 +645,15 @@ namespace NzbDrone.Core.MetadataSource
                     // Don't overwrite rich metadata if Manami doesn't have it but we already enriched it
                     if (!string.IsNullOrWhiteSpace(entry.PictureUrl) && existing.PictureUrl != entry.PictureUrl)
                     {
-                        existing.PictureUrl = entry.PictureUrl;
-                        changed = true;
+                        // Don't overwrite authoritative AniDB poster with Manami/MAL placeholder
+                        if (string.IsNullOrWhiteSpace(existing.PictureUrl) || !existing.PictureUrl.Contains("cdn.anidb.net"))
+                        {
+                            existing.PictureUrl = entry.PictureUrl;
+                            changed = true;
+                        }
                     }
 
-                    if (!string.IsNullOrWhiteSpace(entry.Overview) && existing.Overview != entry.Overview)
+                    if (!string.IsNullOrWhiteSpace(entry.Overview) && string.IsNullOrWhiteSpace(existing.Overview))
                     {
                         existing.Overview = entry.Overview;
                         changed = true;
@@ -626,7 +704,169 @@ namespace NzbDrone.Core.MetadataSource
                 _logger.Info("Updated {0} existing anime titles.", updatedTitles.Count);
             }
 
+            _animeOfflineTitleRepository.ClearFuzzyCache();
+            BackfillFromCachedAniDbXml();
+
             _logger.Info("Finished syncing Anime Offline Titles database.");
+        }
+
+        public void BackfillFromCachedAniDbXml()
+        {
+            try
+            {
+                var cacheDir = Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache");
+                if (!Directory.Exists(cacheDir))
+                {
+                    return;
+                }
+
+                var files = Directory.GetFiles(cacheDir, "anime_aid*.xml");
+                if (!files.Any())
+                {
+                    return;
+                }
+
+                var anyUpdated = false;
+
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        var xml = File.ReadAllText(file);
+                        if (string.IsNullOrWhiteSpace(xml) || xml.Contains("<error"))
+                        {
+                            continue;
+                        }
+
+                        var doc = System.Xml.Linq.XDocument.Parse(xml);
+                        var root = doc.Root;
+                        if (root == null)
+                        {
+                            continue;
+                        }
+
+                        var idAttr = (string)root.Attribute("id");
+                        if (!int.TryParse(idAttr, out var aniDbId) || aniDbId <= 0)
+                        {
+                            continue;
+                        }
+
+                        var ns = root.Name.Namespace ?? System.Xml.Linq.XNamespace.None;
+                        var existing = _animeOfflineTitleRepository.FindByAniDbId(aniDbId);
+                        var isNew = false;
+                        if (existing == null)
+                        {
+                            existing = new AnimeOfflineTitle
+                            {
+                                AniDbId = aniDbId,
+                                Status = SeriesStatusType.Continuing
+                            };
+                            isNew = true;
+                        }
+
+                        var updated = false;
+
+                        // 1. Picture
+                        var picVal = root.Element(ns + "picture")?.Value;
+                        if (!string.IsNullOrWhiteSpace(picVal))
+                        {
+                            var anidbPoster = $"https://cdn.anidb.net/images/main/{picVal}";
+                            if (existing.PictureUrl != anidbPoster)
+                            {
+                                existing.PictureUrl = anidbPoster;
+                                updated = true;
+                            }
+                        }
+
+                        // 2. Overview
+                        var descVal = root.Element(ns + "description")?.Value;
+                        if (!string.IsNullOrWhiteSpace(descVal))
+                        {
+                            var cleaned = CleanDescription(descVal);
+                            if (existing.Overview != cleaned)
+                            {
+                                existing.Overview = cleaned;
+                                updated = true;
+                            }
+                        }
+
+                        // 3. Year
+                        var startVal = root.Element(ns + "startdate")?.Value;
+                        if (!string.IsNullOrWhiteSpace(startVal) && DateTime.TryParse(startVal, out var startDate))
+                        {
+                            if (existing.Year != startDate.Year)
+                            {
+                                existing.Year = startDate.Year;
+                                updated = true;
+                            }
+                        }
+
+                        // 4. Status
+                        var endVal = root.Element(ns + "enddate")?.Value;
+                        if (!string.IsNullOrWhiteSpace(endVal) && !endVal.Contains('?'))
+                        {
+                            var status = DateTime.TryParse(endVal, out var endDate) && endDate > DateTime.UtcNow
+                                ? SeriesStatusType.Continuing
+                                : SeriesStatusType.Ended;
+
+                            if (existing.Status != status)
+                            {
+                                existing.Status = status;
+                                updated = true;
+                            }
+                        }
+
+                        // 5. Genres / Tags
+                        var tags = root.Element(ns + "tags")?.Elements(ns + "tag").Select(t => t.Element(ns + "name")?.Value).Where(t => !string.IsNullOrWhiteSpace(t)).ToList() ?? new List<string>();
+                        if (tags.Any())
+                        {
+                            var merged = existing.Genres != null ? existing.Genres.Union(tags).ToList() : tags;
+                            if (existing.Genres == null || merged.Count != existing.Genres.Count)
+                            {
+                                existing.Genres = merged;
+                                updated = true;
+                            }
+                        }
+
+                        // 6. Title if missing
+                        if (string.IsNullOrWhiteSpace(existing.Title))
+                        {
+                            var titleElement = root.Element(ns + "titles")?.Elements(ns + "title").FirstOrDefault(t => (string)t.Attribute("type") == "main" || (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat");
+                            if (titleElement != null && !string.IsNullOrWhiteSpace(titleElement.Value))
+                            {
+                                existing.Title = titleElement.Value;
+                                existing.CleanTitle = existing.Title.CleanForSearch();
+                                updated = true;
+                            }
+                        }
+
+                        if (isNew)
+                        {
+                            _animeOfflineTitleRepository.Insert(existing);
+                            anyUpdated = true;
+                        }
+                        else if (updated)
+                        {
+                            _animeOfflineTitleRepository.Update(existing);
+                            anyUpdated = true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(ex, "Failed to backfill metadata from cached AniDB XML {0}", file);
+                    }
+                }
+
+                if (anyUpdated)
+                {
+                    _animeOfflineTitleRepository.ClearFuzzyCache();
+                    _logger.Info("Backfilled rich metadata from cached AniDB XML files.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to backfill cached AniDB XML metadata.");
+            }
         }
     }
 }

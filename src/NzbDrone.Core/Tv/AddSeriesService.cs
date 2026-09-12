@@ -48,6 +48,9 @@ namespace NzbDrone.Core.Tv
         {
             Ensure.That(newSeries, () => newSeries).IsNotNull();
 
+            MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
+            MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = true;
+
             var (seriesData, episodes) = AddSkyhookData(newSeries);
             seriesData = SetPropertiesAndValidate(seriesData);
 
@@ -69,6 +72,9 @@ namespace NzbDrone.Core.Tv
 
         public List<Series> AddSeries(List<Series> newSeries, bool ignoreErrors = false)
         {
+            MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
+            MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = true;
+
             var added = DateTime.UtcNow;
 
             // ponytail: parallel episodes list so we can persist after bulk insert

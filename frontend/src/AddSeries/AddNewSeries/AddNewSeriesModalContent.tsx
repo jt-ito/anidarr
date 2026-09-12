@@ -22,6 +22,7 @@ import ModalFooter from 'Components/Modal/ModalFooter';
 import ModalHeader from 'Components/Modal/ModalHeader';
 import Popover from 'Components/Tooltip/Popover';
 import { getValidationFailures } from 'Helpers/Hooks/useApiMutation';
+import useApiQuery from 'Helpers/Hooks/useApiQuery';
 import { icons, inputTypes, kinds, tooltipPositions } from 'Helpers/Props';
 import useRootFolders from 'RootFolder/useRootFolders';
 import { SeriesType } from 'Series/Series';
@@ -48,6 +49,19 @@ function AddNewSeriesModalContent({
   const options = useAddSeriesOptions();
   const isSmallScreen = useAppDimension('isSmallScreen');
   const isWindows = useIsWindows();
+
+  useApiQuery({
+    path: '/series/lookup/prewarm',
+    queryParams: { anidbId: series.aniDbId },
+    queryOptions: {
+      enabled:
+        series.primaryMetadataProvider === 'anidb' &&
+        !!series.aniDbId &&
+        series.aniDbId > 0,
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+    },
+  });
 
   const { isAdding, addError, addSeries } = useAddSeries(onModalClose);
 

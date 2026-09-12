@@ -55,6 +55,36 @@ public class SeriesLookupController : Controller
         return TypedResults.Ok(MapToResource(results));
     }
 
+    [HttpGet("prewarm")]
+    public IActionResult Prewarm([FromQuery] int anidbId)
+    {
+        if (anidbId <= 0)
+        {
+            return BadRequest("Invalid anidbId");
+        }
+
+        global::System.Threading.Tasks.Task.Run(() =>
+        {
+            NzbDrone.Core.MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
+            NzbDrone.Core.MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = true;
+
+            try
+            {
+                _metadataDispatcher.GetSeriesInfo(new NzbDrone.Core.Tv.Series
+                {
+                    AniDbId = anidbId,
+                    PrimaryMetadataProvider = "anidb"
+                });
+            }
+            catch
+            {
+                // Best-effort pre-warming
+            }
+        });
+
+        return Ok(new { prewarmed = true });
+    }
+
     private IEnumerable<SeriesResource> MapToResource(IEnumerable<NzbDrone.Core.Tv.Series> series)
     {
         foreach (var currentSeries in series)

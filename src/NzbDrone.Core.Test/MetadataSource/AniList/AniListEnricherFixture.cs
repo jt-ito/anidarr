@@ -264,5 +264,51 @@ namespace NzbDrone.Core.Test.MetadataSource.AniList
             result.Should().BeEmpty();
             Mocker.GetMock<IHttpClient>().Verify(c => c.Post<AniListMediaResponse>(It.IsAny<HttpRequest>()), Times.Never);
         }
+
+        [Test]
+        public void should_batch_fetch_enrichment_data_for_multiple_ids()
+        {
+            Mocker.GetMock<IAniListRateLimiter>()
+                .Setup(v => v.ExecuteAsync(It.IsAny<Func<AniListEnrichmentData>>()))
+                .Returns((Func<AniListEnrichmentData> action) => Task.FromResult(action()));
+
+            var json = @"{
+  ""data"": {
+    ""page"": {
+      ""media"": [
+        {
+          ""id"": 100,
+          ""title"": { ""romaji"": ""Romaji 100"", ""english"": ""English 100"" },
+          ""synonyms"": [""Synonym 100""],
+          ""airingSchedule"": {
+            ""nodes"": [
+              { ""episode"": 1, ""airingAt"": 1753448400 }
+            ]
+          }
+        },
+        {
+          ""id"": 200,
+          ""title"": { ""romaji"": ""Romaji 200"" },
+          ""synonyms"": [],
+          ""airingSchedule"": {
+            ""nodes"": []
+          }
+        }
+      ]
+    }
+  }
+}";
+            GivenJsonResponse(json);
+
+            var result = Subject.GetEnrichmentForMultiple(new[] { 100, 200 });
+
+            result.Should().NotBeNull();
+            result.Titles[100].Should().Contain("Romaji 100");
+            result.Titles[100].Should().Contain("English 100");
+            result.Titles[100].Should().Contain("Synonym 100");
+            result.AiringTimes[100].Should().ContainKey(1);
+
+            result.Titles[200].Should().Contain("Romaji 200");
+        }
     }
 }

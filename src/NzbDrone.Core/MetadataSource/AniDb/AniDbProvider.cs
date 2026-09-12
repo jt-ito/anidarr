@@ -113,6 +113,8 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     hubSeries = currentSeriesMetadata;
                 }
 
+                _titleSearch.UpdateMetadata(currentSeriesMetadata);
+
                 var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
                 var animeType = doc.Root?.Element(ns + "type")?.Value;
 
@@ -378,17 +380,27 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             var allAniListIds = chainData.Where(x => x.AniListId.HasValue).Select(x => x.AniListId.Value).ToList();
             var allAiringTimes = new Dictionary<int, Dictionary<int, TimeSpan>>();
+            var allAniListTitles = new Dictionary<int, List<string>>();
 
             if (allAniListIds.Any())
             {
                 try
                 {
-                    _logger.Debug("Batch fetching time-of-day data for {0} AniList IDs", allAniListIds.Count);
-                    allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds) ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
+                    _logger.Debug("Batch fetching enrichment data (airing times + titles) for {0} AniList IDs", allAniListIds.Count);
+                    var enrichment = _aniListEnricher.GetEnrichmentForMultiple(allAniListIds);
+                    if (enrichment != null && (enrichment.AiringTimes.Any() || enrichment.Titles.Any()))
+                    {
+                        allAiringTimes = enrichment.AiringTimes ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
+                        allAniListTitles = enrichment.Titles ?? new Dictionary<int, List<string>>();
+                    }
+                    else
+                    {
+                        allAiringTimes = _aniListEnricher.GetAiringTimesForMultiple(allAniListIds) ?? new Dictionary<int, Dictionary<int, TimeSpan>>();
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn("Failed to batch fetch AniList airing times: {0}", ex.Message);
+                    _logger.Warn("Failed to batch fetch AniList enrichment data: {0}", ex.Message);
                 }
             }
 
@@ -521,11 +533,77 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            foreach (var anilistId in allAniListIds)
+            foreach (var id in chainIds)
             {
                 try
                 {
-                    var anilistTitles = _aniListEnricher.GetTitles(anilistId);
+                    var local = _titleSearch.GetSeriesById("anidb", id);
+                    if (local != null)
+                    {
+                        var localTitles = new List<string>();
+                        if (!string.IsNullOrWhiteSpace(local.RomajiTitle))
+                        {
+                            localTitles.Add(local.RomajiTitle);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(local.EnglishTitle))
+                        {
+                            localTitles.Add(local.EnglishTitle);
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(local.NativeTitle))
+                        {
+                            localTitles.Add(local.NativeTitle);
+                        }
+
+                        if (local.SearchSynonyms != null)
+                        {
+                            localTitles.AddRange(local.SearchSynonyms);
+                        }
+
+                        foreach (var localTitle in localTitles)
+                        {
+                            if (string.IsNullOrWhiteSpace(localTitle))
+                            {
+                                continue;
+                            }
+
+                            var cleanLocalTitle = localTitle.CleanForSearch();
+                            if (!existingCleanTitles.Contains(cleanLocalTitle))
+                            {
+                                hubSeries.AlternateTitles.Add(localTitle);
+                                existingCleanTitles.Add(cleanLocalTitle);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Failed to read local alternate titles for AniDB ID {0}", id);
+                }
+            }
+
+            foreach (var anilistId in allAniListIds)
+            {
+                List<string> anilistTitles = null;
+                if (allAniListTitles.TryGetValue(anilistId, out var titles) && titles != null && titles.Any())
+                {
+                    anilistTitles = titles;
+                }
+                else
+                {
+                    try
+                    {
+                        anilistTitles = _aniListEnricher.GetTitles(anilistId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(ex, "Failed to fetch AniList titles for ID {0}", anilistId);
+                    }
+                }
+
+                if (anilistTitles != null)
+                {
                     foreach (var anilistTitle in anilistTitles)
                     {
                         if (string.IsNullOrWhiteSpace(anilistTitle))
@@ -540,10 +618,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                             existingCleanTitles.Add(cleanAnilistTitle);
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Warn("Failed to fetch AniList titles for enrichment: {0}", ex.Message);
                 }
             }
 
@@ -820,13 +894,13 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
             var cacheFile = Path.Combine(cacheDir, $"{request}_{safeParams}.xml");
 
-            if (File.Exists(cacheFile))
+            if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
             {
-                var lastModified = File.GetLastWriteTimeUtc(cacheFile);
-                if (lastModified > DateTime.UtcNow.AddHours(-24))
+                var cached = File.ReadAllText(cacheFile);
+                if (!cached.Contains("<error"))
                 {
                     _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
-                    return File.ReadAllText(cacheFile);
+                    return cached;
                 }
             }
 

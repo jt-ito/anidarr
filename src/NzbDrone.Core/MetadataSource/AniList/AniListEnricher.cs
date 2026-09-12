@@ -14,11 +14,18 @@ namespace NzbDrone.Core.MetadataSource.AniList
         public int? Episodes { get; set; }
     }
 
+    public class AniListEnrichmentData
+    {
+        public Dictionary<int, Dictionary<int, TimeSpan>> AiringTimes { get; set; } = new Dictionary<int, Dictionary<int, TimeSpan>>();
+        public Dictionary<int, List<string>> Titles { get; set; } = new Dictionary<int, List<string>>();
+    }
+
     public interface IAniListEnricher
     {
         bool IsRateLimited { get; }
         Dictionary<int, TimeSpan> GetAiringTimes(int aniListId);
         Dictionary<int, Dictionary<int, TimeSpan>> GetAiringTimesForMultiple(IEnumerable<int> aniListIds);
+        AniListEnrichmentData GetEnrichmentForMultiple(IEnumerable<int> aniListIds);
         int? SearchAniListIdByTitle(string title, int expectedYear, int? expectedEpisodeCount);
         List<string> GetTitles(int aniListId);
         AniListMediaInfo GetMediaInfo(int aniListId);
@@ -67,31 +74,36 @@ namespace NzbDrone.Core.MetadataSource.AniList
 
         public Dictionary<int, Dictionary<int, TimeSpan>> GetAiringTimesForMultiple(IEnumerable<int> aniListIds)
         {
+            return GetEnrichmentForMultiple(aniListIds).AiringTimes;
+        }
+
+        public AniListEnrichmentData GetEnrichmentForMultiple(IEnumerable<int> aniListIds)
+        {
             var idList = aniListIds.Distinct().ToList();
             if (!idList.Any())
             {
-                return new Dictionary<int, Dictionary<int, TimeSpan>>();
+                return new AniListEnrichmentData();
             }
 
             if (_rateLimiter.IsRateLimited)
             {
-                _logger.Debug("AniList circuit breaker active until {0:u} UTC; skipping batch airing times for {1} IDs.", _rateLimiter.RetryAfterUtc, idList.Count);
-                return new Dictionary<int, Dictionary<int, TimeSpan>>();
+                _logger.Debug("AniList circuit breaker active until {0:u} UTC; skipping batch enrichment for {1} IDs.", _rateLimiter.RetryAfterUtc, idList.Count);
+                return new AniListEnrichmentData();
             }
 
             try
             {
-                return _rateLimiter.ExecuteAsync(() => FetchAiringTimesForMultiple(idList)).GetAwaiter().GetResult();
+                return _rateLimiter.ExecuteAsync(() => FetchEnrichmentForMultiple(idList)).GetAwaiter().GetResult();
             }
             catch (HttpException ex)
             {
-                HandleHttpException(ex, $"batch fetching airing times for {idList.Count} IDs");
-                return new Dictionary<int, Dictionary<int, TimeSpan>>();
+                HandleHttpException(ex, $"batch fetching enrichment for {idList.Count} IDs");
+                return new AniListEnrichmentData();
             }
             catch (Exception ex)
             {
-                _logger.Warn("Failed to batch fetch AniList airing times for {0} IDs: {1}", idList.Count, ex.Message);
-                return new Dictionary<int, Dictionary<int, TimeSpan>>();
+                _logger.Warn("Failed to batch fetch AniList enrichment for {0} IDs: {1}", idList.Count, ex.Message);
+                return new AniListEnrichmentData();
             }
         }
 
@@ -299,13 +311,15 @@ query ($id: Int) {
             return result;
         }
 
-        private Dictionary<int, Dictionary<int, TimeSpan>> FetchAiringTimesForMultiple(List<int> aniListIds)
+        private AniListEnrichmentData FetchEnrichmentForMultiple(List<int> aniListIds)
         {
             const string query = @"
 query ($ids: [Int]) {
   Page(page: 1, perPage: 50) {
     media(id_in: $ids, type: ANIME) {
       id
+      title { romaji english native }
+      synonyms
       airingSchedule(notYetAired: false, page: 1, perPage: 150) {
         nodes { episode airingAt timeUntilAiring }
       }
@@ -333,7 +347,7 @@ query ($ids: [Int]) {
             }
 
             var mediaList = response?.Resource?.Data?.Page?.Media;
-            var result = new Dictionary<int, Dictionary<int, TimeSpan>>();
+            var result = new AniListEnrichmentData();
 
             if (mediaList == null)
             {
@@ -356,7 +370,36 @@ query ($ids: [Int]) {
                     }
                 }
 
-                result[media.Id] = times;
+                result.AiringTimes[media.Id] = times;
+
+                var titles = new List<string>();
+                if (!string.IsNullOrWhiteSpace(media.Title?.Romaji))
+                {
+                    titles.Add(media.Title.Romaji);
+                }
+
+                if (!string.IsNullOrWhiteSpace(media.Title?.English))
+                {
+                    titles.Add(media.Title.English);
+                }
+
+                if (!string.IsNullOrWhiteSpace(media.Title?.Native))
+                {
+                    titles.Add(media.Title.Native);
+                }
+
+                if (media.Synonyms != null)
+                {
+                    foreach (var syn in media.Synonyms)
+                    {
+                        if (!string.IsNullOrWhiteSpace(syn))
+                        {
+                            titles.Add(syn);
+                        }
+                    }
+                }
+
+                result.Titles[media.Id] = titles.Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
             }
 
             return result;
