@@ -710,8 +710,17 @@ namespace NzbDrone.Core.MetadataSource
             _logger.Info("Finished syncing Anime Offline Titles database.");
         }
 
+        private static DateTime _lastBackfillTime = DateTime.MinValue;
+
         public void BackfillFromCachedAniDbXml()
         {
+            if (DateTime.UtcNow - _lastBackfillTime < TimeSpan.FromMinutes(10))
+            {
+                return;
+            }
+
+            _lastBackfillTime = DateTime.UtcNow;
+
             try
             {
                 var cacheDir = Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache");

@@ -21,6 +21,8 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         [SetUp]
         public void Setup()
         {
+            AniDbProvider.ClearCache();
+
             Mocker.GetMock<IAniDbRateLimiter>()
                 .Setup(v => v.ExecuteAsync(It.IsAny<Func<string>>()))
                 .Returns((Func<string> action) => Task.FromResult(action()));
@@ -28,6 +30,12 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             Mocker.GetMock<IAppFolderInfo>()
                 .SetupGet(v => v.AppDataFolder)
                 .Returns(System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString()));
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            AniDbProvider.ClearCache();
         }
 
         private void GivenXmlResponse(int id, string xml)
@@ -871,6 +879,38 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             series.Title.Should().Be("Animation Runner Kuromi");
             series.Title.Should().NotBe("ark");
             series.AlternateTitles.Should().Contain("ark");
+        }
+
+        [Test]
+        public void should_return_cached_series_info_on_subsequent_call()
+        {
+            var xml = BuildAnimeXml(1234, "Cached Test Anime", new List<Tuple<int, string>>());
+            GivenXmlResponse(1234, xml);
+
+            var first = Subject.GetSeriesInfo("1234");
+            var second = Subject.GetSeriesInfo("1234");
+
+            first.Item1.Title.Should().Be("Cached Test Anime");
+            second.Item1.Title.Should().Be("Cached Test Anime");
+            second.Should().BeSameAs(first);
+            Mocker.GetMock<IHttpClient>().Verify(v => v.Execute(It.Is<HttpRequest>(r => r.Url.ToString().Contains("aid=1234"))), Times.Once());
+        }
+
+        [Test]
+        public void should_coalesce_concurrent_in_flight_requests_for_same_series_info()
+        {
+            var xml = BuildAnimeXml(5678, "Concurrent Test Anime", new List<Tuple<int, string>>());
+            GivenXmlResponse(5678, xml);
+
+            var task1 = Task.Run(() => Subject.GetSeriesInfo("5678"));
+            var task2 = Task.Run(() => Subject.GetSeriesInfo("5678"));
+
+            Task.WaitAll(task1, task2);
+
+            task1.Result.Item1.Title.Should().Be("Concurrent Test Anime");
+            task2.Result.Item1.Title.Should().Be("Concurrent Test Anime");
+            task2.Result.Item1.Title.Should().Be(task1.Result.Item1.Title);
+            Mocker.GetMock<IHttpClient>().Verify(v => v.Execute(It.Is<HttpRequest>(r => r.Url.ToString().Contains("aid=5678"))), Times.Once());
         }
     }
 }

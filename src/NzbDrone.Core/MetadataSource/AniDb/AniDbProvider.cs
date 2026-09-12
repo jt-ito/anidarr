@@ -1,9 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-
+using System.Threading.Tasks;
 using System.Xml.Linq;
 using NLog;
 using NzbDrone.Common.EnvironmentInfo;
@@ -22,6 +23,18 @@ namespace NzbDrone.Core.MetadataSource.AniDb
     {
         private const string AniDbApiBase = "http://api.anidb.net:9001/httpapi";
         private static readonly Regex AniDbLinkRegex = new Regex(@"https?://anidb\.net/[^\s\[]+\s*\[(.*?)\]", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly ConcurrentDictionary<int, Task<Tuple<Series, List<Episode>>>> _inFlightSeriesInfo = new ConcurrentDictionary<int, Task<Tuple<Series, List<Episode>>>>();
+        private static readonly ConcurrentDictionary<int, (DateTime CachedAt, Tuple<Series, List<Episode>> Result)> _seriesInfoCache = new ConcurrentDictionary<int, (DateTime, Tuple<Series, List<Episode>>)>();
+        private static readonly TimeSpan SeriesInfoCacheTtl = TimeSpan.FromMinutes(15);
+        private static readonly ConcurrentDictionary<string, Task<string>> _inFlightFetches = new ConcurrentDictionary<string, Task<string>>();
+
+        public static void ClearCache()
+        {
+            _seriesInfoCache.Clear();
+            _inFlightSeriesInfo.Clear();
+            _inFlightFetches.Clear();
+        }
 
         private readonly IHttpClient _httpClient;
         private readonly IConfigFileProvider _configService;
@@ -56,6 +69,43 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 throw new ArgumentException($"Invalid AniDB ID: {externalId}");
             }
 
+            if (_seriesInfoCache.TryGetValue(aniDbId, out var cached) && DateTime.UtcNow - cached.CachedAt < SeriesInfoCacheTtl)
+            {
+                _logger.Debug("Using in-memory cached series info for AniDB ID {0}", aniDbId);
+                return cached.Result;
+            }
+
+            Task<Tuple<Series, List<Episode>>> fetchTask;
+            lock (_inFlightSeriesInfo)
+            {
+                if (!_inFlightSeriesInfo.TryGetValue(aniDbId, out fetchTask))
+                {
+                    fetchTask = Task.Run(() => FetchSeriesInfoInternal(aniDbId));
+                    _inFlightSeriesInfo[aniDbId] = fetchTask;
+                }
+                else
+                {
+                    _logger.Debug("Joining existing in-flight AniDB series info task for ID {0}", aniDbId);
+                }
+            }
+
+            try
+            {
+                var result = fetchTask.GetAwaiter().GetResult();
+                _seriesInfoCache[aniDbId] = (DateTime.UtcNow, result);
+                return result;
+            }
+            finally
+            {
+                lock (_inFlightSeriesInfo)
+                {
+                    _inFlightSeriesInfo.TryRemove(aniDbId, out _);
+                }
+            }
+        }
+
+        private Tuple<Series, List<Episode>> FetchSeriesInfoInternal(int aniDbId)
+        {
             var (hubId, hubDocs) = FindHubId(aniDbId);
             var (chainIds, chainDocs) = GetLinearChain(hubId, hubDocs);
 
@@ -492,7 +542,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             if (hubSeries == null)
             {
-                throw new Exception($"Could not fetch primary series data for AniDB ID {externalId}");
+                throw new Exception($"Could not fetch primary series data for AniDB ID {aniDbId}");
             }
 
             hubSeries.Seasons = allEpisodes.Select(e => e.SeasonNumber)
@@ -621,7 +671,13 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            return Tuple.Create(hubSeries, allEpisodes);
+            var finalResult = Tuple.Create(hubSeries, allEpisodes);
+            foreach (var id in chainIds)
+            {
+                _seriesInfoCache[id] = (DateTime.UtcNow, finalResult);
+            }
+
+            return finalResult;
         }
 
         private XDocument GetAnimeXml(int id)
@@ -667,6 +723,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 var prequels = GetRelations(doc, "Prequel");
                 if (prequels.Count == 1)
                 {
+                    if (visited.Count >= 25)
+                    {
+                        _logger.Warn("Max prequel depth reached for AniDB ID {0}. Stopping traversal.", startId);
+                        break;
+                    }
+
                     var nextId = prequels[0];
                     if (visited.Contains(nextId))
                     {
@@ -725,6 +787,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                 if (sequels.Count == 1)
                 {
+                    if (visited.Count >= 30)
+                    {
+                        _logger.Warn("Max sequel depth reached for AniDB ID {0}. Stopping traversal.", hubId);
+                        break;
+                    }
+
                     var nextId = sequels[0];
                     if (visited.Contains(nextId))
                     {
@@ -896,26 +964,79 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
             {
-                var cached = File.ReadAllText(cacheFile);
-                if (!cached.Contains("<error"))
+                try
                 {
-                    _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
-                    return cached;
+                    var cached = File.ReadAllText(cacheFile);
+                    if (!cached.Contains("<error"))
+                    {
+                        _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
+                        return cached;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Failed to read cached AniDB response for {0} {1}", request, extraParams);
                 }
             }
 
-            return _rateLimiter.ExecuteAsync(() =>
+            Task<string> fetchTask;
+            lock (_inFlightFetches)
             {
-                var httpRequest = new HttpRequest(url);
-                var response = _httpClient.Execute(httpRequest);
-
-                if (!response.Content.Contains("<error"))
+                if (!_inFlightFetches.TryGetValue(cacheFile, out fetchTask))
                 {
-                    File.WriteAllText(cacheFile, response.Content);
-                }
+                    fetchTask = _rateLimiter.ExecuteAsync(() =>
+                    {
+                        if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
+                        {
+                            try
+                            {
+                                var cached = File.ReadAllText(cacheFile);
+                                if (!cached.Contains("<error"))
+                                {
+                                    return cached;
+                                }
+                            }
+                            catch (Exception)
+                            {
+                                // Ignore concurrent read error and proceed to download
+                            }
+                        }
 
-                return response.Content;
-            }).GetAwaiter().GetResult();
+                        var httpRequest = new HttpRequest(url);
+                        var response = _httpClient.Execute(httpRequest);
+
+                        if (!response.Content.Contains("<error"))
+                        {
+                            try
+                            {
+                                var tempFile = $"{cacheFile}.{Guid.NewGuid():N}.tmp";
+                                File.WriteAllText(tempFile, response.Content);
+                                File.Move(tempFile, cacheFile, overwrite: true);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Debug(ex, "Failed to write AniDB cache file {0}", cacheFile);
+                            }
+                        }
+
+                        return response.Content;
+                    });
+
+                    _inFlightFetches[cacheFile] = fetchTask;
+                }
+            }
+
+            try
+            {
+                return fetchTask.GetAwaiter().GetResult();
+            }
+            finally
+            {
+                lock (_inFlightFetches)
+                {
+                    _inFlightFetches.TryRemove(cacheFile, out _);
+                }
+            }
         }
 
         private static Series MapSeries(XElement root, int aniDbId)
