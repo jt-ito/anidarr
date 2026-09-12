@@ -488,6 +488,29 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
       <PageContent title={title}>
         <PageToolbar>
           <PageToolbarSection>
+            {returnToSeries ? (
+              <PageToolbarButton
+                label={returnToSeriesLabel}
+                title={
+                  returnToSeriesTitle
+                    ? `Return to ${returnToSeriesTitle}`
+                    : 'Return to Previous Series'
+                }
+                iconName={icons.ARROW_LEFT}
+                onPress={handleReturnToSeriesPress}
+              />
+            ) : null}
+
+            {returnToAddNew ? (
+              <PageToolbarButton
+                label="Return to Add New"
+                iconName={icons.ARROW_LEFT}
+                onPress={handleReturnToAddNewPress}
+              />
+            ) : null}
+
+            {returnToSeries || returnToAddNew ? <PageToolbarSeparator /> : null}
+
             <PageToolbarButton
               label={translate('RefreshAndScan')}
               iconName={icons.REFRESH}
@@ -509,27 +532,6 @@ function SeriesDetails({ seriesId }: SeriesDetailsProps) {
               }
               onPress={handleSearchPress}
             />
-
-            {returnToAddNew ? (
-              <PageToolbarButton
-                label="Return to Add New"
-                iconName={icons.ARROW_LEFT}
-                onPress={handleReturnToAddNewPress}
-              />
-            ) : null}
-
-            {returnToSeries ? (
-              <PageToolbarButton
-                label={returnToSeriesLabel}
-                title={
-                  returnToSeriesTitle
-                    ? `Return to ${returnToSeriesTitle}`
-                    : 'Return to Previous Series'
-                }
-                iconName={icons.ARROW_LEFT}
-                onPress={handleReturnToSeriesPress}
-              />
-            ) : null}
 
             <PageToolbarSeparator />
 

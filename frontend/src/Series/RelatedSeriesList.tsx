@@ -4,7 +4,6 @@ import Link from 'Components/Link/Link';
 import { kinds, sizes } from 'Helpers/Props';
 import Series, { AniDbRelatedSeries } from 'Series/Series';
 import useSeries from 'Series/useSeries';
-import translate from 'Utilities/String/translate';
 
 interface RelatedSeriesListProps {
   series: Series;
@@ -126,7 +125,7 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
     if (mainStory.length > 0) {
       result.push({
         key: 'main',
-        label: translate('MainStoryline') || 'Main Story',
+        label: 'Main Story',
         items: mainStory,
       });
     }
@@ -134,7 +133,7 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
     if (sideStories.length > 0) {
       result.push({
         key: 'side',
-        label: translate('SideStoriesAndOVAs') || 'Side Stories & OVAs',
+        label: 'Side Stories & OVAs',
         items: sideStories,
       });
     }
@@ -142,8 +141,7 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
     if (alternatives.length > 0) {
       result.push({
         key: 'alt',
-        label:
-          translate('AlternativesAndSpinOffs') || 'Alternatives & Spin-Offs',
+        label: 'Alternatives & Spin-Offs',
         items: alternatives,
       });
     }
