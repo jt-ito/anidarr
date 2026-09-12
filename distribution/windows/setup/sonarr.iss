@@ -6,7 +6,7 @@
 #define AppURL "https://github.com/jt-ito/anidarr"
 #define ForumsURL "https://github.com/jt-ito/anidarr/issues"
 #define AppExeName "Anidarr.exe"
-#define BuildNumber "5.0"
+#define BuildNumber "10.0"
 #define BuildNumber GetEnv('SONARR_VERSION')
 #define MajorVersion GetEnv('SONARR_MAJOR_VERSION')
 #define BranchName GetEnv('BRANCH')
