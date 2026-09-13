@@ -52,40 +52,6 @@
   composes: modalFooter from '~Components/Modal/ModalFooter.css';
 }
 
-.addButtonContainer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.progressStatusText {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--infoColor, #00a0df);
-  background: var(--infoColorLight, rgba(0, 160, 223, 0.12));
-  border: 1px solid var(--infoColor, #00a0df);
-  padding: 5px 10px;
-  border-radius: 4px;
-  max-width: 340px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  animation: pulse 2s infinite ease-in-out;
-}
-
-@keyframes pulse {
-  0% {
-    opacity: 0.8;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0.8;
-  }
-}
-
 .addButton {
   @add-mixin truncate;
   composes: button from '~Components/Link/SpinnerButton.css';
@@ -97,17 +63,7 @@
     text-align: center;
   }
 
-  .addButtonContainer {
-    flex-direction: column-reverse;
-    margin-top: 10px;
-  }
-
   .addButton {
-    margin-top: 0;
-  }
-
-  .progressStatusText {
-    max-width: 100%;
-    margin-top: 8px;
+    margin-top: 10px;
   }
 }

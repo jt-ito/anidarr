@@ -55,5 +55,112 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             titles.Skip(1).First().Should().Be("English Title");
             titles.Should().HaveCount(3);
         }
+
+        [Test]
+        public void should_apply_policy_b_ordering_with_guaranteed_native_japanese_slot_2_for_delimited_series()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "Ane Jiru The Animation - Shirakawa San Shimai ni Omakase",
+                AlternateTitles = new List<string>
+                {
+                    "Anejiru The Animation: Shirakawa Sanshimai ni Omakase",
+                    "姉汁 THE ANIMATION 白川三姉妹におまかせ",
+                    "Ane Jiru The Animation - Shirakawa San Shimai ni Omakase",
+                    "Anejiru 2"
+                },
+                PrimaryMetadataProvider = "anidb"
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.Should().HaveCount(5);
+            titles[0].Should().Be("Anejiru The Animation: Shirakawa Sanshimai ni Omakase");
+            titles[1].Should().Be("姉汁 THE ANIMATION 白川三姉妹におまかせ");
+            titles[2].Should().Be("Ane Jiru The Animation - Shirakawa San Shimai ni Omakase");
+            titles[3].Should().Be("Anejiru The Animation");
+            titles[4].Should().Be("Anejiru 2");
+        }
+
+        [Test]
+        public void should_fallback_to_english_base_when_no_synonym_exists_for_delimited_series()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "Ane Jiru The Animation - Shirakawa San Shimai ni Omakase",
+                AlternateTitles = new List<string>
+                {
+                    "Anejiru The Animation: Shirakawa Sanshimai ni Omakase",
+                    "姉汁 THE ANIMATION 白川三姉妹におまかせ",
+                    "Ane Jiru The Animation - Shirakawa San Shimai ni Omakase"
+                },
+                PrimaryMetadataProvider = "anidb"
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.Should().HaveCount(5);
+            titles[0].Should().Be("Anejiru The Animation: Shirakawa Sanshimai ni Omakase");
+            titles[1].Should().Be("姉汁 THE ANIMATION 白川三姉妹におまかせ");
+            titles[2].Should().Be("Ane Jiru The Animation - Shirakawa San Shimai ni Omakase");
+            titles[3].Should().Be("Anejiru The Animation");
+            titles[4].Should().Be("Ane Jiru The Animation");
+        }
+
+        [Test]
+        public void should_not_strip_variants_for_series_without_delimiter()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "Frieren: Beyond Journey's End",
+                AlternateTitles = new List<string>
+                {
+                    "Sousou no Frieren",
+                    "葬送のフリーレン",
+                    "Frieren at the Funeral",
+                    "Frieren"
+                },
+                PrimaryMetadataProvider = "anidb"
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.Should().HaveCount(5);
+            titles[0].Should().Be("Sousou no Frieren");
+            titles[1].Should().Be("葬送のフリーレン");
+            titles[2].Should().Be("Frieren: Beyond Journey's End");
+            titles[3].Should().Be("Frieren at the Funeral");
+            titles[4].Should().Be("Frieren");
+        }
+
+        [Test]
+        public void should_keep_fuller_title_when_base_title_fails_safety_guards()
+        {
+            // "Re" is < 4 characters and single word <= 3 chars
+            SearchCriteriaBase.TryGetBaseTitle("Re:Zero kara Hajimeru Isekai Seikatsu", out var baseTitle).Should().BeFalse();
+
+            // "OVA" is a stopword and < 4 characters
+            SearchCriteriaBase.TryGetBaseTitle("OVA: The Animation", out baseTitle).Should().BeFalse();
+
+            // "Air" is a single word <= 3 chars
+            SearchCriteriaBase.TryGetCoreTitle("Air The Animation", out var coreTitle).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_not_apply_policy_b_for_non_anidb_series()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "TVDB Anime Series: The Subtitle",
+                AlternateTitles = new List<string> { "TVDB Anime Series: The Subtitle (Alt)" },
+                PrimaryMetadataProvider = "tvdb",
+                AniDbId = null
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.First().Should().Be("TVDB Anime Series: The Subtitle");
+            titles.Should().NotContain("TVDB Anime Series");
+        }
     }
 }

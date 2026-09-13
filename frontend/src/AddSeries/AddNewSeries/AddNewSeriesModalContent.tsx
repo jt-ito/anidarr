@@ -336,23 +336,16 @@ function AddNewSeriesModalContent({
           </label>
         </div>
 
-        <div className={styles.addButtonContainer}>
-          {isAdding && addProgressStatus && (
-            <span className={styles.progressStatusText} title={addProgressStatus}>
-              {addProgressStatus}
-            </span>
-          )}
-
-          <SpinnerButton
-            className={styles.addButton}
-            kind={kinds.SUCCESS}
-            isSpinning={isAdding}
-            disabled={isPending || !hasRootFolders}
-            onPress={handleAddSeriesPress}
-          >
-            {translate('AddSeriesWithTitle', { title })}
-          </SpinnerButton>
-        </div>
+        <SpinnerButton
+          className={styles.addButton}
+          kind={kinds.SUCCESS}
+          isSpinning={isAdding}
+          spinningLabel={isAdding ? addProgressStatus : undefined}
+          disabled={isPending || !hasRootFolders}
+          onPress={handleAddSeriesPress}
+        >
+          {translate('AddSeriesWithTitle', { title })}
+        </SpinnerButton>
       </ModalFooter>
     </ModalContent>
   );

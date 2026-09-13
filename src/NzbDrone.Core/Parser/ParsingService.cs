@@ -431,6 +431,107 @@ namespace NzbDrone.Core.Parser
                     return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Title);
                 }
 
+                var isAniDbSourced = searchCriteria.Series.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                     (searchCriteria.Series.AniDbId ?? 0) > 0;
+
+                if (isAniDbSourced)
+                {
+                    var cleanParsedTitle = parsedEpisodeInfo.SeriesTitle?.CleanForSearch() ?? string.Empty;
+                    var cleanReleaseTitle = parsedEpisodeInfo.ReleaseTitle.IsNotNullOrWhiteSpace() ? parsedEpisodeInfo.ReleaseTitle.CleanForSearch() : null;
+
+                    var candidateAliases = new List<string>();
+                    if (searchCriteria.Series.Title != null)
+                    {
+                        candidateAliases.Add(searchCriteria.Series.Title);
+                    }
+
+                    if (searchCriteria.Series.AlternateTitles != null)
+                    {
+                        candidateAliases.AddRange(searchCriteria.Series.AlternateTitles);
+                    }
+
+                    var baseAliases = new List<string>();
+                    foreach (var alias in candidateAliases)
+                    {
+                        if (SearchCriteriaBase.TryGetBaseTitle(alias, out var baseTitle))
+                        {
+                            baseAliases.Add(baseTitle);
+                        }
+                    }
+
+                    candidateAliases.AddRange(baseAliases);
+
+                    // 1. Primary verification: CleanForSearch substring containment against known aliases
+                    foreach (var alias in candidateAliases)
+                    {
+                        if (string.IsNullOrWhiteSpace(alias))
+                        {
+                            continue;
+                        }
+
+                        var cleanAlias = alias.CleanForSearch();
+                        if (SearchCriteriaBase.IsSafeTitle(cleanAlias))
+                        {
+                            if (IsValidSubstringMatch(cleanParsedTitle, cleanAlias) ||
+                                (cleanReleaseTitle != null && IsValidSubstringMatch(cleanReleaseTitle, cleanAlias)))
+                            {
+                                _logger.Debug("Matched AniDB series '{0}' by alias CleanForSearch containment '{1}' in '{2}'",
+                                    searchCriteria.Series.Title,
+                                    alias,
+                                    parsedEpisodeInfo.SeriesTitle);
+
+                                return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
+                            }
+                        }
+                    }
+
+                    // 2. Fallback verification: relative-Levenshtein check on core titles for minor typos
+                    if (SearchCriteriaBase.TryGetCoreTitle(searchCriteria.Series.Title, out var coreTitle) ||
+                        SearchCriteriaBase.TryGetBaseTitle(searchCriteria.Series.Title, out coreTitle) ||
+                        (searchCriteria.Series.AlternateTitles != null && searchCriteria.Series.AlternateTitles.Any() &&
+                         (SearchCriteriaBase.TryGetCoreTitle(searchCriteria.Series.AlternateTitles.First(), out coreTitle) ||
+                          SearchCriteriaBase.TryGetBaseTitle(searchCriteria.Series.AlternateTitles.First(), out coreTitle))))
+                    {
+                        var cleanCore = coreTitle.CleanForSearch();
+                        if (SearchCriteriaBase.IsSafeTitle(cleanCore))
+                        {
+                            var allowed = cleanCore.GetAllowedEdits(cleanParsedTitle);
+                            if (char.IsDigit(cleanParsedTitle[cleanParsedTitle.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
+                                Math.Abs(cleanCore.Length - cleanParsedTitle.Length) <= allowed &&
+                                cleanCore.LevenshteinDistance(cleanParsedTitle) <= allowed)
+                            {
+                                _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed '{2}'",
+                                    searchCriteria.Series.Title,
+                                    coreTitle,
+                                    parsedEpisodeInfo.SeriesTitle);
+
+                                return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
+                            }
+
+                            if (SearchCriteriaBase.TryGetCoreTitle(parsedEpisodeInfo.SeriesTitle, out var parsedCore) ||
+                                SearchCriteriaBase.TryGetBaseTitle(parsedEpisodeInfo.SeriesTitle, out parsedCore))
+                            {
+                                var cleanParsedCore = parsedCore.CleanForSearch();
+                                if (SearchCriteriaBase.IsSafeTitle(cleanParsedCore))
+                                {
+                                    var coreAllowed = cleanCore.GetAllowedEdits(cleanParsedCore);
+                                    if (char.IsDigit(cleanParsedCore[cleanParsedCore.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
+                                        Math.Abs(cleanCore.Length - cleanParsedCore.Length) <= coreAllowed &&
+                                        cleanCore.LevenshteinDistance(cleanParsedCore) <= coreAllowed)
+                                    {
+                                        _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed core '{2}'",
+                                            searchCriteria.Series.Title,
+                                            coreTitle,
+                                            parsedCore);
+
+                                        return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (tvdbId > 0 && tvdbId == searchCriteria.Series.TvdbId)
                 {
                     _logger.ForDebugEvent()
@@ -707,6 +808,33 @@ namespace NzbDrone.Core.Parser
             }
 
             return result;
+        }
+
+        private static bool IsValidSubstringMatch(string target, string alias)
+        {
+            if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(alias))
+            {
+                return false;
+            }
+
+            var idx = 0;
+            while ((idx = target.IndexOf(alias, idx, StringComparison.Ordinal)) >= 0)
+            {
+                var nextIdx = idx + alias.Length;
+                if (nextIdx < target.Length)
+                {
+                    var nextChar = target[nextIdx];
+                    if (char.IsDigit(nextChar) && !char.IsDigit(alias[alias.Length - 1]))
+                    {
+                        idx = nextIdx;
+                        continue;
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
         }
     }
 }

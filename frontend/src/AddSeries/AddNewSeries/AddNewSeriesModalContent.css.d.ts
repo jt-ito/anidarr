@@ -2,15 +2,12 @@
 // Please do not change this file!
 interface CssExports {
   'addButton': string;
-  'addButtonContainer': string;
   'container': string;
   'info': string;
   'labelIcon': string;
   'modalFooter': string;
   'overview': string;
   'poster': string;
-  'progressStatusText': string;
-  'pulse': string;
   'searchInput': string;
   'searchInputContainer': string;
   'searchLabel': string;

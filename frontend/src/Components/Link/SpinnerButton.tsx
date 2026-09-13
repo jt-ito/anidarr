@@ -9,6 +9,7 @@ export interface SpinnerButtonProps extends ButtonProps {
   isSpinning: boolean;
   isDisabled?: boolean;
   spinnerIcon?: IconName;
+  spinningLabel?: React.ReactNode;
 }
 
 function SpinnerButton({
@@ -16,20 +17,32 @@ function SpinnerButton({
   isSpinning,
   isDisabled,
   spinnerIcon = icons.SPINNER,
+  spinningLabel,
   children,
   ...otherProps
 }: SpinnerButtonProps) {
+  const hasSpinningLabel = isSpinning && Boolean(spinningLabel);
+
   return (
     <Button
       className={classNames(
         className,
         styles.button,
-        isSpinning && styles.isSpinning
+        isSpinning && styles.isSpinning,
+        hasSpinningLabel && styles.hasSpinningLabel
       )}
       isDisabled={isDisabled || isSpinning}
       {...otherProps}
     >
       <span className={styles.spinnerContainer}>
+        {hasSpinningLabel && (
+          <span
+            className={styles.spinningLabel}
+            title={typeof spinningLabel === 'string' ? spinningLabel : undefined}
+          >
+            {spinningLabel}
+          </span>
+        )}
         <Icon className={styles.spinner} name={spinnerIcon} isSpinning={true} />
       </span>
 

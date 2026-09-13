@@ -51,6 +51,12 @@ namespace Sonarr.Http.Frontend.Mappers
 
             html = html.Replace("_THEME_", theme);
 
+            if (!_configFileProvider.InstanceName.IsNullOrWhiteSpace())
+            {
+                html = html.Replace("<title>Sonarr</title>", $"<title>{_configFileProvider.InstanceName}</title>");
+                html = html.Replace("<title>Anidarr</title>", $"<title>{_configFileProvider.InstanceName}</title>");
+            }
+
             if (_configFileProvider.ProfilerEnabled)
             {
                 var includes = MiniProfiler.Current?.RenderIncludes(context);

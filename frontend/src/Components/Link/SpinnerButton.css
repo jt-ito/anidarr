@@ -9,6 +9,7 @@
   top: 50%;
   left: -100%;
   display: inline-flex;
+  align-items: center;
   visibility: hidden;
   transition: left $defaultSpeed;
   transform: translateX(-50%) translateY(-50%);
@@ -16,6 +17,14 @@
 
 .spinner {
   z-index: 1;
+}
+
+.spinningLabel {
+  margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
 }
 
 .label {
@@ -33,5 +42,29 @@
   .label {
     left: 100%;
     visibility: hidden;
+  }
+}
+
+.hasSpinningLabel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  .spinnerContainer {
+    position: static;
+    transform: none;
+    left: auto;
+    top: auto;
+    visibility: visible;
+  }
+
+  .label {
+    display: none;
+  }
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .spinningLabel {
+    max-width: 200px;
   }
 }

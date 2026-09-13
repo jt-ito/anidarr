@@ -2,10 +2,12 @@
 // Please do not change this file!
 interface CssExports {
   'button': string;
+  'hasSpinningLabel': string;
   'isSpinning': string;
   'label': string;
   'spinner': string;
   'spinnerContainer': string;
+  'spinningLabel': string;
 }
 export const cssExports: CssExports;
 export default cssExports;
