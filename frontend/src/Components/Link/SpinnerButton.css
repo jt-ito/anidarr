@@ -9,8 +9,8 @@
   top: 50%;
   left: -100%;
   display: inline-flex;
-  align-items: center;
   visibility: hidden;
+  align-items: center;
   transition: left $defaultSpeed;
   transform: translateX(-50%) translateY(-50%);
 }
@@ -20,11 +20,11 @@
 }
 
 .spinningLabel {
-  margin-right: 8px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  margin-right: 8px;
   max-width: 360px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .label {
@@ -52,10 +52,10 @@
 
   .spinnerContainer {
     position: static;
-    transform: none;
-    left: auto;
     top: auto;
+    left: auto;
     visibility: visible;
+    transform: none;
   }
 
   .label {

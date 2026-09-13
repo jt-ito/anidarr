@@ -38,7 +38,9 @@ function SpinnerButton({
         {hasSpinningLabel && (
           <span
             className={styles.spinningLabel}
-            title={typeof spinningLabel === 'string' ? spinningLabel : undefined}
+            title={
+              typeof spinningLabel === 'string' ? spinningLabel : undefined
+            }
           >
             {spinningLabel}
           </span>

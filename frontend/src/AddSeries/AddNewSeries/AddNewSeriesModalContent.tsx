@@ -65,7 +65,9 @@ function AddNewSeriesModalContent({
 
   const { isAdding, addError, addSeries } = useAddSeries(onModalClose);
 
-  const [addProgressStatus, setAddProgressStatus] = useState<string | null>(null);
+  const [addProgressStatus, setAddProgressStatus] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (!isAdding) {
@@ -75,18 +77,29 @@ function AddNewSeriesModalContent({
 
     setAddProgressStatus('Connecting to metadata providers...');
 
-    const handleProgress = (event: CustomEvent<{ aniDbId?: number; message?: string }>) => {
+    const handleProgress = (
+      event: CustomEvent<{ aniDbId?: number; message?: string }>
+    ) => {
       if (
         event.detail?.message &&
-        (!event.detail.aniDbId || !series.aniDbId || event.detail.aniDbId === series.aniDbId)
+        (!event.detail.aniDbId ||
+          !series.aniDbId ||
+          event.detail.aniDbId === series.aniDbId)
       ) {
         setAddProgressStatus(event.detail.message);
       }
     };
 
-    window.addEventListener('seriesaddprogress', handleProgress as EventListener);
+    window.addEventListener(
+      'seriesaddprogress',
+      handleProgress as EventListener
+    );
+
     return () => {
-      window.removeEventListener('seriesaddprogress', handleProgress as EventListener);
+      window.removeEventListener(
+        'seriesaddprogress',
+        handleProgress as EventListener
+      );
     };
   }, [isAdding, series.aniDbId]);
 
