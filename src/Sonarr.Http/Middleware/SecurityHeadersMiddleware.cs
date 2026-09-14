@@ -39,6 +39,18 @@ namespace Sonarr.Http.Middleware
                 headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
             }
 
+            context.Response.OnStarting(() =>
+            {
+                // Ensure empty/error responses (e.g. 401, 403, 404, 500) have an explicit Content-Type
+                // so WebKit/Safari never misinterprets them as an unrecognized binary file download.
+                if (string.IsNullOrEmpty(context.Response.ContentType) && context.Response.StatusCode >= 400)
+                {
+                    context.Response.ContentType = "text/plain; charset=utf-8";
+                }
+
+                return Task.CompletedTask;
+            });
+
             await _next(context);
         }
     }

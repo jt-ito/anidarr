@@ -80,12 +80,24 @@ namespace Sonarr.Http.Authentication
 
         protected override Task HandleChallengeAsync(AuthenticationProperties properties)
         {
+            // If another authentication scheme already handled the challenge with a redirect (e.g. Cookie auth redirecting to /login),
+            // do not overwrite the redirect status code with 401.
+            if (Response.StatusCode >= 300 && Response.StatusCode < 400)
+            {
+                return Task.CompletedTask;
+            }
+
             Response.StatusCode = 401;
             return Task.CompletedTask;
         }
 
         protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
         {
+            if (Response.StatusCode >= 300 && Response.StatusCode < 400)
+            {
+                return Task.CompletedTask;
+            }
+
             Response.StatusCode = 403;
             return Task.CompletedTask;
         }
