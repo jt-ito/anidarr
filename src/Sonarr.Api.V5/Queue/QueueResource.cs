@@ -49,12 +49,14 @@ namespace Sonarr.Api.V5.Queue
             var customFormats = model.RemoteEpisode?.CustomFormats;
             var customFormatScore = model.Series?.QualityProfile?.Value?.CalculateCustomFormatScore(customFormats) ?? 0;
 
+            var episodeSeasons = model.Episodes?.Select(e => e.SeasonNumber).Distinct().ToList();
+
             return new QueueResource
             {
                 Id = model.Id,
                 SeriesId = model.Series?.Id,
                 EpisodeIds = model.Episodes?.Select(e => e.Id).ToList() ?? [],
-                SeasonNumbers = model.SeasonNumber.HasValue ? [model.SeasonNumber.Value] : [],
+                SeasonNumbers = episodeSeasons is { Count: > 0 } ? episodeSeasons : (model.SeasonNumber.HasValue ? [model.SeasonNumber.Value] : []),
                 Series = includeSeries && model.Series != null ? model.Series.ToResource() : null,
                 Episodes = includeEpisodes ? model.Episodes?.ToResource() : null,
                 Languages = model.Languages,

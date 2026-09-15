@@ -154,21 +154,35 @@ namespace NzbDrone.Core.Tv
 
             // build ordered list of series by position in the search string
             var query =
-                list.Select(series => new
+                list.Select(series =>
                 {
-                    position = cleanTitle.IndexOf(series.CleanTitle),
-                    length = series.CleanTitle.Length,
-                    series = series
+                    var candidates = new List<string> { series.CleanTitle };
+                    if (series.AlternateTitles != null)
+                    {
+                        candidates.AddRange(series.AlternateTitles.Select(a => a.CleanSeriesTitle()).Where(a => a.IsNotNullOrWhiteSpace()));
+                    }
+
+                    var bestMatch = candidates
+                        .Select(ct => new { pos = cleanTitle.IndexOf(ct, StringComparison.OrdinalIgnoreCase), len = ct.Length })
+                        .Where(m => m.pos >= 0)
+                        .OrderBy(m => m.pos)
+                        .ThenByDescending(m => m.len)
+                        .FirstOrDefault();
+
+                    return new
+                    {
+                        position = bestMatch?.pos ?? -1,
+                        length = bestMatch?.len ?? 0,
+                        series = series
+                    };
                 })
                     .Where(s => (s.position >= 0))
-                    .ToList()
                     .OrderBy(s => s.position)
                     .ThenByDescending(s => s.length)
                     .ToList();
 
-            // get the leftmost series that is the longest
-            // series are usually the first thing in release title, so we select the leftmost and longest match
-            var match = query.First().series;
+            // get the leftmost series that is the longest, falling back to the first match
+            var match = query.FirstOrDefault()?.series ?? list.First();
 
             _logger.Debug("Multiple series matched {0} from title {1}", match.Title, title);
             foreach (var entry in list)

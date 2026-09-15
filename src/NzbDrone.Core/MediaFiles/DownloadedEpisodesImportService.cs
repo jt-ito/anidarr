@@ -189,6 +189,11 @@ namespace NzbDrone.Core.MediaFiles
             var videoFiles = _diskScanService.FilterPaths(directoryInfo.FullName, _diskScanService.GetVideoFiles(directoryInfo.FullName));
             var downloadClientItemInfo = downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title);
 
+            if (downloadClientItemInfo == null && downloadClientItem != null && series != null)
+            {
+                downloadClientItemInfo = _parsingService.ParseSpecialEpisodeTitle(null, downloadClientItem.Title, series);
+            }
+
             if (downloadClientItem == null)
             {
                 foreach (var videoFile in videoFiles)
@@ -340,6 +345,12 @@ namespace NzbDrone.Core.MediaFiles
             }
 
             var downloadClientItemInfo = downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title);
+
+            if (downloadClientItemInfo == null && downloadClientItem != null && series != null)
+            {
+                downloadClientItemInfo = _parsingService.ParseSpecialEpisodeTitle(null, downloadClientItem.Title, series);
+            }
+
             var decisions = _importDecisionMaker.GetImportDecisions(new List<string>() { fileInfo.FullName }, series, downloadClientItem, downloadClientItemInfo, null, true);
 
             return _importApprovedEpisodes.Import(decisions, true, downloadClientItem, importMode);

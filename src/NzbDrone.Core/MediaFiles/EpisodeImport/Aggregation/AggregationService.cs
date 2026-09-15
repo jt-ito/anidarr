@@ -8,6 +8,7 @@ using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation.Aggregators;
 using NzbDrone.Core.MediaFiles.MediaInfo;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 
 namespace NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation
@@ -46,7 +47,18 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation
                 localEpisode.FolderEpisodeInfo == null &&
                 localEpisode.FileEpisodeInfo == null)
             {
-                if (isMediaFile)
+                if (localEpisode.Episodes != null && localEpisode.Episodes.Any())
+                {
+                    localEpisode.FileEpisodeInfo = new ParsedEpisodeInfo
+                    {
+                        SeriesTitle = localEpisode.Series?.Title,
+                        SeasonNumber = localEpisode.Episodes.First().SeasonNumber,
+                        EpisodeNumbers = localEpisode.Episodes.Select(e => e.EpisodeNumber).ToArray(),
+                        Quality = QualityParser.ParseQuality(localEpisode.Path),
+                        Languages = LanguageParser.ParseLanguages(localEpisode.Path)
+                    };
+                }
+                else if (isMediaFile)
                 {
                     throw new AugmentingFailedException("Unable to parse episode info from path: {0}", localEpisode.Path);
                 }

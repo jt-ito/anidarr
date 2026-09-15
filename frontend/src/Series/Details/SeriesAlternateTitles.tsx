@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlternateTitle } from 'Series/Series';
+import isSpacelessSlug from 'Utilities/Series/isSpacelessSlug';
 import styles from './SeriesAlternateTitles.css';
 
 interface SeriesAlternateTitlesProps {
@@ -9,9 +10,13 @@ interface SeriesAlternateTitlesProps {
 function SeriesAlternateTitles({
   alternateTitles,
 }: SeriesAlternateTitlesProps) {
+  const filteredTitles = alternateTitles.filter(
+    (alternateTitle) => !isSpacelessSlug(alternateTitle.title)
+  );
+
   return (
     <ul>
-      {alternateTitles.map((alternateTitle) => {
+      {filteredTitles.map((alternateTitle) => {
         return (
           <li key={alternateTitle.title} className={styles.alternateTitle}>
             {alternateTitle.title}

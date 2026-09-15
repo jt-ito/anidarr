@@ -9,6 +9,9 @@ if ($buildInfoContent -match 'new Version\((\d+),\s*(\d+),\s*(\d+),\s*(\d+)\)') 
     exit 1
 }
 
+$startTime = Get-Date
+Write-Host "Started at: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))"
+
 Write-Host "Building Docker image for jteaito/anidarr:$version and latest..."
 docker build -t jteaito/anidarr:$version -t jteaito/anidarr:latest .
 if ($LASTEXITCODE -ne 0) {
@@ -19,5 +22,11 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Pushing Docker images to Docker Hub..."
 docker push jteaito/anidarr:$version
 docker push jteaito/anidarr:latest
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Docker push failed!"
+    exit 1
+}
 
-Write-Host "Done!"
+$endTime = Get-Date
+$elapsed = $endTime - $startTime
+Write-Host "Done at: $($endTime.ToString('yyyy-MM-dd HH:mm:ss')) (Elapsed: $($elapsed.ToString('hh\:mm\:ss')))"

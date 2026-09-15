@@ -11,6 +11,7 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch.Definitions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tv;
@@ -32,6 +33,8 @@ namespace NzbDrone.Core.IndexerSearch
         private readonly ISeriesService _seriesService;
         private readonly IEpisodeService _episodeService;
         private readonly IMakeDownloadDecision _makeDownloadDecision;
+        private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
+        private readonly IAnimeOfflineTitleRepository _animeOfflineTitleRepository;
         private readonly Logger _logger;
 
         public ReleaseSearchService(IIndexerFactory indexerFactory,
@@ -39,7 +42,9 @@ namespace NzbDrone.Core.IndexerSearch
                                 ISeriesService seriesService,
                                 IEpisodeService episodeService,
                                 IMakeDownloadDecision makeDownloadDecision,
-                                Logger logger)
+                                Logger logger,
+                                IAniDbSeriesMappingService aniDbSeriesMappingService = null,
+                                IAnimeOfflineTitleRepository animeOfflineTitleRepository = null)
         {
             _indexerFactory = indexerFactory;
             _sceneMapping = sceneMapping;
@@ -47,6 +52,8 @@ namespace NzbDrone.Core.IndexerSearch
             _episodeService = episodeService;
             _makeDownloadDecision = makeDownloadDecision;
             _logger = logger;
+            _aniDbSeriesMappingService = aniDbSeriesMappingService;
+            _animeOfflineTitleRepository = animeOfflineTitleRepository;
         }
 
         public async Task<List<DownloadDecision>> EpisodeSearch(int episodeId, bool userInvokedSearch, bool interactiveSearch)
@@ -350,6 +357,131 @@ namespace NzbDrone.Core.IndexerSearch
             return DeDupeDecisions(downloadDecisions);
         }
 
+        private void PopulateAllSeasonAliases(Series series, SearchCriteriaBase searchSpec)
+        {
+            if (series.SeriesType != SeriesTypes.Anime)
+            {
+                return;
+            }
+
+            var isAniDbSourced = series.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                 (series.AniDbId ?? 0) > 0;
+
+            if (isAniDbSourced && _aniDbSeriesMappingService != null)
+            {
+                try
+                {
+                    var mappings = _aniDbSeriesMappingService.GetMappingsForSeries(series.Id);
+                    if (mappings != null && mappings.Any() && _animeOfflineTitleRepository != null)
+                    {
+                        foreach (var m in mappings)
+                        {
+                            var offlineTitle = _animeOfflineTitleRepository.FindByAniDbId(m.AniDbId);
+                            if (offlineTitle != null)
+                            {
+                                var altTitles = new List<string>();
+                                if (!string.IsNullOrWhiteSpace(offlineTitle.Title))
+                                {
+                                    altTitles.Add(offlineTitle.Title);
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(offlineTitle.RomajiTitle))
+                                {
+                                    altTitles.Add(offlineTitle.RomajiTitle);
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(offlineTitle.EnglishTitle))
+                                {
+                                    altTitles.Add(offlineTitle.EnglishTitle);
+                                }
+
+                                if (!string.IsNullOrWhiteSpace(offlineTitle.NativeTitle))
+                                {
+                                    altTitles.Add(offlineTitle.NativeTitle);
+                                }
+
+                                if (offlineTitle.SearchSynonyms != null)
+                                {
+                                    altTitles.AddRange(offlineTitle.SearchSynonyms);
+                                }
+
+                                var filtered = altTitles
+                                    .Where(t => !SearchCriteriaBase.IsSpacelessSlug(t))
+                                    .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                                    .ToList();
+
+                                if (!searchSpec.AllSeasonAliases.TryGetValue(m.SeasonNumber, out var list))
+                                {
+                                    list = new List<string>();
+                                    searchSpec.AllSeasonAliases[m.SeasonNumber] = list;
+                                }
+
+                                foreach (var t in filtered)
+                                {
+                                    if (!list.Contains(t, StringComparer.InvariantCultureIgnoreCase))
+                                    {
+                                        list.Add(t);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.Debug(ex, "Failed to resolve all season aliases for series {0}", series.Title);
+                }
+            }
+
+            if (series.Seasons != null)
+            {
+                foreach (var s in series.Seasons)
+                {
+                    if (!string.IsNullOrWhiteSpace(s.Title))
+                    {
+                        if (!searchSpec.AllSeasonAliases.TryGetValue(s.SeasonNumber, out var list))
+                        {
+                            list = new List<string>();
+                            searchSpec.AllSeasonAliases[s.SeasonNumber] = list;
+                        }
+
+                        if (!list.Contains(s.Title, StringComparer.InvariantCultureIgnoreCase))
+                        {
+                            list.Add(s.Title);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void PopulateSeasonSearchTitles(Series series, SearchCriteriaBase searchSpec, int seasonNumber)
+        {
+            searchSpec.TargetSeasonNumber = seasonNumber;
+
+            if (series.SeriesType != SeriesTypes.Anime)
+            {
+                return;
+            }
+
+            PopulateAllSeasonAliases(series, searchSpec);
+
+            var season = series.Seasons?.FirstOrDefault(s => s.SeasonNumber == seasonNumber);
+            if (season != null && !string.IsNullOrWhiteSpace(season.Title))
+            {
+                searchSpec.SeasonTitle = season.Title;
+            }
+
+            if (searchSpec.AllSeasonAliases.TryGetValue(seasonNumber, out var seasonAliases) && seasonAliases.Any())
+            {
+                if (string.IsNullOrWhiteSpace(searchSpec.SeasonTitle))
+                {
+                    searchSpec.SeasonTitle = seasonAliases.FirstOrDefault();
+                }
+
+                searchSpec.SeasonAlternateTitles = seasonAliases;
+            }
+        }
+
         private async Task<List<DownloadDecision>> SearchAnime(Series series, Episode episode, bool monitoredOnly, bool userInvokedSearch, bool interactiveSearch, bool isSeasonSearch = false)
         {
             var searchSpec = Get<AnimeEpisodeSearchCriteria>(series, new List<Episode> { episode }, monitoredOnly, userInvokedSearch, interactiveSearch);
@@ -359,6 +491,8 @@ namespace NzbDrone.Core.IndexerSearch
             searchSpec.SeasonNumber = episode.SceneSeasonNumber ?? episode.SeasonNumber;
             searchSpec.EpisodeNumber = episode.SceneEpisodeNumber ?? episode.EpisodeNumber;
             searchSpec.AbsoluteEpisodeNumber = episode.SceneAbsoluteEpisodeNumber ?? episode.AbsoluteEpisodeNumber ?? 0;
+
+            PopulateSeasonSearchTitles(series, searchSpec, searchSpec.SeasonNumber);
 
             var downloadDecisions = await Dispatch(indexer => indexer.Fetch(searchSpec), searchSpec);
 
@@ -416,6 +550,7 @@ namespace NzbDrone.Core.IndexerSearch
             foreach (var season in seasonsToSearch)
             {
                 searchSpec.SeasonNumber = season.SeasonNumber;
+                PopulateSeasonSearchTitles(series, searchSpec, season.SeasonNumber);
 
                 var decisions = await Dispatch(indexer => indexer.Fetch(searchSpec), searchSpec);
                 downloadDecisions.AddRange(decisions);

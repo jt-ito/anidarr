@@ -3,6 +3,7 @@ import DescriptionList from 'Components/DescriptionList/DescriptionList';
 import DescriptionListItem from 'Components/DescriptionList/DescriptionListItem';
 import { AlternateTitle } from 'Series/Series';
 import padNumber from 'Utilities/Number/padNumber';
+import isSpacelessSlug from 'Utilities/Series/isSpacelessSlug';
 import translate from 'Utilities/String/translate';
 import styles from './SceneInfo.css';
 
@@ -28,44 +29,46 @@ function SceneInfo(props: SceneInfoProps) {
   } = props;
 
   const groupedAlternateTitles = useMemo(() => {
-    const reducedAlternateTitles = alternateTitles.map((alternateTitle) => {
-      let suffix = '';
+    const reducedAlternateTitles = alternateTitles
+      .filter((alternateTitle) => !isSpacelessSlug(alternateTitle.title))
+      .map((alternateTitle) => {
+        let suffix = '';
 
-      const altSceneSeasonNumber =
-        sceneSeasonNumber === undefined ? seasonNumber : sceneSeasonNumber;
-      const altSceneEpisodeNumber =
-        sceneEpisodeNumber === undefined ? episodeNumber : sceneEpisodeNumber;
+        const altSceneSeasonNumber =
+          sceneSeasonNumber === undefined ? seasonNumber : sceneSeasonNumber;
+        const altSceneEpisodeNumber =
+          sceneEpisodeNumber === undefined ? episodeNumber : sceneEpisodeNumber;
 
-      const mappingSeasonNumber =
-        alternateTitle.sceneOrigin === 'tvdb'
-          ? seasonNumber
-          : altSceneSeasonNumber;
-      const altSeasonNumber =
-        alternateTitle.sceneSeasonNumber !== -1 &&
-        alternateTitle.sceneSeasonNumber !== undefined
-          ? alternateTitle.sceneSeasonNumber
-          : mappingSeasonNumber;
-      const altEpisodeNumber =
-        alternateTitle.sceneOrigin === 'tvdb'
-          ? episodeNumber
-          : altSceneEpisodeNumber;
+        const mappingSeasonNumber =
+          alternateTitle.sceneOrigin === 'tvdb'
+            ? seasonNumber
+            : altSceneSeasonNumber;
+        const altSeasonNumber =
+          alternateTitle.sceneSeasonNumber !== -1 &&
+          alternateTitle.sceneSeasonNumber !== undefined
+            ? alternateTitle.sceneSeasonNumber
+            : mappingSeasonNumber;
+        const altEpisodeNumber =
+          alternateTitle.sceneOrigin === 'tvdb'
+            ? episodeNumber
+            : altSceneEpisodeNumber;
 
-      if (altEpisodeNumber !== altSceneEpisodeNumber) {
-        suffix = `S${padNumber(altSeasonNumber as number, 2)}E${padNumber(
-          altEpisodeNumber as number,
-          2
-        )}`;
-      } else if (altSeasonNumber !== altSceneSeasonNumber) {
-        suffix = `S${padNumber(altSeasonNumber as number, 2)}`;
-      }
+        if (altEpisodeNumber !== altSceneEpisodeNumber) {
+          suffix = `S${padNumber(altSeasonNumber as number, 2)}E${padNumber(
+            altEpisodeNumber as number,
+            2
+          )}`;
+        } else if (altSeasonNumber !== altSceneSeasonNumber) {
+          suffix = `S${padNumber(altSeasonNumber as number, 2)}`;
+        }
 
-      return {
-        alternateTitle,
-        title: alternateTitle.title,
-        suffix,
-        comment: alternateTitle.comment,
-      };
-    });
+        return {
+          alternateTitle,
+          title: alternateTitle.title,
+          suffix,
+          comment: alternateTitle.comment,
+        };
+      });
 
     return Object.values(
       reducedAlternateTitles.reduce(
@@ -135,7 +138,7 @@ function SceneInfo(props: SceneInfoProps) {
         />
       ) : null}
 
-      {alternateTitles.length ? (
+      {groupedAlternateTitles.length ? (
         <DescriptionListItem
           titleClassName={styles.title}
           descriptionClassName={styles.description}

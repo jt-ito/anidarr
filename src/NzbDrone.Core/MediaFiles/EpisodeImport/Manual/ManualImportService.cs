@@ -23,7 +23,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
     public interface IManualImportService
     {
         List<ManualImportItem> GetMediaFiles(int seriesId, int? seasonNumber);
-        List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles);
+        List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles, int? seasonNumber = null);
         ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, List<Language> languages, int indexerFlags, ReleaseType releaseType);
     }
 
@@ -113,7 +113,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             return items;
         }
 
-        public List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles)
+        public List<ManualImportItem> GetMediaFiles(string path, string downloadId, int? seriesId, bool filterExistingFiles, int? seasonNumber = null)
         {
             if (downloadId.IsNotNullOrWhiteSpace())
             {
@@ -135,10 +135,10 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 }
 
                 var rootFolder = Path.GetDirectoryName(path);
-                return new List<ManualImportItem> { ProcessFile(rootFolder, rootFolder, path, downloadId) };
+                return new List<ManualImportItem> { ProcessFile(rootFolder, rootFolder, path, downloadId, seriesId.HasValue ? _seriesService.GetSeries(seriesId.Value) : null) };
             }
 
-            return ProcessFolder(path, path, downloadId, seriesId, filterExistingFiles);
+            return ProcessFolder(path, path, downloadId, seriesId, filterExistingFiles, seasonNumber);
         }
 
         public ManualImportItem ReprocessItem(string path, string downloadId, int seriesId, int? seasonNumber, List<int> episodeIds, string releaseGroup, QualityModel quality, List<Language> languages, int indexerFlags, ReleaseType releaseType)
@@ -233,7 +233,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             return ProcessFile(rootFolder, rootFolder, path, downloadId, series);
         }
 
-        private List<ManualImportItem> ProcessFolder(string rootFolder, string baseFolder, string downloadId, int? seriesId, bool filterExistingFiles)
+        private List<ManualImportItem> ProcessFolder(string rootFolder, string baseFolder, string downloadId, int? seriesId, bool filterExistingFiles, int? seasonNumber = null)
         {
             DownloadClientItem downloadClientItem = null;
             Series series = null;
@@ -292,10 +292,62 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             var downloadClientItemInfo = downloadClientItem == null ? null : Parser.Parser.ParseTitle(downloadClientItem.Title);
             var folderInfo = Parser.Parser.ParseTitle(directoryInfo.Name);
-            var seriesFiles = _diskScanService.FilterPaths(rootFolder, _diskScanService.GetVideoFiles(baseFolder).ToList());
-            var decisions = _importDecisionMaker.GetImportDecisions(seriesFiles, series, downloadClientItem, downloadClientItemInfo, folderInfo, SceneSource(series, baseFolder), filterExistingFiles);
 
-            return decisions.Select(decision => MapItem(decision, rootFolder, downloadId, directoryInfo.Name)).ToList();
+            if (seasonNumber.HasValue)
+            {
+                if (folderInfo == null)
+                {
+                    folderInfo = new ParsedEpisodeInfo { SeasonNumber = seasonNumber.Value };
+                }
+                else if (folderInfo.SeasonNumber == 0)
+                {
+                    folderInfo.SeasonNumber = seasonNumber.Value;
+                }
+            }
+
+            var isDedicatedFolder = series.Path.PathEquals(baseFolder) ||
+                                     series.Path.IsParentPath(baseFolder) ||
+                                     string.Equals(Parser.Parser.CleanSeriesTitle(directoryInfo.Name), series.CleanTitle, StringComparison.OrdinalIgnoreCase);
+
+            if (isDedicatedFolder)
+            {
+                var seriesFiles = _diskScanService.FilterPaths(rootFolder, _diskScanService.GetVideoFiles(baseFolder).ToList());
+                var decisions = _importDecisionMaker.GetImportDecisions(seriesFiles, series, downloadClientItem, downloadClientItemInfo, folderInfo, SceneSource(series, baseFolder), filterExistingFiles);
+
+                return decisions.Select(decision => MapItem(decision, rootFolder, downloadId, directoryInfo.Name)).ToList();
+            }
+            else
+            {
+                // baseFolder is a shared root folder (e.g. Downloads/) containing loose files from many different shows.
+                // We only scan direct video files (non-recursive) in baseFolder and filter to candidate files matching this series.
+                var directFiles = _diskScanService.FilterPaths(rootFolder, _diskScanService.GetVideoFiles(baseFolder, false).ToList());
+                var candidateFiles = FilterCandidateFilesForSeries(directFiles, series, seasonNumber);
+
+                var items = new List<ManualImportItem>();
+
+                if (candidateFiles.Any())
+                {
+                    var decisions = _importDecisionMaker.GetImportDecisions(candidateFiles, series, downloadClientItem, downloadClientItemInfo, folderInfo, SceneSource(series, baseFolder), filterExistingFiles);
+                    items.AddRange(decisions.Select(decision => MapItem(decision, rootFolder, downloadId, directoryInfo.Name)));
+                }
+
+                // Check subfolders that might be dedicated to this series
+                var subfolders = _diskScanService.FilterPaths(rootFolder, _diskProvider.GetDirectories(baseFolder));
+                var seriesCleanTitles = GetSeriesCleanTitles(series);
+
+                foreach (var subfolder in subfolders)
+                {
+                    var subfolderName = new DirectoryInfo(subfolder).Name;
+                    var cleanSubfolderName = Parser.Parser.CleanSeriesTitle(subfolderName);
+
+                    if (seriesCleanTitles.Any(t => cleanSubfolderName.Contains(t)))
+                    {
+                        items.AddRange(ProcessFolder(rootFolder, subfolder, downloadId, series.Id, filterExistingFiles, seasonNumber));
+                    }
+                }
+
+                return items;
+            }
         }
 
         private ManualImportItem ProcessFile(string rootFolder, string baseFolder, string file, string downloadId, Series series = null)
@@ -397,6 +449,81 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
         private bool SceneSource(Series series, string folder)
         {
             return !(series.Path.PathEquals(folder) || series.Path.IsParentPath(folder));
+        }
+
+        private List<string> FilterCandidateFilesForSeries(List<string> files, Series series, int? seasonNumber)
+        {
+            if (files.Count <= 10)
+            {
+                return files;
+            }
+
+            var seriesCleanTitles = GetSeriesCleanTitles(series);
+            var candidates = new List<string>();
+
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                var cleanFileName = Parser.Parser.CleanSeriesTitle(fileName);
+
+                if (seriesCleanTitles.Any(t => cleanFileName.Contains(t)))
+                {
+                    candidates.Add(file);
+                    continue;
+                }
+
+                // If not containing series title, check if it's an unbranded episode file (e.g. "05.mkv" or "Episode 05")
+                var parsed = Parser.Parser.ParseTitle(fileName);
+                if (parsed == null || parsed.SeriesTitle.IsNullOrWhiteSpace())
+                {
+                    if (seasonNumber.HasValue)
+                    {
+                        if (parsed == null || parsed.SeasonNumber == 0 || parsed.SeasonNumber == seasonNumber.Value)
+                        {
+                            candidates.Add(file);
+                        }
+                    }
+                    else if (files.Count <= 50)
+                    {
+                        candidates.Add(file);
+                    }
+                }
+            }
+
+            return candidates;
+        }
+
+        private HashSet<string> GetSeriesCleanTitles(Series series)
+        {
+            var cleanTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (series.CleanTitle.IsNotNullOrWhiteSpace())
+            {
+                cleanTitles.Add(series.CleanTitle);
+            }
+
+            if (series.Title.IsNotNullOrWhiteSpace())
+            {
+                var clean = Parser.Parser.CleanSeriesTitle(series.Title);
+                if (clean.IsNotNullOrWhiteSpace())
+                {
+                    cleanTitles.Add(clean);
+                }
+            }
+
+            if (series.AlternateTitles != null)
+            {
+                foreach (var alt in series.AlternateTitles)
+                {
+                    var cleanAlt = Parser.Parser.CleanSeriesTitle(alt);
+                    if (cleanAlt.IsNotNullOrWhiteSpace() && cleanAlt.Length > 2)
+                    {
+                        cleanTitles.Add(cleanAlt);
+                    }
+                }
+            }
+
+            return cleanTitles;
         }
 
         private TrackedDownload GetTrackedDownload(string downloadId)

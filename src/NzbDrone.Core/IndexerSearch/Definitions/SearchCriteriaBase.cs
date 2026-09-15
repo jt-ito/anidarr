@@ -38,6 +38,11 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public List<string> AllSceneTitles => SceneTitles.Concat(CleanSceneTitles).Distinct().ToList();
         public List<string> CleanSceneTitles => SceneTitles.Select(GetCleanSceneTitle).Distinct().ToList();
 
+        public int? TargetSeasonNumber { get; set; }
+        public string SeasonTitle { get; set; }
+        public List<string> SeasonAlternateTitles { get; set; }
+        public Dictionary<int, List<string>> AllSeasonAliases { get; set; } = new Dictionary<int, List<string>>();
+
         public static bool IsStopword(string candidate)
         {
             if (string.IsNullOrWhiteSpace(candidate))
@@ -46,6 +51,35 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
             }
 
             return Stopwords.Contains(candidate.Trim());
+        }
+
+        public static bool IsSpacelessSlug(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return false;
+            }
+
+            var trimmed = title.Trim();
+
+            if (!trimmed.Contains(' '))
+            {
+                if (trimmed.IndexOf("theanimation", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    trimmed.IndexOf("theseries", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    trimmed.IndexOf("themovie", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+
+                if (trimmed.Length > 20 &&
+                    trimmed.All(char.IsLetterOrDigit) &&
+                    trimmed.Any(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static bool IsNativeJapaneseTitle(string title)
@@ -66,6 +100,11 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
             }
 
             var trimmed = candidate.Trim();
+
+            if (IsSpacelessSlug(trimmed))
+            {
+                return false;
+            }
 
             if (IsNativeJapaneseTitle(trimmed))
             {
@@ -95,7 +134,7 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public static bool TryGetBaseTitle(string title, out string baseTitle)
         {
             baseTitle = null;
-            if (string.IsNullOrWhiteSpace(title))
+            if (string.IsNullOrWhiteSpace(title) || IsSpacelessSlug(title))
             {
                 return false;
             }
@@ -117,7 +156,7 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
         public static bool TryGetCoreTitle(string title, out string coreTitle)
         {
             coreTitle = null;
-            if (string.IsNullOrWhiteSpace(title))
+            if (string.IsNullOrWhiteSpace(title) || IsSpacelessSlug(title))
             {
                 return false;
             }
@@ -144,23 +183,31 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
                 var isAniDbSourced = Series?.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
                                      (Series?.AniDbId ?? 0) > 0;
 
+                var targetSeason = TargetSeasonNumber ??
+                                   (this as AnimeSeasonSearchCriteria)?.SeasonNumber ??
+                                   (this as AnimeEpisodeSearchCriteria)?.SeasonNumber;
+
+                var useSeasonTitles = targetSeason.HasValue && targetSeason.Value > 1 &&
+                                      (!string.IsNullOrWhiteSpace(SeasonTitle) || (SeasonAlternateTitles != null && SeasonAlternateTitles.Any()));
+
+                var baseTitle = useSeasonTitles ? (SeasonTitle ?? Series?.Title) : Series?.Title;
+                var rawAlternates = useSeasonTitles ? (SeasonAlternateTitles ?? new List<string>()) : (Series?.AlternateTitles ?? new List<string>());
+                var candidateAlternates = rawAlternates.Where(t => !IsSpacelessSlug(t)).ToList();
+
                 if (!isAniDbSourced)
                 {
                     var standardTitles = new List<string>();
 
-                    if (Series?.Title != null)
+                    if (baseTitle != null && !IsSpacelessSlug(baseTitle))
                     {
-                        standardTitles.Add(Series.Title);
+                        standardTitles.Add(baseTitle);
                     }
 
-                    if (Series?.AlternateTitles != null)
-                    {
-                        standardTitles.AddRange(Series.AlternateTitles);
-                    }
+                    standardTitles.AddRange(candidateAlternates);
 
                     if (SceneTitles != null)
                     {
-                        standardTitles.AddRange(SceneTitles);
+                        standardTitles.AddRange(SceneTitles.Where(t => !IsSpacelessSlug(t)));
                     }
 
                     return standardTitles.Select(NormalizeAnimeTitle).Distinct(StringComparer.InvariantCultureIgnoreCase).ToList();
@@ -169,114 +216,120 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
                 // AniDB-sourced Policy B candidate title ordering
                 var titles = new List<string>();
 
-                var romajiFull = Series.AlternateTitles?.FirstOrDefault(t => !IsNativeJapaneseTitle(t)) ?? Series.Title;
-                var nativeJapanese = Series.AlternateTitles?.FirstOrDefault(IsNativeJapaneseTitle)
-                                     ?? (IsNativeJapaneseTitle(Series.Title) ? Series.Title : null);
-                var englishFull = !IsNativeJapaneseTitle(Series.Title) && !Series.Title.Equals(romajiFull, StringComparison.OrdinalIgnoreCase)
-                    ? Series.Title
-                    : Series.AlternateTitles?.FirstOrDefault(t => !IsNativeJapaneseTitle(t) && !t.Equals(romajiFull, StringComparison.OrdinalIgnoreCase));
+                var romajiCandidate = candidateAlternates.FirstOrDefault(t => !IsNativeJapaneseTitle(t));
+                string romajiFull;
+                string englishFull;
+
+                if (!string.IsNullOrWhiteSpace(SeasonTitle) && useSeasonTitles)
+                {
+                    romajiFull = SeasonTitle;
+                    englishFull = candidateAlternates.FirstOrDefault(t => !IsNativeJapaneseTitle(t) && !t.Equals(romajiFull, StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    romajiFull = romajiCandidate ?? baseTitle;
+                    englishFull = !IsNativeJapaneseTitle(baseTitle) && !baseTitle.Equals(romajiFull, StringComparison.OrdinalIgnoreCase)
+                        ? baseTitle
+                        : candidateAlternates.FirstOrDefault(t => !IsNativeJapaneseTitle(t) && !t.Equals(romajiFull, StringComparison.OrdinalIgnoreCase));
+                }
+
+                var nativeJapanese = candidateAlternates.FirstOrDefault(IsNativeJapaneseTitle)
+                                     ?? (IsNativeJapaneseTitle(baseTitle) ? baseTitle : null);
 
                 var hasDelimiter = (romajiFull != null && TryGetBaseTitle(romajiFull, out _)) ||
-                                   (romajiFull == null && Series.Title != null && TryGetBaseTitle(Series.Title, out _));
+                                   (romajiFull == null && baseTitle != null && TryGetBaseTitle(baseTitle, out _));
 
-                if (!hasDelimiter)
+                var hasCore = (romajiFull != null && TryGetCoreTitle(romajiFull, out _)) ||
+                              (englishFull != null && TryGetCoreTitle(englishFull, out _));
+
+                if (!hasDelimiter && !hasCore)
                 {
-                    // No delimiter: Romaji Full, Native Japanese, English Full, then Synonyms fill remaining slots
-                    if (romajiFull != null)
+                    // No delimiter and no core descriptor: Romaji Full, Native Japanese, English Full, then Synonyms fill remaining slots
+                    if (romajiFull != null && !IsSpacelessSlug(romajiFull))
                     {
                         titles.Add(romajiFull);
                     }
 
-                    if (nativeJapanese != null)
+                    if (nativeJapanese != null && !IsSpacelessSlug(nativeJapanese))
                     {
                         titles.Add(nativeJapanese);
                     }
 
-                    if (englishFull != null)
+                    if (englishFull != null && !IsSpacelessSlug(englishFull))
                     {
                         titles.Add(englishFull);
                     }
 
-                    if (Series.AlternateTitles != null)
-                    {
-                        titles.AddRange(Series.AlternateTitles);
-                    }
+                    titles.AddRange(candidateAlternates);
 
                     if (SceneTitles != null)
                     {
-                        titles.AddRange(SceneTitles);
+                        titles.AddRange(SceneTitles.Where(t => !IsSpacelessSlug(t)));
                     }
                 }
                 else
                 {
-                    // With delimiter: Policy B ordering
+                    // With delimiter or generic descriptor: Policy B ordering
                     // 1. Romaji Full
-                    if (romajiFull != null)
+                    if (romajiFull != null && !IsSpacelessSlug(romajiFull))
                     {
                         titles.Add(romajiFull);
                     }
 
                     // 2. Native Japanese (guaranteed slot 2)
-                    if (nativeJapanese != null)
+                    if (nativeJapanese != null && !IsSpacelessSlug(nativeJapanese))
                     {
                         titles.Add(nativeJapanese);
                     }
 
                     // 3. English Full
-                    if (englishFull != null)
+                    if (englishFull != null && !IsSpacelessSlug(englishFull))
                     {
                         titles.Add(englishFull);
                     }
 
-                    // 4. Romaji Base (stripped)
+                    // 4. Romaji Base (stripped delimiter)
                     string romajiBase = null;
-                    if (romajiFull != null && TryGetBaseTitle(romajiFull, out romajiBase))
+                    if (romajiFull != null && TryGetBaseTitle(romajiFull, out romajiBase) && !IsSpacelessSlug(romajiBase))
                     {
                         titles.Add(romajiBase);
                     }
 
-                    // 5. Primary Synonym if one exists, else English Base
-                    string primarySynonym = null;
-                    if (Series.AlternateTitles != null)
-                    {
-                        primarySynonym = Series.AlternateTitles.FirstOrDefault(t =>
-                            !IsNativeJapaneseTitle(t) &&
-                            !t.Equals(romajiFull, StringComparison.OrdinalIgnoreCase) &&
-                            (englishFull == null || !t.Equals(englishFull, StringComparison.OrdinalIgnoreCase)) &&
-                            (romajiBase == null || !t.Equals(romajiBase, StringComparison.OrdinalIgnoreCase)));
-                    }
+                    // 5. Primary Synonym if one exists
+                    var primarySynonym = candidateAlternates.FirstOrDefault(t =>
+                        !IsNativeJapaneseTitle(t) &&
+                        !t.Equals(romajiFull, StringComparison.OrdinalIgnoreCase) &&
+                        (englishFull == null || !t.Equals(englishFull, StringComparison.OrdinalIgnoreCase)) &&
+                        (romajiBase == null || !t.Equals(romajiBase, StringComparison.OrdinalIgnoreCase)));
 
-                    if (primarySynonym != null)
+                    if (primarySynonym != null && !IsSpacelessSlug(primarySynonym))
                     {
                         titles.Add(primarySynonym);
                     }
 
                     // Fallback to English Base if synonym didn't fill slot, or as next candidate
-                    if (englishFull != null && TryGetBaseTitle(englishFull, out var englishBase))
+                    if (englishFull != null && TryGetBaseTitle(englishFull, out var englishBase) && !IsSpacelessSlug(englishBase))
                     {
                         titles.Add(englishBase);
                     }
 
                     // Fallback to Core Keyword (generic descriptor stripped)
-                    if (romajiFull != null && TryGetCoreTitle(romajiFull, out var romajiCore))
+                    if (romajiFull != null && TryGetCoreTitle(romajiFull, out var romajiCore) && !IsSpacelessSlug(romajiCore))
                     {
                         titles.Add(romajiCore);
                     }
 
-                    if (englishFull != null && TryGetCoreTitle(englishFull, out var englishCore))
+                    if (englishFull != null && TryGetCoreTitle(englishFull, out var englishCore) && !IsSpacelessSlug(englishCore))
                     {
                         titles.Add(englishCore);
                     }
 
                     // Any remaining alternate titles
-                    if (Series.AlternateTitles != null)
-                    {
-                        titles.AddRange(Series.AlternateTitles);
-                    }
+                    titles.AddRange(candidateAlternates);
 
                     if (SceneTitles != null)
                     {
-                        titles.AddRange(SceneTitles);
+                        titles.AddRange(SceneTitles.Where(t => !IsSpacelessSlug(t)));
                     }
                 }
 

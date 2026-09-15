@@ -7,6 +7,7 @@ using NzbDrone.Common.TPL;
 using NzbDrone.Core.DataAugmentation.Scene;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.Events;
@@ -403,13 +404,16 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             {
                 foreach (var synonym in animeTitle.SearchSynonyms)
                 {
-                    if (!resource.AlternateTitles.Any(a => string.Equals(a.Title, synonym, StringComparison.InvariantCultureIgnoreCase)))
+                    if (!SearchCriteriaBase.IsSpacelessSlug(synonym) &&
+                        !resource.AlternateTitles.Any(a => string.Equals(a.Title, synonym, StringComparison.InvariantCultureIgnoreCase)))
                     {
                         resource.AlternateTitles.Add(new AlternateTitleResource { Title = synonym, Comment = "AniDB" });
                     }
                 }
             }
         }
+
+        resource.AlternateTitles.RemoveAll(a => SearchCriteriaBase.IsSpacelessSlug(a.Title));
     }
 
     private void PopulateAniDbMappings(List<SeriesResource> resources)

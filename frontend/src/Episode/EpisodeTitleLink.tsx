@@ -26,7 +26,11 @@ function EpisodeTitleLink(props: EpisodeTitleLinkProps) {
 
   return (
     <div className={styles.container}>
-      <Link className={styles.link} onPress={handleLinkPress}>
+      <Link
+        className={styles.link}
+        title={episodeTitle}
+        onPress={handleLinkPress}
+      >
         {episodeTitle}
       </Link>
 

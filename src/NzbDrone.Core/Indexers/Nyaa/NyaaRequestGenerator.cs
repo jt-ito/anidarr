@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Common.Http;
@@ -82,6 +83,11 @@ namespace NzbDrone.Core.Indexers.Nyaa
         {
             var pageableRequests = new IndexerPageableRequestChain();
 
+            var isAniDbSourced = searchCriteria.Series?.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                 (searchCriteria.Series?.AniDbId ?? 0) > 0;
+
+            var isAniDbExclusive = isAniDbSourced && (searchCriteria.Series?.TvdbId ?? 0) <= 0;
+
             var queryTitles = searchCriteria.Series?.SeriesType == Tv.SeriesTypes.Anime
                 ? searchCriteria.AnimeSearchTitles.Take(5).ToList()
                 : searchCriteria.SceneTitles;
@@ -105,7 +111,18 @@ namespace NzbDrone.Core.Indexers.Nyaa
                     }
                 }
 
-                if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0 && searchCriteria.EpisodeNumber > 0)
+                if (isAniDbSourced && searchCriteria.EpisodeNumber > 0 &&
+                    (searchCriteria.EpisodeNumber != searchCriteria.AbsoluteEpisodeNumber || searchCriteria.AbsoluteEpisodeNumber == 0))
+                {
+                    pageableRequests.Add(GetPagedRequests($"{searchTitle}+{searchCriteria.EpisodeNumber:0}"));
+
+                    if (searchCriteria.EpisodeNumber < 10)
+                    {
+                        pageableRequests.Add(GetPagedRequests($"{searchTitle}+{searchCriteria.EpisodeNumber:00}"));
+                    }
+                }
+
+                if (!isAniDbExclusive && Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0 && searchCriteria.EpisodeNumber > 0)
                 {
                     pageableRequests.Add(GetPagedRequests($"{searchTitle}+s{searchCriteria.SeasonNumber:00}e{searchCriteria.EpisodeNumber:00}"));
                 }
@@ -117,6 +134,11 @@ namespace NzbDrone.Core.Indexers.Nyaa
         public virtual IndexerPageableRequestChain GetSearchRequests(AnimeSeasonSearchCriteria searchCriteria)
         {
             var pageableRequests = new IndexerPageableRequestChain();
+
+            var isAniDbSourced = searchCriteria.Series?.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                 (searchCriteria.Series?.AniDbId ?? 0) > 0;
+
+            var isAniDbExclusive = isAniDbSourced && (searchCriteria.Series?.TvdbId ?? 0) <= 0;
 
             var queryTitles = searchCriteria.Series?.SeriesType == Tv.SeriesTypes.Anime
                 ? searchCriteria.AnimeSearchTitles.Take(5).ToList()
@@ -131,7 +153,7 @@ namespace NzbDrone.Core.Indexers.Nyaa
 
                 var searchTitle = PrepareQuery(queryTitle);
 
-                if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
+                if (!isAniDbExclusive && Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
                 {
                     pageableRequests.Add(GetPagedRequests($"{searchTitle}+s{searchCriteria.SeasonNumber:00}"));
                 }

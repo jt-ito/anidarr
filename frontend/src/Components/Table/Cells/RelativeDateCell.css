@@ -2,4 +2,5 @@
   composes: cell from '~./TableRowCell.css';
 
   width: 180px;
+  white-space: nowrap;
 }

@@ -26,12 +26,12 @@ namespace Sonarr.Api.V3.ManualImport
         [Produces("application/json")]
         public List<ManualImportResource> GetMediaFiles(string folder, string downloadId, int? seriesId, int? seasonNumber, bool filterExistingFiles = true)
         {
-            if (seriesId.HasValue && downloadId.IsNullOrWhiteSpace())
+            if (folder.IsNullOrWhiteSpace() && seriesId.HasValue && downloadId.IsNullOrWhiteSpace())
             {
                 return _manualImportService.GetMediaFiles(seriesId.Value, seasonNumber).ToResource().Select(AddQualityWeight).ToList();
             }
 
-            return _manualImportService.GetMediaFiles(folder, downloadId, seriesId, filterExistingFiles).ToResource().Select(AddQualityWeight).ToList();
+            return _manualImportService.GetMediaFiles(folder, downloadId, seriesId, filterExistingFiles, seasonNumber).ToResource().Select(AddQualityWeight).ToList();
         }
 
         [HttpPost]

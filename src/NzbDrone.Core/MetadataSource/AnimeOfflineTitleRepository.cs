@@ -4,6 +4,7 @@ using System.Linq;
 using Dapper;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Messaging.Events;
 
 namespace NzbDrone.Core.MetadataSource
@@ -20,15 +21,22 @@ namespace NzbDrone.Core.MetadataSource
 
     public class AnimeOfflineTitleRepository : BasicRepository<AnimeOfflineTitle>, IAnimeOfflineTitleRepository
     {
-        private static readonly object _fuzzyCacheLock = new object();
-        private static List<AnimeOfflineTitle> _fuzzyCache;
-        private static DateTime _fuzzyCacheTime = DateTime.MinValue;
+        private class CachedSearchEntry
+        {
+            public AnimeOfflineTitle Title { get; set; }
+            public string CleanTitle { get; set; }
+            public string[] CleanSynonyms { get; set; }
+        }
+
+        private static readonly object _cacheLock = new object();
+        private static List<CachedSearchEntry> _searchCache;
+        private static DateTime _cacheTime = DateTime.MinValue;
 
         public void ClearFuzzyCache()
         {
-            lock (_fuzzyCacheLock)
+            lock (_cacheLock)
             {
-                _fuzzyCache = null;
+                _searchCache = null;
             }
         }
 
@@ -37,99 +45,166 @@ namespace NzbDrone.Core.MetadataSource
         {
         }
 
-        public List<AnimeOfflineTitle> FindSearchMatches(string cleanQuery, string providerKey)
+        private List<CachedSearchEntry> GetSearchCache()
         {
-            // ponytail: load by CleanTitle match from DB, then check synonyms in-memory
-            // with exact equality. Using Contains() on a serialized JSON list column would
-            // be a substring match on raw JSON and produce false positives.
-            IEnumerable<AnimeOfflineTitle> results = Query(c =>
-                c.CleanTitle != null && c.CleanTitle.Contains(cleanQuery));
-
-            // Add synonym matches that weren't caught by the CleanTitle query.
-            var synonymMatches = Query(c => c.SearchSynonyms != null)
-                .Where(c => (c.CleanTitle == null || !c.CleanTitle.Contains(cleanQuery)) &&
-                            c.SearchSynonyms.Any(s => s.CleanForSearch().Contains(cleanQuery)));
-
-            results = results.Union(synonymMatches);
-
-            // Fuzzy matching
-            List<AnimeOfflineTitle> allTitles;
-            lock (_fuzzyCacheLock)
+            lock (_cacheLock)
             {
-                if (_fuzzyCache == null || (DateTime.UtcNow - _fuzzyCacheTime).TotalHours > 1)
+                if (_searchCache == null || (DateTime.UtcNow - _cacheTime).TotalHours > 1)
                 {
-                    _fuzzyCache = All().ToList();
-                    _fuzzyCacheTime = DateTime.UtcNow;
+                    var all = All().ToList();
+                    var list = new List<CachedSearchEntry>(all.Count);
+
+                    foreach (var item in all)
+                    {
+                        var cleanTitle = item.CleanTitle ?? item.Title?.CleanForSearch();
+                        var cleanSyns = item.SearchSynonyms?
+                            .Where(s => !SearchCriteriaBase.IsSpacelessSlug(s))
+                            .Select(s => s.CleanForSearch())
+                            .Where(s => !string.IsNullOrEmpty(s))
+                            .Distinct()
+                            .ToArray() ?? Array.Empty<string>();
+
+                        list.Add(new CachedSearchEntry
+                        {
+                            Title = item,
+                            CleanTitle = cleanTitle,
+                            CleanSynonyms = cleanSyns
+                        });
+                    }
+
+                    _searchCache = list;
+                    _cacheTime = DateTime.UtcNow;
                 }
 
-                allTitles = _fuzzyCache;
+                return _searchCache;
+            }
+        }
+
+        public List<AnimeOfflineTitle> FindSearchMatches(string cleanQuery, string providerKey)
+        {
+            if (string.IsNullOrWhiteSpace(cleanQuery))
+            {
+                return new List<AnimeOfflineTitle>();
             }
 
+            var entries = GetSearchCache();
+            var substringMatches = new List<AnimeOfflineTitle>();
             var fuzzyMatches = new List<AnimeOfflineTitle>();
-            var existingIds = new HashSet<int>(results.Select(r => r.Id));
 
-            foreach (var candidate in allTitles)
+            foreach (var entry in entries)
             {
-                if (existingIds.Contains(candidate.Id))
+                if (providerKey == "anidb" && (entry.Title.AniDbId == null || entry.Title.AniDbId <= 0))
                 {
                     continue;
                 }
 
-                var isMatch = false;
-
-                // 1. Check CleanTitle
-                if (candidate.CleanTitle != null)
+                if (providerKey == "mal" && (entry.Title.MalId == null || entry.Title.MalId <= 0))
                 {
-                    var allowed = candidate.CleanTitle.GetAllowedEdits(cleanQuery);
-                    if (Math.Abs(candidate.CleanTitle.Length - cleanQuery.Length) <= allowed)
+                    continue;
+                }
+
+                if (providerKey == "anilist" && (entry.Title.AniListId == null || entry.Title.AniListId <= 0))
+                {
+                    continue;
+                }
+
+                var isSubstringMatch = false;
+
+                if (entry.CleanTitle != null && entry.CleanTitle.Contains(cleanQuery))
+                {
+                    isSubstringMatch = true;
+                }
+                else if (entry.CleanSynonyms.Length > 0)
+                {
+                    for (var i = 0; i < entry.CleanSynonyms.Length; i++)
                     {
-                        if (candidate.CleanTitle.LevenshteinDistance(cleanQuery) <= allowed)
+                        if (entry.CleanSynonyms[i].Contains(cleanQuery))
                         {
-                            isMatch = true;
+                            isSubstringMatch = true;
+                            break;
                         }
                     }
                 }
 
-                // 2. Check Synonyms
-                if (!isMatch && candidate.SearchSynonyms != null)
+                if (isSubstringMatch)
                 {
-                    foreach (var synonym in candidate.SearchSynonyms)
+                    substringMatches.Add(entry.Title);
+                }
+                else
+                {
+                    var isFuzzyMatch = false;
+
+                    // 1. Check CleanTitle
+                    if (entry.CleanTitle != null)
                     {
-                        var cleanSynonym = synonym.CleanForSearch();
-                        var allowed = cleanSynonym.GetAllowedEdits(cleanQuery);
-                        if (Math.Abs(cleanSynonym.Length - cleanQuery.Length) <= allowed)
+                        var allowed = entry.CleanTitle.GetAllowedEdits(cleanQuery);
+                        if (Math.Abs(entry.CleanTitle.Length - cleanQuery.Length) <= allowed)
                         {
-                            if (cleanSynonym.LevenshteinDistance(cleanQuery) <= allowed)
+                            if (entry.CleanTitle.LevenshteinDistance(cleanQuery) <= allowed)
                             {
-                                isMatch = true;
-                                break;
+                                isFuzzyMatch = true;
                             }
                         }
                     }
+
+                    // 2. Check Synonyms
+                    if (!isFuzzyMatch && entry.CleanSynonyms.Length > 0)
+                    {
+                        for (var i = 0; i < entry.CleanSynonyms.Length; i++)
+                        {
+                            var cleanSynonym = entry.CleanSynonyms[i];
+                            var allowed = cleanSynonym.GetAllowedEdits(cleanQuery);
+                            if (Math.Abs(cleanSynonym.Length - cleanQuery.Length) <= allowed)
+                            {
+                                if (cleanSynonym.LevenshteinDistance(cleanQuery) <= allowed)
+                                {
+                                    isFuzzyMatch = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (isFuzzyMatch)
+                    {
+                        fuzzyMatches.Add(entry.Title);
+                    }
                 }
-
-                if (isMatch)
-                {
-                    fuzzyMatches.Add(candidate);
-                }
             }
 
-            results = results.Union(fuzzyMatches);
+            return substringMatches.Concat(fuzzyMatches).Take(50).ToList();
+        }
 
-            if (providerKey == "anidb")
-            {
-                results = results.Where(c => c.AniDbId > 0);
-            }
-            else if (providerKey == "mal")
-            {
-                results = results.Where(c => c.MalId > 0);
-            }
-            else if (providerKey == "anilist")
-            {
-                results = results.Where(c => c.AniListId > 0);
-            }
+        public new AnimeOfflineTitle Insert(AnimeOfflineTitle model)
+        {
+            var result = base.Insert(model);
+            ClearFuzzyCache();
+            return result;
+        }
 
-            return results.Take(50).ToList();
+        public new void InsertMany(IList<AnimeOfflineTitle> models)
+        {
+            base.InsertMany(models);
+            ClearFuzzyCache();
+        }
+
+        public new AnimeOfflineTitle Update(AnimeOfflineTitle model)
+        {
+            var result = base.Update(model);
+            ClearFuzzyCache();
+            return result;
+        }
+
+        public new void UpdateMany(IList<AnimeOfflineTitle> models)
+        {
+            base.UpdateMany(models);
+            ClearFuzzyCache();
+        }
+
+        public new void Purge(bool vacuum = false)
+        {
+            base.Purge(vacuum);
+            ClearFuzzyCache();
         }
 
         public AnimeOfflineTitle FindByAniDbId(int anidbId)

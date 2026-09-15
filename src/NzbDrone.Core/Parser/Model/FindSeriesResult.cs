@@ -6,11 +6,13 @@ namespace NzbDrone.Core.Parser.Model
     {
         public Series Series { get; set; }
         public SeriesMatchType MatchType { get; set; }
+        public int? MatchedSeasonNumber { get; set; }
 
-        public FindSeriesResult(Series series, SeriesMatchType matchType)
+        public FindSeriesResult(Series series, SeriesMatchType matchType, int? matchedSeasonNumber = null)
         {
             Series = series;
             MatchType = matchType;
+            MatchedSeasonNumber = matchedSeasonNumber;
         }
     }
 

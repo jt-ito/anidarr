@@ -49,6 +49,27 @@ internal static class ParserCommon
 
         // Spanish releases with information in brackets
         new RegexReplace(@"^(?<title>.+?(?=[ ._-]\()).+?\((?<year>\d{4})\/(?<info>S[^\/]+)", "${title} (${year}) - ${info} ", RegexOptions.Compiled),
+
+        // Strip generic 18+ Japanese rating prefix
+        new RegexReplace(@"^[\(\[【]18禁(?:アニメ)?[\)\]】]\s*", string.Empty, RegexOptions.Compiled),
+
+        // Convert leading subgroup in parentheses to square brackets e.g. (ピンクパイナップル) Title -> [ピンクパイナップル] Title
+        new RegexReplace(@"^\((?<group>[^\)]+)\)\s*(?<title>[^\[\(\s].+)", "[${group}] ${title}", RegexOptions.Compiled),
+
+        // Adult anime multi-part range e.g. Liquid.1 + Liquid.2, Juice.1-2, Vol.1-2
+        new RegexReplace(@"(?<!S\d{1,2}[._ ])(?:Liquid|Juice|Vol|Volume|File|Phase|Act|Night|Stage|Shot|Lesson)[. _]*(?<ep1>\d{1,2})\s*(?:[+&~]|-\s*(?:Liquid|Juice|Vol|Volume|File|Phase|Act|Night|Stage|Shot|Lesson)?[. _]*)\s*(?:(?:Liquid|Juice|Vol|Volume|File|Phase|Act|Night|Stage|Shot|Lesson)[. _]*)?(?<ep2>\d{1,2})",
+            m => $" - {int.Parse(m.Groups["ep1"].Value):00}-{int.Parse(m.Groups["ep2"].Value):00} ",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase),
+
+        // Adult anime single part e.g. Liquid.1, Juice.2, Vol.1
+        new RegexReplace(@"(?<!S\d{1,2}[._ ])(?:Liquid|Juice|Vol|Volume|File|Phase|Act|Night|Stage|Shot|Lesson)[. _]*(?<ep>\d{1,2})",
+            m => $" - {int.Parse(m.Groups["ep"].Value):00} ",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase),
+
+        // OVA range e.g. OVA 1-2
+        new RegexReplace(@"\bOVA\s*(?<ep1>\d{1,2})\s*-\s*(?<ep2>\d{1,2})\b",
+            m => $" - {int.Parse(m.Groups["ep1"].Value):00}-{int.Parse(m.Groups["ep2"].Value):00} ",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase),
     };
 
     internal static readonly RegexReplace WebsitePrefixRegex = new(@"^(?:(?:\[|\()\s*)?(?:www\.)?[-a-z0-9-]{1,256}\.(?<!Naruto-Kun\.)(?:[a-z]{2,6}\.[a-z]{2,6}|xn--[a-z0-9-]{4,}|[a-z]{2,})\b(?:\s*(?:\]|\))|[ -]{2,})[ -]*",

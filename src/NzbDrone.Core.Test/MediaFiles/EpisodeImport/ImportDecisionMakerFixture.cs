@@ -9,6 +9,7 @@ using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
@@ -219,6 +220,45 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
             Subject.GetImportDecisions(_videoFiles, _series).Should().HaveCount(1);
 
             ExceptionVerification.ExpectedErrors(1);
+        }
+
+        [Test]
+        public void should_resolve_file_episode_info_using_special_episode_parser_when_path_has_no_episode_number()
+        {
+            GivenSpecifications(_pass1);
+
+            var unnumberedPath = @"C:\Test\Unsorted\Mayohiga no Onee-san The Animation [HH][UNCEN][BD 1920x1080 AVC 10bit][31EC31BE].mkv".AsOsAgnostic();
+            _videoFiles = new List<string> { unnumberedPath };
+            GivenVideoFiles(_videoFiles);
+
+            var parsedInfo = new ParsedEpisodeInfo
+            {
+                SeriesTitle = _series.Title,
+                SeasonNumber = 1,
+                EpisodeNumbers = new[] { 1 }
+            };
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.ParseSpecialEpisodeTitle(null, "Mayohiga no Onee-san The Animation [HH][UNCEN][BD 1920x1080 AVC 10bit][31EC31BE]", _series))
+                  .Returns(parsedInfo);
+
+            Mocker.GetMock<IAggregationService>()
+                  .Setup(a => a.Augment(It.IsAny<LocalEpisode>(), It.IsAny<DownloadClientItem>()))
+                  .Callback<LocalEpisode, DownloadClientItem>((le, d) =>
+                  {
+                      le.Episodes = new List<Episode>
+                      {
+                          new Episode { SeasonNumber = 1, EpisodeNumber = 1 }
+                      };
+                  });
+
+            var decisions = Subject.GetImportDecisions(_videoFiles, _series);
+
+            decisions.Should().HaveCount(1);
+            decisions.First().Rejections.Should().BeEmpty();
+            decisions.First().LocalEpisode.FileEpisodeInfo.Should().NotBeNull();
+            decisions.First().LocalEpisode.FileEpisodeInfo.SeasonNumber.Should().Be(1);
+            decisions.First().LocalEpisode.FileEpisodeInfo.EpisodeNumbers.Should().Equal(new[] { 1 });
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
@@ -165,11 +166,14 @@ namespace NzbDrone.Core.Parser
 
         public RemoteEpisode Map(ParsedEpisodeInfo parsedEpisodeInfo, int seriesId, IEnumerable<int> episodeIds)
         {
+            var episodes = _episodeService.GetEpisodes(episodeIds);
+
             return new RemoteEpisode
             {
                 ParsedEpisodeInfo = parsedEpisodeInfo,
                 Series = _seriesService.GetSeries(seriesId),
-                Episodes = _episodeService.GetEpisodes(episodeIds)
+                Episodes = episodes,
+                MappedSeasonNumber = episodes.FirstOrDefault()?.SeasonNumber ?? parsedEpisodeInfo?.SeasonNumber ?? 0
             };
         }
 
@@ -207,9 +211,10 @@ namespace NzbDrone.Core.Parser
                 }
             }
 
+            FindSeriesResult seriesMatch = null;
             if (series == null)
             {
-                var seriesMatch = FindSeries(parsedEpisodeInfo, tvdbId, tvRageId, imdbId, sceneMapping, searchCriteria);
+                seriesMatch = FindSeries(parsedEpisodeInfo, tvdbId, tvRageId, imdbId, sceneMapping, searchCriteria);
 
                 if (seriesMatch != null)
                 {
@@ -221,6 +226,11 @@ namespace NzbDrone.Core.Parser
             if (series != null)
             {
                 remoteEpisode.Series = series;
+
+                if (seriesMatch?.MatchedSeasonNumber.HasValue == true && seriesMatch.MatchedSeasonNumber.Value > 1 && remoteEpisode.MappedSeasonNumber <= 1)
+                {
+                    remoteEpisode.MappedSeasonNumber = seriesMatch.MatchedSeasonNumber.Value;
+                }
 
                 if (ValidateParsedEpisodeInfo.ValidateForSeriesType(parsedEpisodeInfo, series))
                 {
@@ -310,27 +320,124 @@ namespace NzbDrone.Core.Parser
             return GetStandardEpisodes(series, parsedEpisodeInfo, mappedSeasonNumber, sceneSource, searchCriteria);
         }
 
+        private bool IsReleaseForSeries(Series series, string releaseTitle, SearchCriteriaBase searchCriteria = null)
+        {
+            if (series == null || string.IsNullOrWhiteSpace(releaseTitle))
+            {
+                return false;
+            }
+
+            var dummyInfo = new ParsedEpisodeInfo { ReleaseTitle = releaseTitle };
+
+            var candidateAliases = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+            if (!string.IsNullOrWhiteSpace(series.Title))
+            {
+                candidateAliases.Add(series.Title);
+            }
+
+            if (series.AlternateTitles != null)
+            {
+                foreach (var alt in series.AlternateTitles)
+                {
+                    if (!string.IsNullOrWhiteSpace(alt))
+                    {
+                        candidateAliases.Add(alt);
+                    }
+                }
+            }
+
+            if (searchCriteria != null && searchCriteria.Series != null && searchCriteria.Series.Id == series.Id)
+            {
+                if (!string.IsNullOrWhiteSpace(searchCriteria.SeasonTitle))
+                {
+                    candidateAliases.Add(searchCriteria.SeasonTitle);
+                }
+
+                if (searchCriteria.SeasonAlternateTitles != null)
+                {
+                    foreach (var sat in searchCriteria.SeasonAlternateTitles)
+                    {
+                        if (!string.IsNullOrWhiteSpace(sat))
+                        {
+                            candidateAliases.Add(sat);
+                        }
+                    }
+                }
+
+                if (searchCriteria.AllSeasonAliases != null)
+                {
+                    foreach (var kvp in searchCriteria.AllSeasonAliases)
+                    {
+                        foreach (var alias in kvp.Value)
+                        {
+                            if (!string.IsNullOrWhiteSpace(alias))
+                            {
+                                candidateAliases.Add(alias);
+                            }
+                        }
+                    }
+                }
+            }
+
+            var expandedAliases = new HashSet<string>(candidateAliases, StringComparer.InvariantCultureIgnoreCase);
+            foreach (var alias in candidateAliases)
+            {
+                if (SearchCriteriaBase.TryGetBaseTitle(alias, out var baseTitle) && !string.IsNullOrWhiteSpace(baseTitle))
+                {
+                    expandedAliases.Add(baseTitle);
+                }
+
+                if (SearchCriteriaBase.TryGetCoreTitle(alias, out var coreTitle) && !string.IsNullOrWhiteSpace(coreTitle))
+                {
+                    expandedAliases.Add(coreTitle);
+                }
+            }
+
+            foreach (var alias in expandedAliases)
+            {
+                var cleanAlias = alias.CleanForSearch();
+                if (!SearchCriteriaBase.IsSafeTitle(cleanAlias))
+                {
+                    continue;
+                }
+
+                if (IsAliasMatch(dummyInfo, alias, cleanAlias, null))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public ParsedEpisodeInfo ParseSpecialEpisodeTitle(ParsedEpisodeInfo parsedEpisodeInfo, string releaseTitle, int tvdbId, int tvRageId, string imdbId, SearchCriteriaBase searchCriteria = null)
         {
+            Series series = null;
+
             if (searchCriteria != null)
             {
                 if (tvdbId != 0 && tvdbId == searchCriteria.Series.TvdbId)
                 {
-                    return ParseSpecialEpisodeTitle(parsedEpisodeInfo, releaseTitle, searchCriteria.Series);
+                    series = searchCriteria.Series;
                 }
-
-                if (tvRageId != 0 && tvRageId == searchCriteria.Series.TvRageId)
+                else if (tvRageId != 0 && tvRageId == searchCriteria.Series.TvRageId)
                 {
-                    return ParseSpecialEpisodeTitle(parsedEpisodeInfo, releaseTitle, searchCriteria.Series);
+                    series = searchCriteria.Series;
                 }
-
-                if (imdbId.IsNotNullOrWhiteSpace() && imdbId.Equals(searchCriteria.Series.ImdbId, StringComparison.Ordinal))
+                else if (imdbId.IsNotNullOrWhiteSpace() && imdbId.Equals(searchCriteria.Series.ImdbId, StringComparison.Ordinal))
                 {
-                    return ParseSpecialEpisodeTitle(parsedEpisodeInfo, releaseTitle, searchCriteria.Series);
+                    series = searchCriteria.Series;
+                }
+                else if (IsReleaseForSeries(searchCriteria.Series, releaseTitle, searchCriteria))
+                {
+                    series = searchCriteria.Series;
                 }
             }
 
-            var series = GetSeries(releaseTitle);
+            if (series == null)
+            {
+                series = GetSeries(releaseTitle);
+            }
 
             if (series == null)
             {
@@ -399,6 +506,53 @@ namespace NzbDrone.Core.Parser
                 return info;
             }
 
+            // If parsedEpisodeInfo already specified explicit episode numbers that are not specials, do not override
+            if (parsedEpisodeInfo != null && parsedEpisodeInfo.EpisodeNumbers != null && parsedEpisodeInfo.EpisodeNumbers.Any())
+            {
+                return null;
+            }
+
+            // Support single-episode series, OVAs, anime movies, or 1-episode seasons:
+            // When release has no episode number and the anime series only has 1 regular episode,
+            // the release represents that sole episode (e.g. S01E01).
+            var allEpisodes = _episodeService.GetEpisodeBySeries(series.Id);
+            if (allEpisodes != null && allEpisodes.Any())
+            {
+                var regularEpisodes = allEpisodes.Where(e => e.SeasonNumber > 0).ToList();
+                var season1Episodes = allEpisodes.Where(e => e.SeasonNumber == 1).ToList();
+
+                if (regularEpisodes.Count == 1 || allEpisodes.Count == 1 || (season1Episodes.Count == 1 && regularEpisodes.Count <= 1))
+                {
+                    var targetEpisode = regularEpisodes.FirstOrDefault() ?? allEpisodes.First();
+                    var info = new ParsedEpisodeInfo
+                    {
+                        ReleaseTitle = releaseTitle,
+                        SeriesTitle = series.Title,
+                        SeriesTitleInfo = new SeriesTitleInfo
+                        {
+                            Title = series.Title
+                        },
+                        SeasonNumber = targetEpisode.SeasonNumber,
+                        EpisodeNumbers = new int[1] { targetEpisode.EpisodeNumber },
+                        AbsoluteEpisodeNumbers = targetEpisode.AbsoluteEpisodeNumber.HasValue
+                            ? new int[1] { targetEpisode.AbsoluteEpisodeNumber.Value }
+                            : new int[0],
+                        FullSeason = false,
+                        Quality = QualityParser.ParseQuality(releaseTitle),
+                        ReleaseGroup = ReleaseGroupParser.ParseReleaseGroup(releaseTitle),
+                        Languages = LanguageParser.ParseLanguages(releaseTitle),
+                        Special = targetEpisode.SeasonNumber == 0
+                    };
+
+                    _logger.Debug("Matched single-episode anime/series {0} (S{1:D2}E{2:D2}) for title '{3}'",
+                                  series.Title,
+                                  targetEpisode.SeasonNumber,
+                                  targetEpisode.EpisodeNumber,
+                                  releaseTitle);
+                    return info;
+                }
+            }
+
             return null;
         }
 
@@ -439,92 +593,246 @@ namespace NzbDrone.Core.Parser
                     var cleanParsedTitle = parsedEpisodeInfo.SeriesTitle?.CleanForSearch() ?? string.Empty;
                     var cleanReleaseTitle = parsedEpisodeInfo.ReleaseTitle.IsNotNullOrWhiteSpace() ? parsedEpisodeInfo.ReleaseTitle.CleanForSearch() : null;
 
-                    var candidateAliases = new List<string>();
+                    var seasonMap = new Dictionary<int, List<string>>();
+
+                    // 1. Load any pre-computed season aliases from searchCriteria.AllSeasonAliases
+                    if (searchCriteria.AllSeasonAliases != null)
+                    {
+                        foreach (var kvp in searchCriteria.AllSeasonAliases)
+                        {
+                            seasonMap[kvp.Key] = new List<string>(kvp.Value);
+                        }
+                    }
+
+                    // 2. Incorporate explicit season titles & alternate titles from searchCriteria
+                    if (searchCriteria.TargetSeasonNumber.HasValue)
+                    {
+                        if (!seasonMap.TryGetValue(searchCriteria.TargetSeasonNumber.Value, out var targetList))
+                        {
+                            targetList = new List<string>();
+                            seasonMap[searchCriteria.TargetSeasonNumber.Value] = targetList;
+                        }
+
+                        if (searchCriteria.SeasonTitle != null && !targetList.Contains(searchCriteria.SeasonTitle, StringComparer.InvariantCultureIgnoreCase))
+                        {
+                            targetList.Add(searchCriteria.SeasonTitle);
+                        }
+
+                        if (searchCriteria.SeasonAlternateTitles != null)
+                        {
+                            foreach (var sat in searchCriteria.SeasonAlternateTitles)
+                            {
+                                if (!targetList.Contains(sat, StringComparer.InvariantCultureIgnoreCase))
+                                {
+                                    targetList.Add(sat);
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Incorporate seasons from Series.Seasons
+                    if (searchCriteria.Series.Seasons != null)
+                    {
+                        foreach (var s in searchCriteria.Series.Seasons)
+                        {
+                            if (!string.IsNullOrWhiteSpace(s.Title))
+                            {
+                                if (!seasonMap.TryGetValue(s.SeasonNumber, out var sList))
+                                {
+                                    sList = new List<string>();
+                                    seasonMap[s.SeasonNumber] = sList;
+                                }
+
+                                if (!sList.Contains(s.Title, StringComparer.InvariantCultureIgnoreCase))
+                                {
+                                    sList.Add(s.Title);
+                                }
+                            }
+                        }
+                    }
+
+                    // 4. Ensure Season 1 has the primary series title
                     if (searchCriteria.Series.Title != null)
                     {
-                        candidateAliases.Add(searchCriteria.Series.Title);
+                        if (!seasonMap.TryGetValue(1, out var s1List))
+                        {
+                            s1List = new List<string>();
+                            seasonMap[1] = s1List;
+                        }
+
+                        if (!s1List.Contains(searchCriteria.Series.Title, StringComparer.InvariantCultureIgnoreCase))
+                        {
+                            s1List.Add(searchCriteria.Series.Title);
+                        }
                     }
 
+                    // 5. Partition any remaining Series.AlternateTitles into their respective seasons
                     if (searchCriteria.Series.AlternateTitles != null)
                     {
-                        candidateAliases.AddRange(searchCriteria.Series.AlternateTitles);
-                    }
-
-                    var baseAliases = new List<string>();
-                    foreach (var alias in candidateAliases)
-                    {
-                        if (SearchCriteriaBase.TryGetBaseTitle(alias, out var baseTitle))
+                        foreach (var alt in searchCriteria.Series.AlternateTitles)
                         {
-                            baseAliases.Add(baseTitle);
-                        }
-                    }
-
-                    candidateAliases.AddRange(baseAliases);
-
-                    // 1. Primary verification: CleanForSearch substring containment against known aliases
-                    foreach (var alias in candidateAliases)
-                    {
-                        if (string.IsNullOrWhiteSpace(alias))
-                        {
-                            continue;
-                        }
-
-                        var cleanAlias = alias.CleanForSearch();
-                        if (SearchCriteriaBase.IsSafeTitle(cleanAlias))
-                        {
-                            if (IsValidSubstringMatch(cleanParsedTitle, cleanAlias) ||
-                                (cleanReleaseTitle != null && IsValidSubstringMatch(cleanReleaseTitle, cleanAlias)))
+                            if (string.IsNullOrWhiteSpace(alt) || SearchCriteriaBase.IsSpacelessSlug(alt))
                             {
-                                _logger.Debug("Matched AniDB series '{0}' by alias CleanForSearch containment '{1}' in '{2}'",
-                                    searchCriteria.Series.Title,
-                                    alias,
-                                    parsedEpisodeInfo.SeriesTitle);
-
-                                return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
-                            }
-                        }
-                    }
-
-                    // 2. Fallback verification: relative-Levenshtein check on core titles for minor typos
-                    if (SearchCriteriaBase.TryGetCoreTitle(searchCriteria.Series.Title, out var coreTitle) ||
-                        SearchCriteriaBase.TryGetBaseTitle(searchCriteria.Series.Title, out coreTitle) ||
-                        (searchCriteria.Series.AlternateTitles != null && searchCriteria.Series.AlternateTitles.Any() &&
-                         (SearchCriteriaBase.TryGetCoreTitle(searchCriteria.Series.AlternateTitles.First(), out coreTitle) ||
-                          SearchCriteriaBase.TryGetBaseTitle(searchCriteria.Series.AlternateTitles.First(), out coreTitle))))
-                    {
-                        var cleanCore = coreTitle.CleanForSearch();
-                        if (SearchCriteriaBase.IsSafeTitle(cleanCore))
-                        {
-                            var allowed = cleanCore.GetAllowedEdits(cleanParsedTitle);
-                            if (char.IsDigit(cleanParsedTitle[cleanParsedTitle.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
-                                Math.Abs(cleanCore.Length - cleanParsedTitle.Length) <= allowed &&
-                                cleanCore.LevenshteinDistance(cleanParsedTitle) <= allowed)
-                            {
-                                _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed '{2}'",
-                                    searchCriteria.Series.Title,
-                                    coreTitle,
-                                    parsedEpisodeInfo.SeriesTitle);
-
-                                return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
+                                continue;
                             }
 
-                            if (SearchCriteriaBase.TryGetCoreTitle(parsedEpisodeInfo.SeriesTitle, out var parsedCore) ||
-                                SearchCriteriaBase.TryGetBaseTitle(parsedEpisodeInfo.SeriesTitle, out parsedCore))
+                            var assignedSeason = 1;
+                            if (seasonMap.Keys.Any(k => k > 1))
                             {
-                                var cleanParsedCore = parsedCore.CleanForSearch();
-                                if (SearchCriteriaBase.IsSafeTitle(cleanParsedCore))
+                                foreach (var seasonNum in seasonMap.Keys.Where(k => k > 1).OrderByDescending(k => k))
                                 {
-                                    var coreAllowed = cleanCore.GetAllowedEdits(cleanParsedCore);
-                                    if (char.IsDigit(cleanParsedCore[cleanParsedCore.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
-                                        Math.Abs(cleanCore.Length - cleanParsedCore.Length) <= coreAllowed &&
-                                        cleanCore.LevenshteinDistance(cleanParsedCore) <= coreAllowed)
+                                    if (Regex.IsMatch(alt, $@"(?:^|[^\p{{L}}\d]){seasonNum}(?:[^\p{{L}}\d]|$)"))
                                     {
-                                        _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed core '{2}'",
-                                            searchCriteria.Series.Title,
-                                            coreTitle,
-                                            parsedCore);
+                                        assignedSeason = seasonNum;
+                                        break;
+                                    }
+                                }
+                            }
 
-                                        return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias);
+                            if (!seasonMap.TryGetValue(assignedSeason, out var aList))
+                            {
+                                aList = new List<string>();
+                                seasonMap[assignedSeason] = aList;
+                            }
+
+                            if (!aList.Contains(alt, StringComparer.InvariantCultureIgnoreCase))
+                            {
+                                aList.Add(alt);
+                            }
+                        }
+                    }
+
+                    // 6. Match against per-season candidate aliases
+                    var seasonMatches = new List<(int SeasonNumber, string Alias, int Length, bool Exact)>();
+
+                    foreach (var (seasonNum, rawAliases) in seasonMap)
+                    {
+                        var candidateAliases = new HashSet<string>(StringComparer.InvariantCultureIgnoreCase);
+                        foreach (var alias in rawAliases)
+                        {
+                            if (string.IsNullOrWhiteSpace(alias))
+                            {
+                                continue;
+                            }
+
+                            candidateAliases.Add(alias);
+                            if (SearchCriteriaBase.TryGetBaseTitle(alias, out var baseTitle))
+                            {
+                                candidateAliases.Add(baseTitle);
+                            }
+
+                            if (SearchCriteriaBase.TryGetCoreTitle(alias, out var coreTitle))
+                            {
+                                candidateAliases.Add(coreTitle);
+                            }
+                        }
+
+                        foreach (var alias in candidateAliases)
+                        {
+                            var cleanAlias = alias.CleanForSearch();
+                            if (!SearchCriteriaBase.IsSafeTitle(cleanAlias))
+                            {
+                                continue;
+                            }
+
+                            if (IsAliasMatch(parsedEpisodeInfo, alias, cleanAlias, cleanParsedTitle))
+                            {
+                                var exact = cleanParsedTitle == cleanAlias;
+                                seasonMatches.Add((seasonNum, alias, cleanAlias.Length, exact));
+                            }
+                        }
+                    }
+
+                    if (seasonMatches.Any())
+                    {
+                        var targetSeasonNum = searchCriteria.TargetSeasonNumber ?? 1;
+                        var bestMatch = seasonMatches
+                            .OrderByDescending(m => m.Exact)
+                            .ThenByDescending(m => m.Length)
+                            .ThenByDescending(m => m.SeasonNumber == targetSeasonNum)
+                            .ThenByDescending(m => m.SeasonNumber)
+                            .First();
+
+                        _logger.Debug("Matched AniDB series '{0}' season {1} by alias CleanForSearch containment '{2}' in '{3}'",
+                            searchCriteria.Series.Title,
+                            bestMatch.SeasonNumber,
+                            bestMatch.Alias,
+                            parsedEpisodeInfo.SeriesTitle);
+
+                        return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias, bestMatch.SeasonNumber);
+                    }
+
+                    // 7. Fallback verification: relative-Levenshtein check on core titles for minor typos
+                    var fallbackTitles = new List<Tuple<string, int>>();
+                    if (searchCriteria.TargetSeasonNumber.HasValue && searchCriteria.SeasonTitle != null)
+                    {
+                        fallbackTitles.Add(Tuple.Create(searchCriteria.SeasonTitle, searchCriteria.TargetSeasonNumber.Value));
+                    }
+
+                    if (searchCriteria.Series.Seasons != null)
+                    {
+                        foreach (var s in searchCriteria.Series.Seasons)
+                        {
+                            if (!string.IsNullOrWhiteSpace(s.Title) && !fallbackTitles.Any(f => f.Item1.Equals(s.Title, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                fallbackTitles.Add(Tuple.Create(s.Title, s.SeasonNumber));
+                            }
+                        }
+                    }
+
+                    if (searchCriteria.Series.Title != null && !fallbackTitles.Any(f => f.Item1.Equals(searchCriteria.Series.Title, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        fallbackTitles.Add(Tuple.Create(searchCriteria.Series.Title, 1));
+                    }
+
+                    if (searchCriteria.Series.AlternateTitles != null && searchCriteria.Series.AlternateTitles.Any())
+                    {
+                        var firstAlt = searchCriteria.Series.AlternateTitles.First();
+                        if (!fallbackTitles.Any(f => f.Item1.Equals(firstAlt, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            fallbackTitles.Add(Tuple.Create(firstAlt, 1));
+                        }
+                    }
+
+                    foreach (var fallback in fallbackTitles)
+                    {
+                        if (SearchCriteriaBase.TryGetCoreTitle(fallback.Item1, out var coreTitle) ||
+                            SearchCriteriaBase.TryGetBaseTitle(fallback.Item1, out coreTitle))
+                        {
+                            var cleanCore = coreTitle.CleanForSearch();
+                            if (SearchCriteriaBase.IsSafeTitle(cleanCore))
+                            {
+                                var allowed = cleanCore.GetAllowedEdits(cleanParsedTitle);
+                                if (char.IsDigit(cleanParsedTitle[cleanParsedTitle.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
+                                    Math.Abs(cleanCore.Length - cleanParsedTitle.Length) <= allowed &&
+                                    cleanCore.LevenshteinDistance(cleanParsedTitle) <= allowed)
+                                {
+                                    _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed '{2}'",
+                                        searchCriteria.Series.Title,
+                                        coreTitle,
+                                        parsedEpisodeInfo.SeriesTitle);
+
+                                    return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias, fallback.Item2);
+                                }
+
+                                if (SearchCriteriaBase.TryGetCoreTitle(parsedEpisodeInfo.SeriesTitle, out var parsedCore) ||
+                                    SearchCriteriaBase.TryGetBaseTitle(parsedEpisodeInfo.SeriesTitle, out parsedCore))
+                                {
+                                    var cleanParsedCore = parsedCore.CleanForSearch();
+                                    if (SearchCriteriaBase.IsSafeTitle(cleanParsedCore))
+                                    {
+                                        var coreAllowed = cleanCore.GetAllowedEdits(cleanParsedCore);
+                                        if (char.IsDigit(cleanParsedCore[cleanParsedCore.Length - 1]) == char.IsDigit(cleanCore[cleanCore.Length - 1]) &&
+                                            Math.Abs(cleanCore.Length - cleanParsedCore.Length) <= coreAllowed &&
+                                            cleanCore.LevenshteinDistance(cleanParsedCore) <= coreAllowed)
+                                        {
+                                            _logger.Debug("Matched AniDB series '{0}' by relative-Levenshtein distance on core title '{1}' against parsed core '{2}'",
+                                                searchCriteria.Series.Title,
+                                                coreTitle,
+                                                parsedCore);
+
+                                            return new FindSeriesResult(searchCriteria.Series, SeriesMatchType.Alias, fallback.Item2);
+                                        }
                                     }
                                 }
                             }
@@ -727,8 +1035,30 @@ namespace NzbDrone.Core.Parser
 
                 if (episodes.Empty())
                 {
-                    var episode = _episodeService.FindEpisode(series.Id, absoluteEpisodeNumber);
-                    episodes.AddIfNotNull(episode);
+                    if (seasonNumber > 1)
+                    {
+                        var seasonEpisode = searchCriteria?.Episodes?.SingleOrDefault(e =>
+                            e.SeasonNumber == seasonNumber &&
+                            (e.EpisodeNumber == absoluteEpisodeNumber || e.AbsoluteEpisodeNumber == absoluteEpisodeNumber));
+
+                        if (seasonEpisode != null)
+                        {
+                            episodes.Add(seasonEpisode);
+                        }
+                        else
+                        {
+                            seasonEpisode = _episodeService.FindEpisode(series.Id, seasonNumber, absoluteEpisodeNumber);
+                            if (seasonEpisode != null)
+                            {
+                                episodes.Add(seasonEpisode);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var episode = _episodeService.FindEpisode(series.Id, absoluteEpisodeNumber);
+                        episodes.AddIfNotNull(episode);
+                    }
                 }
 
                 foreach (var episode in episodes)
@@ -810,7 +1140,80 @@ namespace NzbDrone.Core.Parser
             return result;
         }
 
-        private static bool IsValidSubstringMatch(string target, string alias)
+        private static readonly Regex BracketExtractorRegex = new Regex(
+            @"[\[\(【（『「]([^\]\)】）』」]+)[\]\)】）』」]",
+            RegexOptions.Compiled);
+
+        private static readonly Regex SegmentSplitterRegex = new Regex(
+            @"\s*[:：|/]\s*|\s+[-—–~～]\s+",
+            RegexOptions.Compiled);
+
+        private static readonly char[] WordTokenSeparators = new[]
+        {
+            ' ', '.', '_', '-', ':', '~', '–', '—', '/', '|', '(', ')', '[', ']', '{', '}', '"', '!', '?', ';', ',', '+'
+        };
+
+        private static List<string> TokenizeLatinWords(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return new List<string>();
+            }
+
+            var normalized = text.Replace("'", "").Replace("’", "").Replace("`", "");
+
+            return normalized.Split(WordTokenSeparators, StringSplitOptions.RemoveEmptyEntries)
+                             .Select(w => w.Trim().ToLowerInvariant())
+                             .Where(w => w.Length > 0)
+                             .ToList();
+        }
+
+        private static List<string> GetTitleCandidateSegments(string seriesTitle, string releaseTitle)
+        {
+            var segments = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddFrom(string text)
+            {
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return;
+                }
+
+                segments.Add(text);
+
+                var matches = BracketExtractorRegex.Matches(text);
+                foreach (Match match in matches)
+                {
+                    if (match.Success && match.Groups[1].Value.Length > 0)
+                    {
+                        segments.Add(match.Groups[1].Value);
+                    }
+                }
+
+                var withoutBrackets = BracketExtractorRegex.Replace(text, " ");
+                if (!string.IsNullOrWhiteSpace(withoutBrackets))
+                {
+                    segments.Add(withoutBrackets.Trim());
+
+                    var parts = SegmentSplitterRegex.Split(withoutBrackets);
+                    foreach (var part in parts)
+                    {
+                        var trimmed = part.Trim();
+                        if (trimmed.Length > 0)
+                        {
+                            segments.Add(trimmed);
+                        }
+                    }
+                }
+            }
+
+            AddFrom(seriesTitle);
+            AddFrom(releaseTitle);
+
+            return segments.ToList();
+        }
+
+        private static bool IsValidJapaneseSubstringMatch(string target, string alias)
         {
             if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(alias))
             {
@@ -831,7 +1234,98 @@ namespace NzbDrone.Core.Parser
                     }
                 }
 
+                if (idx > 0)
+                {
+                    var prevChar = target[idx - 1];
+                    if (char.IsDigit(prevChar) && !char.IsDigit(alias[0]))
+                    {
+                        idx = nextIdx;
+                        continue;
+                    }
+                }
+
                 return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsAliasMatch(ParsedEpisodeInfo parsedEpisodeInfo, string alias, string cleanAlias, string cleanParsedTitle)
+        {
+            if (parsedEpisodeInfo == null || string.IsNullOrWhiteSpace(alias))
+            {
+                return false;
+            }
+
+            if (cleanParsedTitle == cleanAlias)
+            {
+                return true;
+            }
+
+            var isJapanese = SearchCriteriaBase.IsNativeJapaneseTitle(alias);
+            var candidateSegments = GetTitleCandidateSegments(parsedEpisodeInfo.SeriesTitle, parsedEpisodeInfo.ReleaseTitle);
+            var aliasTokens = !isJapanese ? TokenizeLatinWords(alias) : null;
+
+            foreach (var segment in candidateSegments)
+            {
+                if (string.IsNullOrWhiteSpace(segment))
+                {
+                    continue;
+                }
+
+                var cleanSegment = segment.CleanForSearch();
+                if (cleanSegment.Length == 0)
+                {
+                    continue;
+                }
+
+                if (cleanSegment == cleanAlias)
+                {
+                    return true;
+                }
+
+                if (isJapanese)
+                {
+                    if (IsValidJapaneseSubstringMatch(cleanSegment, cleanAlias))
+                    {
+                        return true;
+                    }
+                }
+                else if (aliasTokens != null && aliasTokens.Count > 0)
+                {
+                    var segmentTokens = TokenizeLatinWords(segment);
+                    if (segmentTokens.Count >= aliasTokens.Count)
+                    {
+                        var matchesPrefix = true;
+                        for (var i = 0; i < aliasTokens.Count; i++)
+                        {
+                            if (!segmentTokens[i].Equals(aliasTokens[i], StringComparison.OrdinalIgnoreCase))
+                            {
+                                matchesPrefix = false;
+                                break;
+                            }
+                        }
+
+                        if (matchesPrefix)
+                        {
+                            if (segmentTokens.Count > aliasTokens.Count)
+                            {
+                                var nextToken = segmentTokens[aliasTokens.Count];
+                                if (nextToken.Length > 0 && char.IsDigit(nextToken[0]) && !char.IsDigit(aliasTokens[aliasTokens.Count - 1].LastOrDefault()))
+                                {
+                                    if (Regex.IsMatch(nextToken, @"^\d{3,4}p?$", RegexOptions.IgnoreCase))
+                                    {
+                                        return true;
+                                    }
+
+                                    continue;
+                                }
+                            }
+
+                            return true;
+                        }
+                    }
+                }
             }
 
             return false;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using NLog;
 using NzbDrone.Common.Disk;
@@ -7,6 +8,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.MediaFiles.EpisodeImport.Aggregation;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Tv;
 
@@ -26,6 +28,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         private readonly IEnumerable<IImportDecisionEngineSpecification> _specifications;
         private readonly IMediaFileService _mediaFileService;
         private readonly IAggregationService _aggregationService;
+        private readonly IParsingService _parsingService;
         private readonly IDiskProvider _diskProvider;
         private readonly IDetectSample _detectSample;
         private readonly ITrackedDownloadService _trackedDownloadService;
@@ -35,6 +38,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
         public ImportDecisionMaker(IEnumerable<IImportDecisionEngineSpecification> specifications,
                                    IMediaFileService mediaFileService,
                                    IAggregationService aggregationService,
+                                   IParsingService parsingService,
                                    IDiskProvider diskProvider,
                                    IDetectSample detectSample,
                                    ITrackedDownloadService trackedDownloadService,
@@ -44,6 +48,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             _specifications = specifications;
             _mediaFileService = mediaFileService;
             _aggregationService = aggregationService;
+            _parsingService = parsingService;
             _diskProvider = diskProvider;
             _detectSample = detectSample;
             _trackedDownloadService = trackedDownloadService;
@@ -113,6 +118,17 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
             try
             {
                 var fileEpisodeInfo = Parser.Parser.ParsePath(localEpisode.Path);
+
+                if (fileEpisodeInfo == null && localEpisode.Series != null)
+                {
+                    var title = Path.GetFileNameWithoutExtension(localEpisode.Path);
+                    fileEpisodeInfo = _parsingService.ParseSpecialEpisodeTitle(null, title, localEpisode.Series);
+
+                    if (fileEpisodeInfo == null && localEpisode.DownloadItem != null && localEpisode.DownloadItem.Title.IsNotNullOrWhiteSpace())
+                    {
+                        fileEpisodeInfo = _parsingService.ParseSpecialEpisodeTitle(null, localEpisode.DownloadItem.Title, localEpisode.Series);
+                    }
+                }
 
                 localEpisode.FileEpisodeInfo = fileEpisodeInfo;
                 localEpisode.Size = _diskProvider.GetFileSize(localEpisode.Path);

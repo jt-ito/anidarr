@@ -151,10 +151,17 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
                         if (parsedEpisodeInfo != null)
                         {
+                            var grabbedEpisodeIds = grabbedEvent != null
+                                ? historyItems.Where(v => v.EventType == EpisodeHistoryEventType.Grabbed && Math.Abs((v.Date - grabbedEvent.Date).TotalSeconds) < 10)
+                                              .Select(h => h.EpisodeId)
+                                              .Distinct()
+                                : historyItems.Where(v => v.EventType == EpisodeHistoryEventType.Grabbed)
+                                              .Select(h => h.EpisodeId)
+                                              .Distinct();
+
                             trackedDownload.RemoteEpisode = _parsingService.Map(parsedEpisodeInfo,
                                 firstHistoryItem.SeriesId,
-                                historyItems.Where(v => v.EventType == EpisodeHistoryEventType.Grabbed)
-                                    .Select(h => h.EpisodeId).Distinct());
+                                grabbedEpisodeIds);
                         }
                     }
 

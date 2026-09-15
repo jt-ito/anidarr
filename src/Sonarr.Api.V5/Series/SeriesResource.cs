@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Tv;
@@ -132,7 +133,10 @@ public static class SeriesResourceMapper
             Added = model.Added,
             AddOptions = model.AddOptions,
             Ratings = model.Ratings,
-            AlternateTitles = model.AlternateTitles?.Select(t => new AlternateTitleResource { Title = t, Comment = "AniDB" }).ToList() ?? new List<AlternateTitleResource>()
+            AlternateTitles = model.AlternateTitles?
+                .Where(t => !SearchCriteriaBase.IsSpacelessSlug(t))
+                .Select(t => new AlternateTitleResource { Title = t, Comment = "AniDB" })
+                .ToList() ?? new List<AlternateTitleResource>()
         };
 
             return resource;

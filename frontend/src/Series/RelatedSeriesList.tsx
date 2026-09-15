@@ -1,7 +1,5 @@
 import React, { useMemo } from 'react';
-import Label from 'Components/Label';
 import Link from 'Components/Link/Link';
-import { kinds, sizes } from 'Helpers/Props';
 import Series, { AniDbRelatedSeries } from 'Series/Series';
 import useSeries from 'Series/useSeries';
 
@@ -30,70 +28,81 @@ function getRelationCategory(relationType?: string): RelationCategory {
   return 'alt';
 }
 
-type RelationBadgeKind = 'success' | 'purple' | 'warning' | 'info';
+interface RelationConfig {
+  label: string;
+  accentColor: string;
+}
 
-function getRelationBadgeKind(relationType?: string): RelationBadgeKind {
+function getRelationConfig(relationType?: string): RelationConfig {
   const type = (relationType || '').toLowerCase();
 
   if (type.includes('sequel')) {
-    return kinds.SUCCESS;
+    return {
+      label: 'Sequel',
+      accentColor: '#22c55e', // Vibrant emerald green
+    };
   }
 
   if (type.includes('prequel')) {
-    return kinds.PURPLE;
-  }
-
-  if (
-    type.includes('side') ||
-    type.includes('summary') ||
-    type.includes('parent')
-  ) {
-    return kinds.WARNING;
-  }
-
-  return kinds.INFO;
-}
-
-function getRelationLabel(relationType?: string): string {
-  if (!relationType) {
-    return 'Related';
-  }
-
-  const type = relationType.toLowerCase();
-
-  if (type.includes('sequel')) {
-    return 'Sequel';
-  }
-
-  if (type.includes('prequel')) {
-    return 'Prequel';
+    return {
+      label: 'Prequel',
+      accentColor: '#a855f7', // Vibrant purple
+    };
   }
 
   if (type.includes('side')) {
-    return 'Side Story';
+    return {
+      label: 'Side Story',
+      accentColor: '#f59e0b', // Warm amber
+    };
   }
 
   if (type.includes('summary')) {
-    return 'Summary';
+    return {
+      label: 'Summary',
+      accentColor: '#f59e0b',
+    };
   }
 
   if (type.includes('parent')) {
-    return 'Parent Story';
+    return {
+      label: 'Parent Story',
+      accentColor: '#f59e0b',
+    };
+  }
+
+  if (type.includes('same setting')) {
+    return {
+      label: 'Same Setting',
+      accentColor: '#06b6d4', // Crisp, high-contrast cyan/teal
+    };
   }
 
   if (type.includes('alternative setting')) {
-    return 'Alt. Setting';
+    return {
+      label: 'Alt. Setting',
+      accentColor: '#38bdf8', // Sky blue
+    };
   }
 
   if (type.includes('alternative version')) {
-    return 'Alt. Version';
+    return {
+      label: 'Alt. Version',
+      accentColor: '#818cf8', // Indigo
+    };
   }
 
   if (type.includes('spin-off') || type.includes('spinoff')) {
-    return 'Spin-Off';
+    return {
+      label: 'Spin-Off',
+      accentColor: '#ec4899', // Pink
+    };
   }
 
-  return relationType;
+  return {
+    label: relationType || 'Related',
+    accentColor: '#06b6d4',
+  };
 }
 
 function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
@@ -236,8 +245,7 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
                 }`;
               }
 
-              const badgeKind = getRelationBadgeKind(related.relationType);
-              const relationLabel = getRelationLabel(related.relationType);
+              const config = getRelationConfig(related.relationType);
 
               const tooltipText = isInLibrary
                 ? `${
@@ -248,19 +256,66 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
                   } (Not Added - Click to Add)`;
 
               return (
-                <Link key={related.relatedAniDbId} to={targetUrl}>
-                  <Label
-                    size={sizes.SMALL}
-                    kind={badgeKind}
-                    outline={!isInLibrary}
+                <Link
+                  key={related.relatedAniDbId}
+                  to={targetUrl}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <span
                     title={tooltipText}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '2px 8px',
+                      margin: '2px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      lineHeight: '1.4',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      border: `1px solid ${config.accentColor}`,
+                      backgroundColor: isInLibrary
+                        ? config.accentColor
+                        : 'var(--pageHeaderBackgroundColor, rgba(32, 32, 32, 0.85))',
+                      color: isInLibrary
+                        ? '#ffffff'
+                        : 'var(--defaultLinkHoverColor, var(--textColor, #ffffff))',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+                    }}
                   >
-                    <strong style={{ marginRight: '4px' }}>
-                      [{relationLabel}]
+                    <strong
+                      style={{
+                        marginRight: '5px',
+                        color: isInLibrary ? '#ffffff' : config.accentColor,
+                        fontWeight: 700,
+                        letterSpacing: '0.2px',
+                      }}
+                    >
+                      [{config.label}]
                     </strong>
-                    {title}
-                    {isInLibrary ? ' ✓' : ''}
-                  </Label>
+                    <span
+                      style={{
+                        color: isInLibrary
+                          ? '#ffffff'
+                          : 'var(--defaultLinkHoverColor, var(--textColor, #ffffff))',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {title}
+                    </span>
+                    {isInLibrary ? (
+                      <span
+                        style={{
+                          marginLeft: '5px',
+                          fontSize: '10px',
+                          opacity: 0.9,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    ) : null}
+                  </span>
                 </Link>
               );
             })}

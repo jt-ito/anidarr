@@ -164,5 +164,47 @@ namespace NzbDrone.Core.Test.MetadataSource
             // Assuming distance is 1 and length is ~8, allowed is 1
             results.Should().HaveCount(1);
         }
+
+        [Test]
+        public void should_search_blazing_fast_on_large_catalog()
+        {
+            var largeList = new List<AnimeOfflineTitle>(3000);
+            for (var i = 100; i < 3100; i++)
+            {
+                largeList.Add(new AnimeOfflineTitle
+                {
+                    Title = $"Anime Title {i}",
+                    CleanTitle = $"animetitle{i}",
+                    SearchSynonyms = new List<string> { $"synonym{i}a", $"synonym{i}b", $"synonym{i}c" },
+                    AniDbId = i
+                });
+            }
+
+            largeList.Add(new AnimeOfflineTitle
+            {
+                Title = "Unique Test Anime",
+                CleanTitle = "uniquetestanime",
+                SearchSynonyms = new List<string> { "uniquesynonymtarget" },
+                AniDbId = 99999
+            });
+
+            Subject.InsertMany(largeList);
+
+            // Warm up cache
+            Subject.FindSearchMatches("animetitle100", "anidb");
+
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            for (var i = 0; i < 10; i++)
+            {
+                var results = Subject.FindSearchMatches("uniquesynonymtarget", "anidb");
+                results.Should().HaveCount(1);
+                results[0].Title.Should().Be("Unique Test Anime");
+            }
+
+            sw.Stop();
+
+            // 10 in-memory searches should execute in well under 100ms total (<10ms each)
+            sw.ElapsedMilliseconds.Should().BeLessThan(200);
+        }
     }
 }

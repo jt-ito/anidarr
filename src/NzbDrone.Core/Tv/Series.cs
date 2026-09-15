@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Languages;
@@ -100,7 +101,20 @@ namespace NzbDrone.Core.Tv
             Tags = otherSeries.Tags;
             AddOptions = otherSeries.AddOptions;
             FansubGroup = otherSeries.FansubGroup;
-            AlternateTitles = otherSeries.AlternateTitles;
+
+            if (otherSeries.AlternateTitles != null && otherSeries.AlternateTitles.Any())
+            {
+                if (AlternateTitles == null)
+                {
+                    AlternateTitles = otherSeries.AlternateTitles;
+                }
+                else
+                {
+                    AlternateTitles = AlternateTitles.Concat(otherSeries.AlternateTitles)
+                        .Distinct(StringComparer.InvariantCultureIgnoreCase)
+                        .ToList();
+                }
+            }
         }
     }
 }

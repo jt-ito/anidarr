@@ -11,6 +11,7 @@ using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.MetadataSource.AniList;
@@ -169,6 +170,38 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
+            var effectiveHubId = hubId;
+            if (hasTvOrWebAnchor)
+            {
+                foreach (var id in chainIds)
+                {
+                    if (chainDocs.TryGetValue(id, out var anchorDoc))
+                    {
+                        var docNs = anchorDoc.Root?.Name.Namespace ?? XNamespace.None;
+                        var docType = anchorDoc.Root?.Element(docNs + "type")?.Value;
+                        if (string.Equals(docType, "TV Series", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(docType, "Web", StringComparison.OrdinalIgnoreCase))
+                        {
+                            effectiveHubId = id;
+                            break;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(docType) ||
+                            docType.Equals("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                            docType.Equals("Other", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var adv = GetAdvisoryAniListInfo(id);
+                            if (adv != null && (string.Equals(adv.Format, "TV", StringComparison.OrdinalIgnoreCase) ||
+                                                string.Equals(adv.Format, "TV_SHORT", StringComparison.OrdinalIgnoreCase)))
+                            {
+                                effectiveHubId = id;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             foreach (var id in chainIds)
             {
                 if (!chainDocs.TryGetValue(id, out var doc))
@@ -178,7 +211,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                 var currentSeriesMetadata = MapSeries(doc.Root, id);
                 ReportProgress(aniDbId, $"Processing season metadata: {currentSeriesMetadata.Title}...");
-                if (hubSeries == null)
+                if (id == effectiveHubId || hubSeries == null)
                 {
                     hubSeries = currentSeriesMetadata;
                 }
@@ -202,10 +235,10 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
                 else
                 {
-                    var hasQualifyingHubRelation = id != hubId;
+                    var hasQualifyingHubRelation = id != effectiveHubId;
                     var isAmbiguousHubRelation = false;
 
-                    if (!hasQualifyingHubRelation && GetRelations(doc, "Prequel").Any())
+                    if (!hasQualifyingHubRelation && GetRelations(doc, "Prequel").Any(p => !hubChainIds.Contains(p)))
                     {
                         isAmbiguousHubRelation = true;
                     }
@@ -277,14 +310,9 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     else
                     {
                         // OVA, Movie, Special, Music Video, etc.
-                        if (!hasQualifyingHubRelation)
-                        {
-                            assignedSeasonNumber = seasonNumber;
-                            seasonNumber++;
-                        }
-                        else if (animeType.Equals("Movie", StringComparison.OrdinalIgnoreCase) ||
-                                 animeType.Equals("Music Video", StringComparison.OrdinalIgnoreCase) ||
-                                 (GetAdvisory()?.Format?.Equals("MOVIE", StringComparison.OrdinalIgnoreCase) == true))
+                        if (animeType.Equals("Movie", StringComparison.OrdinalIgnoreCase) ||
+                            animeType.Equals("Music Video", StringComparison.OrdinalIgnoreCase) ||
+                            (GetAdvisory()?.Format?.Equals("MOVIE", StringComparison.OrdinalIgnoreCase) == true))
                         {
                             // Movies belong in Radarr; music videos are never canonical seasons.
                             // Also consult AniList advisory: if AniList classifies it as MOVIE, delegate to Radarr.
@@ -294,6 +322,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         {
                             // In a TV/Web-anchored chain, non-TV entries (OVAs) default to Specials (Season 0)
                             assignedSeasonNumber = 0;
+                        }
+                        else if (!hasQualifyingHubRelation)
+                        {
+                            // In an OVA-native chain (no TV/Web anchor), the root hub entry gets Season 1
+                            assignedSeasonNumber = seasonNumber;
+                            seasonNumber++;
                         }
                         else
                         {
@@ -332,7 +366,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 {
                     AniDbId = id,
                     SeasonNumber = assignedSeasonNumber,
-                    RelationType = id == hubId ? "Hub" : "Auto-Sequel"
+                    RelationType = id == effectiveHubId ? "Hub" : "Auto-Sequel"
                 });
 
                 if (_configService.IsRelatedSeriesEnabled)
@@ -547,7 +581,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                         foreach (var localTitle in localTitles)
                         {
-                            if (string.IsNullOrWhiteSpace(localTitle))
+                            if (string.IsNullOrWhiteSpace(localTitle) || SearchCriteriaBase.IsSpacelessSlug(localTitle))
                             {
                                 continue;
                             }

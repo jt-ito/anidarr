@@ -162,5 +162,77 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
             titles.First().Should().Be("TVDB Anime Series: The Subtitle");
             titles.Should().NotContain("TVDB Anime Series");
         }
+
+        [TestCase("anejirutheanimationshirakawasanshimainiomakase", true)]
+        [TestCase("bigsisterjuicetheanimationleavethethreesisterstoshirakawa", true)]
+        [TestCase("someanimetheseriestitlehere", true)]
+        [TestCase("Anejiru 2 The Animation", false)]
+        [TestCase("Anejiru 2", false)]
+        [TestCase("姉汁2", false)]
+        [TestCase("Bakemonogatari", false)]
+        public void should_detect_spaceless_slugs_properly(string input, bool expected)
+        {
+            SearchCriteriaBase.IsSpacelessSlug(input).Should().Be(expected);
+        }
+
+        [Test]
+        public void should_filter_spaceless_slugs_from_anime_search_titles()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa",
+                AlternateTitles = new List<string>
+                {
+                    "anejirutheanimationshirakawasanshimainiomakase",
+                    "Anejiru The Animation: Shirakawa Sanshimai ni Omakase",
+                    "姉汁 THE ANIMATION 白川三姉妹におまかせ",
+                    "bigsisterjuicetheanimationleavethethreesisterstoshirakawa",
+                    "Anejiru"
+                },
+                PrimaryMetadataProvider = "anidb",
+                AniDbId = 4823
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.Should().NotContain("anejirutheanimationshirakawasanshimainiomakase");
+            titles.Should().NotContain("bigsisterjuicetheanimationleavethethreesisterstoshirakawa");
+            titles.Should().Contain("Anejiru The Animation: Shirakawa Sanshimai ni Omakase");
+            titles.Should().Contain("姉汁 THE ANIMATION 白川三姉妹におまかせ");
+            titles.Should().Contain("Anejiru The Animation");
+            titles.Should().Contain("Anejiru");
+        }
+
+        [Test]
+        public void should_use_season_title_for_sequel_season_search()
+        {
+            Subject.Series = new NzbDrone.Core.Tv.Series
+            {
+                Title = "Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa",
+                AlternateTitles = new List<string>
+                {
+                    "Anejiru The Animation: Shirakawa Sanshimai ni Omakase",
+                    "姉汁 THE ANIMATION 白川三姉妹におまかせ"
+                },
+                PrimaryMetadataProvider = "anidb",
+                AniDbId = 4823
+            };
+
+            Subject.TargetSeasonNumber = 2;
+            Subject.SeasonTitle = "Anejiru 2 The Animation";
+            Subject.SeasonAlternateTitles = new List<string>
+            {
+                "姉汁2 THE ANIMATION",
+                "Big Sister Juice 2 The Animation"
+            };
+
+            var titles = Subject.AnimeSearchTitles;
+
+            titles.Should().Contain("Anejiru 2 The Animation");
+            titles.Should().Contain("姉汁2 THE ANIMATION");
+            titles.Should().Contain("Big Sister Juice 2 The Animation");
+            titles.Should().Contain("Anejiru 2");
+            titles.Should().NotContain("Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa");
+        }
     }
 }

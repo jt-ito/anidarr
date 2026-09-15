@@ -57,10 +57,14 @@ namespace NzbDrone.Core.Queue
 
         private Queue MapQueueItem(TrackedDownload trackedDownload, List<Episode> episodes)
         {
+            var seasonNumber = episodes.FirstOrDefault()?.SeasonNumber ??
+                               trackedDownload.RemoteEpisode?.Episodes?.FirstOrDefault()?.SeasonNumber ??
+                               trackedDownload.RemoteEpisode?.MappedSeasonNumber;
+
             var queue = new Queue
             {
                 Series = trackedDownload.RemoteEpisode?.Series,
-                SeasonNumber = trackedDownload.RemoteEpisode?.MappedSeasonNumber,
+                SeasonNumber = seasonNumber,
                 Episodes = episodes,
                 Languages = trackedDownload.RemoteEpisode?.Languages ?? new List<Language> { Language.Unknown },
                 Quality = trackedDownload.RemoteEpisode?.ParsedEpisodeInfo.Quality ?? new QualityModel(Quality.Unknown),

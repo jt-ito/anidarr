@@ -390,6 +390,62 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         }
 
         [Test]
+        public void should_assign_season_0_to_prequel_ova_and_season_1_to_tv_series_your_lie_in_april()
+        {
+            // Your Lie in April pattern: TV Series (10539, 22 eps) has an OVA prequel (10892, 1 ep OAD)
+            // OVA has 10539 as Sequel, TV series has 10892 as Prequel.
+            GivenXmlResponse(10892, BuildAnimeXml(10892, "Your Lie in April OVA", new List<Tuple<int, string>> { Tuple.Create(10539, "Sequel") }, 1, "OVA"));
+            GivenXmlResponse(10539, BuildAnimeXml(10539, "Your Lie in April", new List<Tuple<int, string>> { Tuple.Create(10892, "Prequel") }, 22, "TV Series"));
+
+            var details = Subject.GetSeriesInfo("10539");
+            var series = details.Item1;
+            var episodes = details.Item2;
+
+            // Series Hub should be the TV series, not the prequel OVA
+            series.Title.Should().Be("Your Lie in April");
+            series.AniDbId.Should().Be(10539);
+
+            var mapTv = series.AniDbMappings.Single(m => m.AniDbId == 10539);
+            var mapOva = series.AniDbMappings.Single(m => m.AniDbId == 10892);
+
+            mapTv.SeasonNumber.Should().Be(1);
+            mapTv.RelationType.Should().Be("Hub");
+
+            mapOva.SeasonNumber.Should().Be(0);
+            mapOva.RelationType.Should().Be("Auto-Sequel");
+
+            // Season 1 should contain 22 TV episodes
+            episodes.Count(e => e.SeasonNumber == 1).Should().Be(22);
+
+            // Specials (Season 0) should contain the 1-episode OVA
+            episodes.Count(e => e.SeasonNumber == 0).Should().Be(1);
+        }
+
+        [Test]
+        public void should_resolve_tv_series_as_hub_even_when_querying_prequel_ova_id()
+        {
+            GivenXmlResponse(10892, BuildAnimeXml(10892, "Your Lie in April OVA", new List<Tuple<int, string>> { Tuple.Create(10539, "Sequel") }, 1, "OVA"));
+            GivenXmlResponse(10539, BuildAnimeXml(10539, "Your Lie in April", new List<Tuple<int, string>> { Tuple.Create(10892, "Prequel") }, 22, "TV Series"));
+
+            var details = Subject.GetSeriesInfo("10892");
+            var series = details.Item1;
+            var episodes = details.Item2;
+
+            series.Title.Should().Be("Your Lie in April");
+            series.AniDbId.Should().Be(10539);
+
+            var mapTv = series.AniDbMappings.Single(m => m.AniDbId == 10539);
+            var mapOva = series.AniDbMappings.Single(m => m.AniDbId == 10892);
+
+            mapTv.SeasonNumber.Should().Be(1);
+            mapTv.RelationType.Should().Be("Hub");
+            mapOva.SeasonNumber.Should().Be(0);
+
+            episodes.Count(e => e.SeasonNumber == 1).Should().Be(22);
+            episodes.Count(e => e.SeasonNumber == 0).Should().Be(1);
+        }
+
+        [Test]
         public void should_assign_season_1_to_standalone_single_episode_ova()
         {
             GivenXmlResponse(9999, BuildAnimeXml(9999, "Standalone OVA", new List<Tuple<int, string>>(), 1, "OVA"));

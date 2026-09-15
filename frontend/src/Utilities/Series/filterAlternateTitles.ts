@@ -1,4 +1,5 @@
 import { AlternateTitle } from 'Series/Series';
+import isSpacelessSlug from './isSpacelessSlug';
 
 function filterAlternateTitles(
   alternateTitles: AlternateTitle[],
@@ -21,6 +22,10 @@ function filterAlternateTitles(
 
       if (alternateTitle.sceneOrigin === 'mixed') {
         // For now filter out 'mixed' from the UI, the user will get an rejection during manual search.
+        return;
+      }
+
+      if (isSpacelessSlug(alternateTitle.title)) {
         return;
       }
 

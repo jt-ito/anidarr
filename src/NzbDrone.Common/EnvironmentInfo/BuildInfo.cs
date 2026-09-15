@@ -28,7 +28,7 @@ namespace NzbDrone.Common.EnvironmentInfo
 
         public static string AppName { get; } = "Anidarr";
 
-        public static Version Version { get; } = new Version(10, 0, 14, 42723);
+        public static Version Version { get; } = new Version(10, 0, 15, 42725);
         public static string Branch { get; }
         public static string Release { get; }
 

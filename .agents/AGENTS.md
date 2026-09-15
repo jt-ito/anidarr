@@ -90,3 +90,12 @@ The backend `src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs` is the primary so
   git push origin master
   git push origin v10.0.X.Y
   ```
+
+---
+
+## AniDB Indexer & Search Changes Documentation
+
+Whenever changes, bug fixes, or enhancements are made to the AniDB Indexers, search query generators, release parsing, or AniDB matching logic (e.g., in `NewznabRequestGenerator`, `NyaaRequestGenerator`, `ParsingService`, `ReleaseSearchService`, etc.):
+- **Always document the changes in [`ANIDB_INDEXER_ENHANCEMENTS.md`](../ANIDB_INDEXER_ENHANCEMENTS.md)** located at the repository root.
+- Note: `ANIDB_INDEXER_ENHANCEMENTS.md` is gitignored so it serves as a persistent local reference document tracking architecture decisions, indexer behavior, query generators, and parsing logic.
+- Keep that document updated with details on the problem resolved, files modified, search query impact, and test fixtures added.

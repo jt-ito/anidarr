@@ -1,10 +1,15 @@
 .container {
   display: flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .link {
-  composes: link from '~Components/Link/Link.css';
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
   &:hover {
     color: var(--linkHoverColor);

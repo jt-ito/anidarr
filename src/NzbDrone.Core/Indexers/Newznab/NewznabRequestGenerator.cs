@@ -418,12 +418,21 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (SupportsSearch)
             {
-                AddTvIdPageableRequests(pageableRequests,
-                    Settings.AnimeCategories,
-                    searchCriteria,
-                    $"&q={searchCriteria.AbsoluteEpisodeNumber:00}");
+                var isAniDbSourced = searchCriteria.Series?.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                     (searchCriteria.Series?.AniDbId ?? 0) > 0;
 
-                var includeAnimeStandardFormatSearch = Settings.AnimeStandardFormatSearch &&
+                var isAniDbExclusive = isAniDbSourced && (searchCriteria.Series?.TvdbId ?? 0) <= 0;
+
+                if (!isAniDbExclusive && searchCriteria.AbsoluteEpisodeNumber > 0)
+                {
+                    AddTvIdPageableRequests(pageableRequests,
+                        Settings.AnimeCategories,
+                        searchCriteria,
+                        $"&q={searchCriteria.AbsoluteEpisodeNumber:00}");
+                }
+
+                var includeAnimeStandardFormatSearch = !isAniDbExclusive &&
+                                                       Settings.AnimeStandardFormatSearch &&
                                                        searchCriteria.SeasonNumber > 0 &&
                                                        searchCriteria.EpisodeNumber > 0;
 
@@ -447,10 +456,22 @@ namespace NzbDrone.Core.Indexers.Newznab
                         pageableRequests.AddTier();
                     }
 
-                    pageableRequests.Add(GetPagedRequests(MaxPages,
-                        Settings.AnimeCategories,
-                        "search",
-                        $"&q={NewsnabifyTitle(queryTitle)}+{searchCriteria.AbsoluteEpisodeNumber:00}"));
+                    if (searchCriteria.AbsoluteEpisodeNumber > 0)
+                    {
+                        pageableRequests.Add(GetPagedRequests(MaxPages,
+                            Settings.AnimeCategories,
+                            "search",
+                            $"&q={NewsnabifyTitle(queryTitle)}+{searchCriteria.AbsoluteEpisodeNumber:00}"));
+                    }
+
+                    if (isAniDbSourced && searchCriteria.EpisodeNumber > 0 &&
+                        (searchCriteria.EpisodeNumber != searchCriteria.AbsoluteEpisodeNumber || searchCriteria.AbsoluteEpisodeNumber == 0))
+                    {
+                        pageableRequests.Add(GetPagedRequests(MaxPages,
+                            Settings.AnimeCategories,
+                            "search",
+                            $"&q={NewsnabifyTitle(queryTitle)}+{searchCriteria.EpisodeNumber:00}"));
+                    }
 
                     if (includeAnimeStandardFormatSearch && SupportsEpisodeSearch)
                     {
@@ -471,12 +492,17 @@ namespace NzbDrone.Core.Indexers.Newznab
 
             if (SupportsSearch)
             {
+                var isAniDbSourced = searchCriteria.Series?.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                                     (searchCriteria.Series?.AniDbId ?? 0) > 0;
+
+                var isAniDbExclusive = isAniDbSourced && (searchCriteria.Series?.TvdbId ?? 0) <= 0;
+
                 // Cap at 5 to be indexer-courteous and avoid unbounded sequential tiers (Addition 4)
                 var queryTitles = searchCriteria.Series.SeriesType == NzbDrone.Core.Tv.SeriesTypes.Anime
                     ? searchCriteria.AnimeSearchTitles.Take(5).ToList()
                     : (TextSearchEngine == "raw" ? searchCriteria.AllSceneTitles : searchCriteria.CleanSceneTitles);
 
-                if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
+                if (!isAniDbExclusive && Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
                 {
                     AddTvIdPageableRequests(pageableRequests,
                         Settings.AnimeCategories,
@@ -496,7 +522,7 @@ namespace NzbDrone.Core.Indexers.Newznab
                         "search",
                         $"&q={NewsnabifyTitle(queryTitle)}"));
 
-                    if (Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
+                    if (!isAniDbExclusive && Settings.AnimeStandardFormatSearch && searchCriteria.SeasonNumber > 0)
                     {
                         pageableRequests.Add(GetPagedRequests(MaxPages,
                             Settings.AnimeCategories,

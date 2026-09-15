@@ -24,7 +24,7 @@ public class ManualImportController : Controller
     [Produces("application/json")]
     public Ok<List<ManualImportResource>> GetMediaFiles(string? folder, int? seriesId, int? seasonNumber, [FromQuery] string[]? downloadIds = null, bool filterExistingFiles = true)
     {
-        if (seriesId.HasValue && downloadIds == null)
+        if (folder.IsNullOrWhiteSpace() && seriesId.HasValue && downloadIds == null)
         {
             return TypedResults.Ok(_manualImportService.GetMediaFiles(seriesId.Value, seasonNumber)
                 .ToResource()
@@ -38,7 +38,7 @@ public class ManualImportController : Controller
 
             foreach (var downloadId in downloadIds.Distinct())
             {
-                files.AddRange(_manualImportService.GetMediaFiles(null, downloadId, seriesId, filterExistingFiles));
+                files.AddRange(_manualImportService.GetMediaFiles(null, downloadId, seriesId, filterExistingFiles, seasonNumber));
             }
 
             return TypedResults.Ok(files.ToResource()
@@ -46,7 +46,7 @@ public class ManualImportController : Controller
                 .ToList());
         }
 
-        return TypedResults.Ok(_manualImportService.GetMediaFiles(folder, null, seriesId, filterExistingFiles)
+        return TypedResults.Ok(_manualImportService.GetMediaFiles(folder, null, seriesId, filterExistingFiles, seasonNumber)
             .ToResource()
             .Select(AddQualityWeight)
             .ToList());

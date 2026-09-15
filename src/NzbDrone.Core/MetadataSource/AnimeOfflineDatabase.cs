@@ -9,6 +9,7 @@ using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Http;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Tv;
@@ -140,7 +141,8 @@ namespace NzbDrone.Core.MetadataSource
                 // 6. Alternate titles / synonyms
                 if (series.AlternateTitles != null && series.AlternateTitles.Any())
                 {
-                    var mergedSyn = existing.SearchSynonyms != null ? existing.SearchSynonyms.Union(series.AlternateTitles).ToList() : series.AlternateTitles.ToList();
+                    var filteredAlts = series.AlternateTitles.Where(t => !SearchCriteriaBase.IsSpacelessSlug(t)).ToList();
+                    var mergedSyn = existing.SearchSynonyms != null ? existing.SearchSynonyms.Union(filteredAlts).ToList() : filteredAlts;
                     if (existing.SearchSynonyms == null || mergedSyn.Count != existing.SearchSynonyms.Count)
                     {
                         existing.SearchSynonyms = mergedSyn;
@@ -237,38 +239,32 @@ namespace NzbDrone.Core.MetadataSource
             return results.GroupBy(s => s.TitleSlug + "-" + s.Year).Select(g => g.First()).ToList();
         }
 
+        private static readonly object _ensureCacheLock = new object();
+        private static volatile bool _cacheChecked;
+
         private void EnsureCache()
         {
-            BackfillFromCachedAniDbXml();
-
-            // ponytail: no Purge() — incremental upsert in ParseAndSyncDumps keeps data fresh.
-            // Only download if the table is empty (first run or migration reset).
-            if (_animeOfflineTitleRepository.HasItems())
+            if (_cacheChecked)
             {
-                // Check if backfill is required for the new title fields (RomajiTitle).
-                // We count how many entries lack a Romaji title to know if data wasn't backfilled.
-                var missingCount = _animeOfflineTitleRepository.GetUnpopulatedRomajiCount();
-                if (missingCount > 0)
-                {
-                    _logger.Info($"Detected {missingCount} unpopulated RomajiTitle fields. Forcing a local database re-parse.");
-
-                    // We only want to parse existing local dumps, not force a re-download if they exist.
-                    var datPath = Path.Combine(_appFolderInfo.AppDataFolder, "anidb_titles.json");
-                    var officialDatPath = Path.Combine(_appFolderInfo.AppDataFolder, "anime-titles.dat.gz");
-                    if (File.Exists(datPath) && File.Exists(officialDatPath))
-                    {
-                        ParseAndSyncDumps(datPath, officialDatPath);
-                    }
-                    else
-                    {
-                        ForceDownloadDump();
-                    }
-                }
-
                 return;
             }
 
-            ForceDownloadDump();
+            lock (_ensureCacheLock)
+            {
+                if (_cacheChecked)
+                {
+                    return;
+                }
+
+                if (_animeOfflineTitleRepository.HasItems())
+                {
+                    _cacheChecked = true;
+                    return;
+                }
+
+                ForceDownloadDump();
+                _cacheChecked = true;
+            }
         }
 
         public void ForceDownloadDump()
@@ -396,7 +392,7 @@ namespace NzbDrone.Core.MetadataSource
                                     if (synElement.ValueKind == JsonValueKind.String)
                                     {
                                         var syn = synElement.GetString();
-                                        if (syn != null)
+                                        if (syn != null && !SearchCriteriaBase.IsSpacelessSlug(syn))
                                         {
                                             entry.SearchSynonyms.Add(syn);
                                         }
@@ -567,7 +563,7 @@ namespace NzbDrone.Core.MetadataSource
                                 }
                             }
 
-                            if (!entry.SearchSynonyms.Contains(title))
+                            if (!entry.SearchSynonyms.Contains(title) && !SearchCriteriaBase.IsSpacelessSlug(title))
                             {
                                 entry.SearchSynonyms.Add(title);
                             }
@@ -672,7 +668,8 @@ namespace NzbDrone.Core.MetadataSource
                     // Ensure synonyms
                     if (entry.SearchSynonyms != null && entry.SearchSynonyms.Any())
                     {
-                        var mergedSyn = existing.SearchSynonyms.Union(entry.SearchSynonyms).ToList();
+                        var filteredSyn = entry.SearchSynonyms.Where(t => !SearchCriteriaBase.IsSpacelessSlug(t)).ToList();
+                        var mergedSyn = existing.SearchSynonyms.Union(filteredSyn).ToList();
                         if (mergedSyn.Count != existing.SearchSynonyms.Count)
                         {
                             existing.SearchSynonyms = mergedSyn;

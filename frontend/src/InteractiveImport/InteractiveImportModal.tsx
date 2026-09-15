@@ -166,6 +166,8 @@ function InteractiveImportModal(props: InteractiveImportModalProps) {
           {...otherProps}
           folder={finalFolder}
           downloadIds={downloadIds}
+          seasonNumber={seasonNumber}
+          episodeId={episodeId}
           prefillEpisode={prefillEpisode}
           modalTitle={modalTitle}
           onModalClose={onModalClose}
