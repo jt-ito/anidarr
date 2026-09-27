@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using NzbDrone.Common.Composition;
 using NzbDrone.Common.Serializer;
 using NzbDrone.Core.Datastore.Events;
+using NzbDrone.Core.MediaFiles.EpisodeImport.Manual;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.ProgressMessaging;
+using NzbDrone.Core.Tv.Commands;
 using NzbDrone.SignalR;
 using Sonarr.Http;
 using Sonarr.Http.REST;
@@ -23,7 +25,6 @@ public class CommandController : RestControllerWithSignalR<CommandResource, Comm
     private readonly KnownTypes _knownTypes;
     private readonly Debouncer _debouncer;
     private readonly Dictionary<int, CommandResource> _pendingUpdates;
-
     private readonly CommandPriorityComparer _commandPriorityComparer = new();
 
     public CommandController(IManageCommandQueue commandQueueManager,
@@ -40,7 +41,7 @@ public class CommandController : RestControllerWithSignalR<CommandResource, Comm
         PostValidator.RuleFor(c => c.Name).NotBlank();
     }
 
-    protected override CommandResource GetResourceById(int id)
+    protected override CommandResource? GetResourceById(int id)
     {
         return _commandQueueManager.Get(id).ToResource();
     }
@@ -70,7 +71,17 @@ public class CommandController : RestControllerWithSignalR<CommandResource, Comm
             command.SendUpdatesToClient = true;
             command.ClientUserAgent = Request.Headers["UserAgent"];
 
-            var trackedCommand = _commandQueueManager.Push(command, commandResource.Priority, CommandTrigger.Manual);
+            var priority = commandResource.Priority;
+            if (priority == CommandPriority.Normal)
+            {
+                if (command is ManualImportCommand ||
+                    (command is RefreshSeriesCommand refreshCmd && refreshCmd.SeriesIds.Any()))
+                {
+                    priority = CommandPriority.High;
+                }
+            }
+
+            var trackedCommand = _commandQueueManager.Push(command, priority, CommandTrigger.Manual);
 
             return TypedCreated(trackedCommand.Id);
         }

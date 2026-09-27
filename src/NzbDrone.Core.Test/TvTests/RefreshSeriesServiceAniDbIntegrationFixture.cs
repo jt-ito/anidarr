@@ -52,6 +52,12 @@ namespace NzbDrone.Core.Test.TvTests
                 .SetupGet(v => v.AppDataFolder)
                 .Returns(System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString()));
 
+            // Anidarr: AniDbProvider delegates its XML fetch/cache to the shared
+            // IAniDbXmlClient. Wire in a real instance built from the same mocks
+            // above so the GivenXmlResponse-style IHttpClient mocking below still
+            // drives the AniDbProvider resolved just after this.
+            Mocker.SetConstant<IAniDbXmlClient>(Mocker.Resolve<AniDbXmlClient>());
+
             var anidbProvider = Mocker.Resolve<AniDbProvider>();
 
             var tvdbMock = new Mock<IMetadataProvider>();

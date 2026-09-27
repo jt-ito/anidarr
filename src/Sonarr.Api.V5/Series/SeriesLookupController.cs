@@ -87,6 +87,12 @@ public class SeriesLookupController : Controller
 
     private IEnumerable<SeriesResource> MapToResource(IEnumerable<NzbDrone.Core.Tv.Series> series)
     {
+        var exclusions = _importListExclusionService.All();
+        var tvdbExclusions = new HashSet<int>(exclusions.Where(e => e.TvdbId > 0).Select(e => e.TvdbId));
+        var anidbExclusions = new HashSet<int>(exclusions.Where(e => e.AniDbId.HasValue).Select(e => e.AniDbId!.Value));
+        var anilistExclusions = new HashSet<int>(exclusions.Where(e => e.AniListId.HasValue).Select(e => e.AniListId!.Value));
+        var malExclusions = new HashSet<int>(exclusions.Where(e => e.MalId.HasValue).Select(e => e.MalId!.Value));
+
         foreach (var currentSeries in series)
         {
             var resource = currentSeries.ToResource();
@@ -104,10 +110,10 @@ public class SeriesLookupController : Controller
             resource.Statistics = new SeriesStatistics().ToResource(resource.Seasons);
             resource.IsExcluded = currentSeries.PrimaryMetadataProvider switch
             {
-                "anidb" => currentSeries.AniDbId.HasValue && _importListExclusionService.FindByAniDbId(currentSeries.AniDbId.Value) is not null,
-                "anilist" => currentSeries.AniListIds != null && currentSeries.AniListIds.Any(id => _importListExclusionService.FindByAniListId(id) is not null),
-                "mal" => currentSeries.MalIds != null && currentSeries.MalIds.Any(id => _importListExclusionService.FindByMalId(id) is not null),
-                _ => currentSeries.TvdbId > 0 && _importListExclusionService.FindByTvdbId(currentSeries.TvdbId) is not null
+                "anidb" => currentSeries.AniDbId.HasValue && anidbExclusions.Contains(currentSeries.AniDbId.Value),
+                "anilist" => currentSeries.AniListIds != null && currentSeries.AniListIds.Any(id => anilistExclusions.Contains(id)),
+                "mal" => currentSeries.MalIds != null && currentSeries.MalIds.Any(id => malExclusions.Contains(id)),
+                _ => currentSeries.TvdbId > 0 && tvdbExclusions.Contains(currentSeries.TvdbId)
             };
 
             yield return resource;

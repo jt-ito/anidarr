@@ -33,6 +33,9 @@ namespace NzbDrone.Core.Test.TvTests
             Mocker.GetMock<ISeriesService>()
                   .Setup(s => s.GetSeries(_series.Id))
                   .Returns(_series);
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.TryGetSeries(_series.Id, out _series))
+                  .Returns(true);
 
             Mocker.GetMock<IAniDbSeriesMappingService>()
                   .Setup(s => s.GetMappingsForSeries(_series.Id))
@@ -68,6 +71,12 @@ namespace NzbDrone.Core.Test.TvTests
             Mocker.GetMock<IAniDbRelatedMetadataCacheRepository>()
                   .Setup(c => c.GetByAniDbId(It.IsAny<int>()))
                   .Returns((AniDbRelatedMetadataCache)null);
+
+            // Anidarr: FetchAniDbRelatedSeriesService delegates its XML fetch/cache
+            // to the shared IAniDbXmlClient. Wire in a real instance built from the
+            // same mocks above so the existing GivenXmlResponse-style IHttpClient
+            // mocking below still drives it.
+            Mocker.SetConstant<IAniDbXmlClient>(Mocker.Resolve<AniDbXmlClient>());
         }
 
         private void GivenXmlResponse(int id, string xml)

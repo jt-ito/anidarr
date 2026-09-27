@@ -19,12 +19,12 @@ namespace NzbDrone.Core.Tv
 
         public void Handle(SeriesAddedEvent message)
         {
-            _commandQueueManager.Push(new RefreshSeriesCommand(new List<int> { message.Series.Id }, true));
+            _commandQueueManager.Push(new RefreshSeriesCommand(new List<int> { message.Series.Id }, true), CommandPriority.High, CommandTrigger.Manual);
         }
 
         public void Handle(SeriesImportedEvent message)
         {
-            _commandQueueManager.PushMany(message.SeriesIds.Select(s => new RefreshSeriesCommand(new List<int> { s }, true)).ToList());
+            _commandQueueManager.PushMany(message.SeriesIds.Select(s => new RefreshSeriesCommand(new List<int> { s }, true)).ToList(), CommandPriority.High, CommandTrigger.Manual);
         }
     }
 }

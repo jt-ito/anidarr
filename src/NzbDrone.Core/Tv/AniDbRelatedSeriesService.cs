@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Tv.Events;
 
@@ -6,6 +7,7 @@ namespace NzbDrone.Core.Tv
 {
     public interface IAniDbRelatedSeriesService
     {
+        List<AniDbRelatedSeries> GetAllRelatedSeries();
         List<AniDbRelatedSeries> GetRelatedSeries(int seriesId);
         void UpdateRelatedSeries(int seriesId, List<AniDbRelatedSeries> relatedSeries);
     }
@@ -18,6 +20,11 @@ namespace NzbDrone.Core.Tv
         public AniDbRelatedSeriesService(IAniDbRelatedSeriesRepository repository)
         {
             _repository = repository;
+        }
+
+        public List<AniDbRelatedSeries> GetAllRelatedSeries()
+        {
+            return _repository.All().ToList();
         }
 
         public List<AniDbRelatedSeries> GetRelatedSeries(int seriesId)

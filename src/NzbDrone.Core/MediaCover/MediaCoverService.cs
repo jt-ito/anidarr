@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using NLog;
@@ -19,9 +20,12 @@ namespace NzbDrone.Core.MediaCover
     {
         void ConvertToLocalUrls(int seriesId, IEnumerable<MediaCover> covers);
         string GetCoverPath(int seriesId, MediaCoverTypes coverType, int? height = null);
+        bool EnsureCovers(Series series);
+        string EnsureCover(int seriesId, MediaCoverTypes coverType, int? height = null);
     }
 
     public class MediaCoverService :
+        IHandleAsync<SeriesAddedEvent>,
         IHandleAsync<SeriesUpdatedEvent>,
         IHandleAsync<SeriesDeletedEvent>,
         IMapCoversToLocal
@@ -33,6 +37,8 @@ namespace NzbDrone.Core.MediaCover
         private readonly ICoverExistsSpecification _coverExistsSpecification;
         private readonly IConfigFileProvider _configFileProvider;
         private readonly IEventAggregator _eventAggregator;
+        private readonly ISeriesRepository _seriesRepository;
+        private readonly MetadataSource.IAnimeOfflineTitleRepository _animeOfflineTitleRepository;
         private readonly Logger _logger;
 
         private readonly string _coverRootFolder;
@@ -49,7 +55,9 @@ namespace NzbDrone.Core.MediaCover
                                  ICoverExistsSpecification coverExistsSpecification,
                                  IConfigFileProvider configFileProvider,
                                  IEventAggregator eventAggregator,
-                                 Logger logger)
+                                 Logger logger,
+                                 ISeriesRepository seriesRepository = null,
+                                 MetadataSource.IAnimeOfflineTitleRepository animeOfflineTitleRepository = null)
         {
             _mediaCoverProxy = mediaCoverProxy;
             _resizer = resizer;
@@ -58,6 +66,8 @@ namespace NzbDrone.Core.MediaCover
             _coverExistsSpecification = coverExistsSpecification;
             _configFileProvider = configFileProvider;
             _eventAggregator = eventAggregator;
+            _seriesRepository = seriesRepository;
+            _animeOfflineTitleRepository = animeOfflineTitleRepository;
             _logger = logger;
 
             _coverRootFolder = appFolderInfo.GetMediaCoverPath();
@@ -93,9 +103,8 @@ namespace NzbDrone.Core.MediaCover
 
                     mediaCover.Url = _configFileProvider.UrlBase + @"/MediaCover/" + seriesId + "/" + mediaCover.CoverType.ToString().ToLower() + GetExtension(mediaCover.CoverType);
 
-                    if (_diskProvider.FileExists(filePath))
+                    if (_diskProvider.TryGetFileLastWrite(filePath, out var lastWrite))
                     {
-                        var lastWrite = _diskProvider.FileGetLastWrite(filePath);
                         mediaCover.Url += "?lastWrite=" + lastWrite.Ticks;
                     }
                 }
@@ -107,8 +116,56 @@ namespace NzbDrone.Core.MediaCover
             return Path.Combine(_coverRootFolder, seriesId.ToString());
         }
 
-        private bool EnsureCovers(Series series)
+        public bool EnsureCovers(Series series)
         {
+            if (series == null)
+            {
+                return false;
+            }
+
+            if (series.Images == null)
+            {
+                series.Images = new List<MediaCover>();
+            }
+
+            var poster = series.Images.FirstOrDefault(c => c.CoverType == MediaCoverTypes.Poster);
+            if ((poster == null || poster.RemoteUrl.IsNullOrWhiteSpace()) && _animeOfflineTitleRepository != null)
+            {
+                MetadataSource.AnimeOfflineTitle title = null;
+                if (series.AniDbId.HasValue && series.AniDbId > 0)
+                {
+                    title = _animeOfflineTitleRepository.FindByAniDbId(series.AniDbId.Value);
+                }
+
+                if (title == null && series.AniListIds != null && series.AniListIds.Any())
+                {
+                    title = _animeOfflineTitleRepository.FindByAniListId(series.AniListIds.First());
+                }
+
+                if (title == null && series.MalIds != null && series.MalIds.Any())
+                {
+                    title = _animeOfflineTitleRepository.FindByMalId(series.MalIds.First());
+                }
+
+                if (title == null && !string.IsNullOrWhiteSpace(series.CleanTitle))
+                {
+                    title = _animeOfflineTitleRepository.FindSearchMatches(series.CleanTitle, "anidb")?.FirstOrDefault();
+                }
+
+                if (title != null && !string.IsNullOrWhiteSpace(title.PictureUrl))
+                {
+                    if (poster == null)
+                    {
+                        poster = new MediaCover(MediaCoverTypes.Poster, title.PictureUrl);
+                        series.Images.Add(poster);
+                    }
+                    else
+                    {
+                        poster.RemoteUrl = title.PictureUrl;
+                    }
+                }
+            }
+
             var updated = false;
             var toResize = new List<Tuple<MediaCover, bool>>();
 
@@ -165,9 +222,82 @@ namespace NzbDrone.Core.MediaCover
             return updated;
         }
 
+        public string EnsureCover(int seriesId, MediaCoverTypes coverType, int? height = null)
+        {
+            var mainFileName = GetCoverPath(seriesId, coverType);
+            var requestedFileName = height.HasValue ? GetCoverPath(seriesId, coverType, height.Value) : mainFileName;
+
+            if (_diskProvider.FileExists(requestedFileName) && _diskProvider.GetFileSize(requestedFileName) > 0)
+            {
+                return requestedFileName;
+            }
+
+            if (_diskProvider.FileExists(mainFileName) && _diskProvider.GetFileSize(mainFileName) > 0)
+            {
+                if (height.HasValue)
+                {
+                    try
+                    {
+                        _resizer.Resize(mainFileName, requestedFileName, height.Value);
+                        if (_diskProvider.FileExists(requestedFileName) && _diskProvider.GetFileSize(requestedFileName) > 0)
+                        {
+                            return requestedFileName;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Debug(ex, "Couldn't resize cover {0} to {1}", mainFileName, requestedFileName);
+                    }
+                }
+
+                return mainFileName;
+            }
+
+            if (_seriesRepository != null)
+            {
+                var series = _seriesRepository.Get(seriesId);
+                if (series != null)
+                {
+                    EnsureCovers(series);
+
+                    if (_diskProvider.FileExists(requestedFileName) && _diskProvider.GetFileSize(requestedFileName) > 0)
+                    {
+                        return requestedFileName;
+                    }
+
+                    if (_diskProvider.FileExists(mainFileName) && _diskProvider.GetFileSize(mainFileName) > 0)
+                    {
+                        return mainFileName;
+                    }
+                }
+            }
+
+            return null;
+        }
+
         private void DownloadCover(Series series, MediaCover cover)
         {
             var fileName = GetCoverPath(series.Id, cover.CoverType);
+
+            var targetFolder = Path.GetDirectoryName(fileName);
+            if (!_diskProvider.FolderExists(targetFolder))
+            {
+                _diskProvider.CreateFolder(targetFolder);
+            }
+
+            if (!cover.RemoteUrl.IsNullOrWhiteSpace())
+            {
+                var hash = cover.RemoteUrl.SHA256Hash();
+                var cacheFolder = Path.Combine(_coverRootFolder, "ProxyCache");
+                var cacheFile = Path.Combine(cacheFolder, $"{hash}.bin");
+
+                if (_diskProvider.FileExists(cacheFile) && _diskProvider.GetFileSize(cacheFile) > 0)
+                {
+                    _logger.Debug("Copying {0} for {1} from ProxyCache", cover.CoverType, series);
+                    _diskProvider.CopyFile(cacheFile, fileName, true);
+                    return;
+                }
+            }
 
             _logger.Info("Downloading {0} for {1} {2}", cover.CoverType, series, cover.RemoteUrl);
             _httpClient.DownloadFile(cover.RemoteUrl, fileName);
@@ -228,6 +358,13 @@ namespace NzbDrone.Core.MediaCover
                 case MediaCoverTypes.Clearlogo:
                     return ".png";
             }
+        }
+
+        public void HandleAsync(SeriesAddedEvent message)
+        {
+            var updated = EnsureCovers(message.Series);
+
+            _eventAggregator.PublishEvent(new MediaCoversUpdatedEvent(message.Series, updated));
         }
 
         public void HandleAsync(SeriesUpdatedEvent message)

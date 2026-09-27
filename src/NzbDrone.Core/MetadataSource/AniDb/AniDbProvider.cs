@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using NLog;
-using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
-using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Languages;
@@ -28,42 +25,35 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private static readonly ConcurrentDictionary<int, Task<Tuple<Series, List<Episode>>>> _inFlightSeriesInfo = new ConcurrentDictionary<int, Task<Tuple<Series, List<Episode>>>>();
         private static readonly ConcurrentDictionary<int, (DateTime CachedAt, Tuple<Series, List<Episode>> Result)> _seriesInfoCache = new ConcurrentDictionary<int, (DateTime, Tuple<Series, List<Episode>>)>();
         private static readonly TimeSpan SeriesInfoCacheTtl = TimeSpan.FromMinutes(15);
-        private static readonly ConcurrentDictionary<string, Task<string>> _inFlightFetches = new ConcurrentDictionary<string, Task<string>>();
 
         public static void ClearCache()
         {
             _seriesInfoCache.Clear();
             _inFlightSeriesInfo.Clear();
-            _inFlightFetches.Clear();
+            AniDbXmlClient.ClearCache();
         }
 
-        private readonly IHttpClient _httpClient;
+        private readonly IAniDbXmlClient _xmlClient;
         private readonly IConfigFileProvider _configService;
         private readonly IAnimeOfflineDatabase _titleSearch;
-        private readonly IAppFolderInfo _appFolderInfo;
         private readonly Logger _logger;
-        private readonly IAniDbRateLimiter _rateLimiter;
         private readonly IAniDbSeriesMappingService _mappingService;
         private readonly AniList.IAniListEnricher _aniListEnricher;
         private readonly Messaging.Events.IEventAggregator _eventAggregator;
 
         public MetadataProviderType ProviderType => MetadataProviderType.AniDb;
 
-        public AniDbProvider(IHttpClient httpClient,
+        public AniDbProvider(IAniDbXmlClient xmlClient,
                              IConfigFileProvider configService,
                              IAnimeOfflineDatabase titleSearch,
-                             IAppFolderInfo appFolderInfo,
-                             IAniDbRateLimiter rateLimiter,
                              Logger logger,
                              IAniDbSeriesMappingService mappingService,
                              AniList.IAniListEnricher aniListEnricher,
                              Messaging.Events.IEventAggregator eventAggregator = null)
         {
-            _httpClient = httpClient;
+            _xmlClient = xmlClient;
             _configService = configService;
             _titleSearch = titleSearch;
-            _appFolderInfo = appFolderInfo;
-            _rateLimiter = rateLimiter;
             _logger = logger;
             _mappingService = mappingService;
             _aniListEnricher = aniListEnricher;
@@ -371,7 +361,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                 if (_configService.IsRelatedSeriesEnabled)
                 {
-                    var allRelations = GetAllRelations(doc.Root);
+                    var allRelations = _xmlClient.GetAllRelations(doc.Root);
                     foreach (var relation in allRelations)
                     {
                         if (!hubChainIds.Contains(relation.Id) && seenRelations.Add(relation.Id))
@@ -392,7 +382,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
                 if (assignedSeasonNumber != -1)
                 {
-                    var episodes = MapEpisodes(doc.Root);
+                    var episodes = MapEpisodes(doc.Root, _xmlClient);
 
                     int? currentAniListId = null;
                     try
@@ -418,31 +408,16 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 }
             }
 
-            var allAniListIds = chainData.Where(x => x.AniListId.HasValue).Select(x => x.AniListId.Value).ToList();
-            var allAiringTimes = new Dictionary<int, Dictionary<int, TimeSpan>>();
-            var allAniListTitles = new Dictionary<int, List<string>>();
-
-            TimeSpan? globalDefaultTime = null;
-            var allTimes = allAiringTimes?.Values?.Where(x => x != null).SelectMany(x => x.Values).ToList() ?? new List<TimeSpan>();
-            if (allTimes.Any())
-            {
-                globalDefaultTime = allTimes.GroupBy(t => t).OrderByDescending(g => g.Count()).First().Key;
-            }
-
+            // AniList is intentionally not consulted here (or anywhere else in the
+            // add/refresh path): it's a secondary, deferred enrichment step queued
+            // after the series is added (see SeriesService.QueueAniDbEnrichmentCommands)
+            // so it never adds to how long adding/refreshing a series takes. Episode
+            // air times below use AniDB's own date only; precise time-of-day comes
+            // later, if at all, via EnrichSeriesFromAniListService.
             foreach (var data in chainData)
             {
                 var assignedSeasonNumber = data.AssignedSeasonNumber;
                 var episodes = data.Episodes;
-                var currentAniListId = data.AniListId;
-
-                var airingTimes = new Dictionary<int, TimeSpan>();
-                TimeSpan? seasonDefaultTime = null;
-
-                if (currentAniListId.HasValue && allAiringTimes.TryGetValue(currentAniListId.Value, out var times) && times.Any())
-                {
-                    airingTimes = times;
-                    seasonDefaultTime = times.Values.GroupBy(t => t).OrderByDescending(g => g.Count()).First().Key;
-                }
 
                 var maxEpisodeNumber = 0;
                 foreach (var ep in episodes)
@@ -466,37 +441,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         ep.SeasonNumber = 0;
                         ep.EpisodeNumber = specialEpisodeCounter++;
                         ep.AbsoluteEpisodeNumber = null;
-                    }
-
-                    var timeOfDay = default(TimeSpan);
-                    var hasMatch = false;
-
-                    if (ep.AbsoluteEpisodeNumber.HasValue && airingTimes.TryGetValue(ep.AbsoluteEpisodeNumber.Value, out var absTime))
-                    {
-                        timeOfDay = absTime;
-                        hasMatch = true;
-                    }
-                    else if (airingTimes.TryGetValue(ep.EpisodeNumber, out var relTime))
-                    {
-                        timeOfDay = relTime;
-                        hasMatch = true;
-                    }
-                    else if (seasonDefaultTime.HasValue)
-                    {
-                        timeOfDay = seasonDefaultTime.Value;
-                        hasMatch = true;
-                    }
-                    else if (globalDefaultTime.HasValue)
-                    {
-                        timeOfDay = globalDefaultTime.Value;
-                        hasMatch = true;
-                    }
-
-                    if (ep.AirDateUtc.HasValue && !string.IsNullOrWhiteSpace(ep.AirDate) && hasMatch)
-                    {
-                        var jstDate = DateTime.Parse(ep.AirDate);
-                        var preciseJstTime = jstDate.Add(timeOfDay);
-                        ep.AirDateUtc = DateTime.SpecifyKind(preciseJstTime.AddHours(-9), DateTimeKind.Utc);
                     }
 
                     allEpisodes.Add(ep);
@@ -611,25 +555,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             return finalResult;
         }
 
-        private XDocument GetAnimeXml(int id)
-        {
-            var xml = FetchXml("anime", $"aid={id}");
-            var doc = XDocument.Parse(xml);
-
-            if (doc.Root?.Name.LocalName == "error")
-            {
-                if (doc.Root.Value.ToLowerInvariant().Contains("banned"))
-                {
-                    _configService.SetAniDbBanExpiration(DateTime.UtcNow.AddHours(24));
-                }
-
-                throw new Exception($"AniDB error for ID {id}: {doc.Root.Value}");
-            }
-
-            _configService.SetAniDbBanExpiration(null);
-            return doc;
-        }
-
         private (int HubId, Dictionary<int, XDocument> FetchedDocs) FindHubId(int startId)
         {
             var currentId = startId;
@@ -643,7 +568,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 try
                 {
                     ReportProgress(startId, $"Inspecting AniDB entry #{currentId}...");
-                    doc = GetAnimeXml(currentId);
+                    doc = _xmlClient.GetAnimeXml(currentId, msg => ReportProgress(null, msg));
                     fetchedDocs[currentId] = doc;
                 }
                 catch (Exception ex)
@@ -704,7 +629,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 {
                     try
                     {
-                        doc = GetAnimeXml(currentId);
+                        doc = _xmlClient.GetAnimeXml(currentId, msg => ReportProgress(null, msg));
                         allDocs[currentId] = doc;
                     }
                     catch (Exception ex)
@@ -774,51 +699,10 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
         private List<int> GetRelations(XDocument doc, string relationType)
         {
-            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-            var related = doc.Root?.Element(ns + "relatedanime");
-            if (related == null)
-            {
-                return new List<int>();
-            }
-
-            var results = new List<int>();
-            foreach (var anime in related.Elements(ns + "anime"))
-            {
-                var type = (string)anime.Attribute("type");
-                if (string.Equals(type, relationType, StringComparison.OrdinalIgnoreCase))
-                {
-                    var idStr = (string)anime.Attribute("id");
-                    if (int.TryParse(idStr, out var id) && id > 0)
-                    {
-                        results.Add(id);
-                    }
-                }
-            }
-
-            return results;
-        }
-
-        private List<(int Id, string RelationType)> GetAllRelations(XElement root)
-        {
-            var ns = root?.Name.Namespace ?? XNamespace.None;
-            var related = root?.Element(ns + "relatedanime");
-            if (related == null)
-            {
-                return new List<(int, string)>();
-            }
-
-            var results = new List<(int, string)>();
-            foreach (var anime in related.Elements(ns + "anime"))
-            {
-                var type = (string)anime.Attribute("type");
-                var idStr = (string)anime.Attribute("id");
-                if (int.TryParse(idStr, out var id) && id > 0 && !string.IsNullOrWhiteSpace(type))
-                {
-                    results.Add((id, type));
-                }
-            }
-
-            return results;
+            return _xmlClient.GetAllRelations(doc.Root)
+                .Where(r => string.Equals(r.RelationType, relationType, StringComparison.OrdinalIgnoreCase))
+                .Select(r => r.Id)
+                .ToList();
         }
 
         public List<Series> Search(string query)
@@ -879,105 +763,12 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             }
         }
 
-        private string FetchXml(string request, string extraParams)
-        {
-            var clientName = _configService.AniDbClientName;
-            var clientVersion = _configService.AniDbClientVersion;
-            var url = $"{AniDbApiBase}?request={request}&client={clientName}&clientver={clientVersion}&protover=1&{extraParams}";
-
-            var cacheDir = Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache");
-            if (!Directory.Exists(cacheDir))
-            {
-                Directory.CreateDirectory(cacheDir);
-            }
-
-            var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
-            var cacheFile = Path.Combine(cacheDir, $"{request}_{safeParams}.xml");
-
-            if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
-            {
-                try
-                {
-                    var cached = File.ReadAllText(cacheFile);
-                    if (!cached.Contains("<error"))
-                    {
-                        _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
-                        return cached;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.Debug(ex, "Failed to read cached AniDB response for {0} {1}", request, extraParams);
-                }
-            }
-
-            Task<string> fetchTask;
-            lock (_inFlightFetches)
-            {
-                if (!_inFlightFetches.TryGetValue(cacheFile, out fetchTask))
-                {
-                    fetchTask = _rateLimiter.ExecuteAsync(() =>
-                    {
-                        ReportProgress(null, "Respecting AniDB rate limit (waiting 2s)...");
-                        if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
-                        {
-                            try
-                            {
-                                var cached = File.ReadAllText(cacheFile);
-                                if (!cached.Contains("<error"))
-                                {
-                                    return cached;
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                // Ignore concurrent read error and proceed to download
-                            }
-                        }
-
-                        var httpRequest = new HttpRequest(url);
-                        var response = _httpClient.Execute(httpRequest);
-
-                        if (!response.Content.Contains("<error"))
-                        {
-                            try
-                            {
-                                var tempFile = $"{cacheFile}.{Guid.NewGuid():N}.tmp";
-                                File.WriteAllText(tempFile, response.Content);
-                                File.Move(tempFile, cacheFile, overwrite: true);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.Debug(ex, "Failed to write AniDB cache file {0}", cacheFile);
-                            }
-                        }
-
-                        return response.Content;
-                    });
-
-                    _inFlightFetches[cacheFile] = fetchTask;
-                }
-            }
-
-            try
-            {
-                return fetchTask.GetAwaiter().GetResult();
-            }
-            finally
-            {
-                lock (_inFlightFetches)
-                {
-                    _inFlightFetches.TryRemove(cacheFile, out _);
-                }
-            }
-        }
-
         private Series MapSeries(XElement root, int aniDbId)
         {
             var ns = root?.Name.Namespace ?? XNamespace.None;
 
             var titleElements = root?.Elements(ns + "titles").Elements(ns + "title");
-            var title = GetBestTitle(titleElements, "Unknown");
+            var title = _xmlClient.GetBestTitle(titleElements, "Unknown");
             var alternateTitles = new List<string>();
             if (titleElements != null)
             {
@@ -1004,7 +795,16 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 CleanTitle = title.CleanSeriesTitle(),
                 SortTitle = SeriesTitleNormalizer.Normalize(title, aniDbId),
                 TitleSlug = title.ToUrlSlug(),
-                AlternateTitles = alternateTitles.Distinct().ToList(),
+
+                // Anidarr: AniDB's raw <title> list can include compact, spaceless
+                // synonym entries (e.g. "theanimation"-style slugs); filter them the
+                // same way the hub-chain alternate-title merge below already does,
+                // so these never reach Series.AlternateTitles and get sent to
+                // indexers as unmatchable search terms.
+                AlternateTitles = alternateTitles
+                    .Where(t => !SearchCriteriaBase.IsSpacelessSlug(t))
+                    .Distinct()
+                    .ToList(),
                 AniDbId = aniDbId,
                 Overview = CleanDescription(root?.Element(ns + "description")?.Value),
                 Runtime = int.TryParse(root?.Element(ns + "episodelength")?.Value, out var rt) ? rt : 24,
@@ -1070,7 +870,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             return series;
         }
 
-        private static List<Episode> MapEpisodes(XElement root)
+        private static List<Episode> MapEpisodes(XElement root, IAniDbXmlClient xmlClient)
         {
             var episodes = new List<Episode>();
             var ns = root?.Name.Namespace ?? XNamespace.None;
@@ -1085,7 +885,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     continue;
                 }
 
-                var titleEn = GetBestTitle(ep.Elements(ns + "title"), $"Episode {epNum}");
+                var titleEn = xmlClient.GetBestTitle(ep.Elements(ns + "title"), $"Episode {epNum}");
 
                 var episode = new Episode
                 {
@@ -1122,64 +922,6 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             }
 
             return AniDbLinkRegex.Replace(description, "$1");
-        }
-
-        private static string GetBestTitle(IEnumerable<XElement> titles, string defaultTitle)
-        {
-            if (titles == null || !titles.Any())
-            {
-                return defaultTitle;
-            }
-
-            string GetLang(XElement t) => ((string)t.Attribute(XNamespace.Xml + "lang") ?? (string)t.Attribute("lang"))?.Trim();
-            string GetType(XElement t) => ((string)t.Attribute("type"))?.Trim();
-
-            // Exclude 'short' titles (abbreviations such as 'ark', 'EVA', 'SAO') from primary title selection
-            var nonShortTitles = titles.Where(t => !string.Equals(GetType(t), "short", StringComparison.OrdinalIgnoreCase)).ToList();
-            var candidatePool = nonShortTitles.Any() ? nonShortTitles : titles.ToList();
-
-            // 1. Official English title (e.g. "Animation Runner Kuromi")
-            var officialEn = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetType(t), "official", StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(GetLang(t), "en", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(officialEn))
-            {
-                return officialEn;
-            }
-
-            // 2. Any non-short English title (e.g. "Big Sister Juice the Animation: Leave the Three Sisters to Shirakawa")
-            var anyEn = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetLang(t), "en", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(anyEn))
-            {
-                return anyEn;
-            }
-
-            // 3. Main title (e.g. "Animation Seisaku Shinkou Kuromi-chan")
-            var mainTitle = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetType(t), "main", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(mainTitle))
-            {
-                return mainTitle;
-            }
-
-            // 4. x-jat (Romaji) title
-            var xjatTitle = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetLang(t), "x-jat", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(xjatTitle))
-            {
-                return xjatTitle;
-            }
-
-            // 5. Japanese title
-            var jaTitle = candidatePool.FirstOrDefault(t =>
-                string.Equals(GetLang(t), "ja", StringComparison.OrdinalIgnoreCase))?.Value?.Trim();
-            if (!string.IsNullOrWhiteSpace(jaTitle))
-            {
-                return jaTitle;
-            }
-
-            return candidatePool.FirstOrDefault()?.Value?.Trim() ?? defaultTitle;
         }
     }
 }

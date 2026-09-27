@@ -20,6 +20,23 @@ export interface AniDbMappingResource {
   relationType: string;
 }
 
+// Anidarr: keep this in sync with the relation types RelatedSeriesList.tsx's
+// getRelationConfig() actually recognizes. Free text here used to let a typo or
+// arbitrary value silently render as an unstyled "Related" badge on the series
+// page instead of a properly labeled/colored one.
+const RELATION_TYPES = [
+  'Manual',
+  'Sequel',
+  'Prequel',
+  'Side Story',
+  'Summary',
+  'Parent Story',
+  'Same Setting',
+  'Alternative Setting',
+  'Alternative Version',
+  'Spin-Off',
+];
+
 export function useAniDbMappings(seriesId: number) {
   return useQuery<AniDbMappingResource[]>({
     queryKey: ['anidbmappings', seriesId],
@@ -185,13 +202,17 @@ export default function AniDbMappingsModal({
                   />
                 </td>
                 <td style={{ padding: '8px' }}>
-                  <input
-                    type="text"
+                  <select
                     value={newRelation}
-                    placeholder="Relation"
                     style={inputStyle}
                     onChange={(e) => setNewRelation(e.target.value)}
-                  />
+                  >
+                    {RELATION_TYPES.map((relationType) => (
+                      <option key={relationType} value={relationType}>
+                        {relationType}
+                      </option>
+                    ))}
+                  </select>
                 </td>
                 <td style={{ padding: '8px' }}>
                   <Button

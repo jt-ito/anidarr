@@ -151,9 +151,7 @@ namespace NzbDrone.Core.MediaFiles
                     return;
                 }
 
-                _logger.Error("DEBUG: cleanOldPath={0}", cleanOldPath);
                 var rootFolders = _rootFolderService.All();
-                _logger.Error("DEBUG: rootFolders.Count={0}", rootFolders.Count);
                 foreach (var rootFolder in rootFolders)
                 {
                     var cleanRootFolder = rootFolder.Path.CleanFilePath();

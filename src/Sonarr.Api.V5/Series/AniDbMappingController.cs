@@ -40,6 +40,16 @@ namespace Sonarr.Api.V5.Series
         public Created<AniDbMappingResource> CreateMapping([FromBody] AniDbMappingResource resource)
         {
             var model = ToModel(resource);
+
+            // AniDbId carries a globally unique DB index (one AniDB ID maps to at
+            // most one series). Check first so a duplicate surfaces as a clean
+            // validation error instead of an unhandled DB constraint exception.
+            var existingMapping = _mappingService.GetMappingByAniDbId(model.AniDbId);
+            if (existingMapping != null)
+            {
+                throw new BadRequestException($"AniDB ID {model.AniDbId} is already mapped to series {existingMapping.SeriesId}.");
+            }
+
             var mappings = _mappingService.GetMappingsForSeries(model.SeriesId);
             mappings.Add(model);
 

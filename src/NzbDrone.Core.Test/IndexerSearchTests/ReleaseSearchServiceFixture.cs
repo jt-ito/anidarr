@@ -12,6 +12,7 @@ using NzbDrone.Core.DecisionEngine;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.IndexerSearch;
 using NzbDrone.Core.IndexerSearch.Definitions;
+using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
 
@@ -732,6 +733,72 @@ namespace NzbDrone.Core.Test.IndexerSearchTests
 
             capturedReports.Should().HaveCount(1);
             capturedReports.First().Guid.Should().Be("test-guid");
+        }
+
+        [Test]
+        public async Task anime_season_search_should_resolve_aniDb_mappings_only_once()
+        {
+            // Anidarr regression test: PopulateAllSeasonAliases used to be called once
+            // per season *and* once per episode within a single season search, each
+            // time re-issuing GetMappingsForSeries (an uncached DB query) and a
+            // FindByAniDbId lookup per mapping. It should now be resolved once for the
+            // whole search operation and reused.
+            var animeSeries = Builder<Series>.CreateNew()
+                .With(v => v.SeriesType = SeriesTypes.Anime)
+                .With(v => v.PrimaryMetadataProvider = "anidb")
+                .With(v => v.AniDbId = 1)
+                .With(v => v.UseSceneNumbering = false)
+                .With(v => v.Tags = new HashSet<int>())
+                .Build();
+
+            var animeEpisodes = new List<Episode>();
+            for (var season = 1; season <= 2; season++)
+            {
+                for (var ep = 1; ep <= 2; ep++)
+                {
+                    animeEpisodes.Add(Builder<Episode>.CreateNew()
+                        .With(v => v.SeriesId = animeSeries.Id)
+                        .With(v => v.Series = animeSeries)
+                        .With(v => v.SeasonNumber = season)
+                        .With(v => v.EpisodeNumber = ep)
+                        .With(v => v.SceneSeasonNumber = (int?)null)
+                        .With(v => v.SceneEpisodeNumber = (int?)null)
+                        .With(v => v.SceneAbsoluteEpisodeNumber = (int?)null)
+                        .With(v => v.AbsoluteEpisodeNumber = ((season - 1) * 2) + ep)
+                        .With(v => v.AirDate = "2015-01-05")
+                        .With(v => v.AirDateUtc = new DateTime(2015, 1, 5, 0, 0, 0, DateTimeKind.Utc))
+                        .With(v => v.Monitored = true)
+                        .Build());
+                }
+            }
+
+            Mocker.GetMock<ISeriesService>()
+                .Setup(v => v.GetSeries(animeSeries.Id))
+                .Returns(animeSeries);
+
+            var mappings = new List<AniDbSeriesMapping>
+            {
+                new AniDbSeriesMapping { SeriesId = animeSeries.Id, AniDbId = 1, SeasonNumber = 1 },
+                new AniDbSeriesMapping { SeriesId = animeSeries.Id, AniDbId = 2, SeasonNumber = 2 }
+            };
+
+            Mocker.GetMock<IAniDbSeriesMappingService>()
+                .Setup(s => s.GetMappingsForSeries(animeSeries.Id))
+                .Returns(mappings);
+
+            Mocker.GetMock<IAnimeOfflineTitleRepository>()
+                .Setup(r => r.FindByAniDbId(It.IsAny<int>()))
+                .Returns((AnimeOfflineTitle)null);
+
+            _mockIndexer.Setup(s => s.Fetch(It.IsAny<AnimeSeasonSearchCriteria>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo>());
+            _mockIndexer.Setup(s => s.Fetch(It.IsAny<AnimeEpisodeSearchCriteria>()))
+                .ReturnsAsync(new List<Parser.Model.ReleaseInfo>());
+
+            await Subject.SeasonSearch(animeSeries.Id, 1, animeEpisodes, false, false, false);
+
+            Mocker.GetMock<IAniDbSeriesMappingService>()
+                .Verify(s => s.GetMappingsForSeries(animeSeries.Id), Times.Once);
         }
     }
 }

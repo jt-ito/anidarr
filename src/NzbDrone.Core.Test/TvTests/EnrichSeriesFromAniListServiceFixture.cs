@@ -40,7 +40,7 @@ namespace NzbDrone.Core.Test.TvTests
                 AirDateUtc = new DateTime(2026, 7, 25, 23, 59, 59, DateTimeKind.Utc)
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(1)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(1, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(1)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(1)).Returns(new List<Episode> { episode });
 
@@ -91,7 +91,7 @@ namespace NzbDrone.Core.Test.TvTests
                 AirDateUtc = new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc)
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(1)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(1, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(1)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(1)).Returns(new List<Episode> { episode });
 
@@ -143,7 +143,7 @@ namespace NzbDrone.Core.Test.TvTests
                 AirDateUtc = new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc)
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(1)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(1, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(1)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(1)).Returns(new List<Episode> { episode });
 
@@ -193,7 +193,7 @@ namespace NzbDrone.Core.Test.TvTests
                 AirDateUtc = new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc)
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(1)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(1, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(1)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(1)).Returns(new List<Episode> { episode });
 
@@ -228,7 +228,7 @@ namespace NzbDrone.Core.Test.TvTests
                 new AniDbSeriesMapping { SeriesId = 1, SeasonNumber = 1, AniDbId = 1 }
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(1)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(1, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(1)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(1)).Returns(new List<Episode>());
 
@@ -261,9 +261,9 @@ namespace NzbDrone.Core.Test.TvTests
         {
             var sequence = new List<string>();
             var anilistEnricherMock = Mocker.GetMock<IAniListEnricher>();
-            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int?>()))
+            anilistEnricherMock.Setup(c => c.SearchAniListIdByTitle(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>()))
                 .Returns((int?)null)
-                .Callback<string, int, int?>((t, y, e) => sequence.Add(t));
+                .Callback<string, int?, int?>((t, y, e) => sequence.Add(t));
 
             var series = new Series
             {
@@ -288,7 +288,7 @@ namespace NzbDrone.Core.Test.TvTests
                 AirDateUtc = new DateTime(2026, 7, 26, 23, 59, 59, DateTimeKind.Utc)
             };
 
-            Mocker.GetMock<ISeriesService>().Setup(s => s.GetSeries(16067)).Returns(series);
+            Mocker.GetMock<ISeriesService>().Setup(s => s.TryGetSeries(16067, out series)).Returns(true);
             Mocker.GetMock<IAniDbSeriesMappingService>().Setup(m => m.GetMappingsForSeries(16067)).Returns(mapping);
             Mocker.GetMock<IEpisodeService>().Setup(e => e.GetEpisodeBySeries(16067)).Returns(new List<Episode> { episode });
 

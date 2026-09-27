@@ -16,6 +16,11 @@ namespace NzbDrone.Common.Disk
         DateTime FolderGetCreationTime(string path);
         DateTime FolderGetLastWrite(string path);
         DateTime FileGetLastWrite(string path);
+
+        // Anidarr: single-stat existence + last-write check, used on hot paths
+        // (e.g. mapping cover art for every series in the library) so callers
+        // don't pay for two or three separate filesystem stats per file.
+        bool TryGetFileLastWrite(string path, out DateTime lastWriteUtc);
         void EnsureFolder(string path);
         bool FolderExists(string path);
         bool FileExists(string path);

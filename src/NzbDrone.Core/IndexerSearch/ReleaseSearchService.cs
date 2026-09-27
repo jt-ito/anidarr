@@ -357,11 +357,19 @@ namespace NzbDrone.Core.IndexerSearch
             return DeDupeDecisions(downloadDecisions);
         }
 
-        private void PopulateAllSeasonAliases(Series series, SearchCriteriaBase searchSpec)
+        // Anidarr: pulled out of PopulateAllSeasonAliases so the AniDB-mapping DB
+        // query + per-mapping offline-title lookups run once per search operation
+        // (computed by the caller and passed down) instead of once per season *and*
+        // once per episode — SearchAnimeSeason used to call PopulateAllSeasonAliases
+        // (and therefore GetMappingsForSeries) once per season in its own loop, plus
+        // once more per episode via SearchAnime, all recomputing the same result.
+        private Dictionary<int, List<string>> ResolveAllSeasonAliasesFromMappings(Series series)
         {
+            var result = new Dictionary<int, List<string>>();
+
             if (series.SeriesType != SeriesTypes.Anime)
             {
-                return;
+                return result;
             }
 
             var isAniDbSourced = series.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
@@ -410,10 +418,10 @@ namespace NzbDrone.Core.IndexerSearch
                                     .Distinct(StringComparer.InvariantCultureIgnoreCase)
                                     .ToList();
 
-                                if (!searchSpec.AllSeasonAliases.TryGetValue(m.SeasonNumber, out var list))
+                                if (!result.TryGetValue(m.SeasonNumber, out var list))
                                 {
                                     list = new List<string>();
-                                    searchSpec.AllSeasonAliases[m.SeasonNumber] = list;
+                                    result[m.SeasonNumber] = list;
                                 }
 
                                 foreach (var t in filtered)
@@ -430,6 +438,35 @@ namespace NzbDrone.Core.IndexerSearch
                 catch (Exception ex)
                 {
                     _logger.Debug(ex, "Failed to resolve all season aliases for series {0}", series.Title);
+                }
+            }
+
+            return result;
+        }
+
+        private void PopulateAllSeasonAliases(Series series, SearchCriteriaBase searchSpec, Dictionary<int, List<string>> mappingAliases = null)
+        {
+            if (series.SeriesType != SeriesTypes.Anime)
+            {
+                return;
+            }
+
+            mappingAliases ??= ResolveAllSeasonAliasesFromMappings(series);
+
+            foreach (var kvp in mappingAliases)
+            {
+                if (!searchSpec.AllSeasonAliases.TryGetValue(kvp.Key, out var list))
+                {
+                    list = new List<string>();
+                    searchSpec.AllSeasonAliases[kvp.Key] = list;
+                }
+
+                foreach (var t in kvp.Value)
+                {
+                    if (!list.Contains(t, StringComparer.InvariantCultureIgnoreCase))
+                    {
+                        list.Add(t);
+                    }
                 }
             }
 
@@ -454,7 +491,7 @@ namespace NzbDrone.Core.IndexerSearch
             }
         }
 
-        private void PopulateSeasonSearchTitles(Series series, SearchCriteriaBase searchSpec, int seasonNumber)
+        private void PopulateSeasonSearchTitles(Series series, SearchCriteriaBase searchSpec, int seasonNumber, Dictionary<int, List<string>> mappingAliases = null)
         {
             searchSpec.TargetSeasonNumber = seasonNumber;
 
@@ -463,7 +500,7 @@ namespace NzbDrone.Core.IndexerSearch
                 return;
             }
 
-            PopulateAllSeasonAliases(series, searchSpec);
+            PopulateAllSeasonAliases(series, searchSpec, mappingAliases);
 
             var season = series.Seasons?.FirstOrDefault(s => s.SeasonNumber == seasonNumber);
             if (season != null && !string.IsNullOrWhiteSpace(season.Title))
@@ -482,7 +519,7 @@ namespace NzbDrone.Core.IndexerSearch
             }
         }
 
-        private async Task<List<DownloadDecision>> SearchAnime(Series series, Episode episode, bool monitoredOnly, bool userInvokedSearch, bool interactiveSearch, bool isSeasonSearch = false)
+        private async Task<List<DownloadDecision>> SearchAnime(Series series, Episode episode, bool monitoredOnly, bool userInvokedSearch, bool interactiveSearch, bool isSeasonSearch = false, Dictionary<int, List<string>> mappingAliases = null)
         {
             var searchSpec = Get<AnimeEpisodeSearchCriteria>(series, new List<Episode> { episode }, monitoredOnly, userInvokedSearch, interactiveSearch);
 
@@ -492,7 +529,7 @@ namespace NzbDrone.Core.IndexerSearch
             searchSpec.EpisodeNumber = episode.SceneEpisodeNumber ?? episode.EpisodeNumber;
             searchSpec.AbsoluteEpisodeNumber = episode.SceneAbsoluteEpisodeNumber ?? episode.AbsoluteEpisodeNumber ?? 0;
 
-            PopulateSeasonSearchTitles(series, searchSpec, searchSpec.SeasonNumber);
+            PopulateSeasonSearchTitles(series, searchSpec, searchSpec.SeasonNumber, mappingAliases);
 
             var downloadDecisions = await Dispatch(indexer => indexer.Fetch(searchSpec), searchSpec);
 
@@ -547,10 +584,15 @@ namespace NzbDrone.Core.IndexerSearch
                 .Select(epList => epList.First())
                 .ToList();
 
+            // Anidarr: resolve once for the whole operation instead of once per season
+            // (below) plus once per episode (via SearchAnime) — see
+            // ResolveAllSeasonAliasesFromMappings for why.
+            var mappingAliases = ResolveAllSeasonAliasesFromMappings(series);
+
             foreach (var season in seasonsToSearch)
             {
                 searchSpec.SeasonNumber = season.SeasonNumber;
-                PopulateSeasonSearchTitles(series, searchSpec, season.SeasonNumber);
+                PopulateSeasonSearchTitles(series, searchSpec, season.SeasonNumber, mappingAliases);
 
                 var decisions = await Dispatch(indexer => indexer.Fetch(searchSpec), searchSpec);
                 downloadDecisions.AddRange(decisions);
@@ -558,7 +600,7 @@ namespace NzbDrone.Core.IndexerSearch
 
             foreach (var episode in episodesToSearch)
             {
-                downloadDecisions.AddRange(await SearchAnime(series, episode, monitoredOnly, userInvokedSearch, interactiveSearch, true));
+                downloadDecisions.AddRange(await SearchAnime(series, episode, monitoredOnly, userInvokedSearch, interactiveSearch, true, mappingAliases));
             }
 
             return DeDupeDecisions(downloadDecisions);

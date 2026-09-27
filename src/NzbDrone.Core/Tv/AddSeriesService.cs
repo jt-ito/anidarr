@@ -27,6 +27,7 @@ namespace NzbDrone.Core.Tv
         private readonly IBuildFileNames _fileNameBuilder;
         private readonly IRefreshEpisodeService _refreshEpisodeService;
         private readonly IAddSeriesValidator _addSeriesValidator;
+        private readonly MediaCover.IMapCoversToLocal _mediaCoverService;
         private readonly Messaging.Events.IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
@@ -36,13 +37,15 @@ namespace NzbDrone.Core.Tv
                                 IRefreshEpisodeService refreshEpisodeService,
                                 IAddSeriesValidator addSeriesValidator,
                                 Logger logger,
-                                Messaging.Events.IEventAggregator eventAggregator = null)
+                                Messaging.Events.IEventAggregator eventAggregator = null,
+                                MediaCover.IMapCoversToLocal mediaCoverService = null)
         {
             _seriesService = seriesService;
             _metadataDispatcher = metadataDispatcher;
             _fileNameBuilder = fileNameBuilder;
             _refreshEpisodeService = refreshEpisodeService;
             _addSeriesValidator = addSeriesValidator;
+            _mediaCoverService = mediaCoverService;
             _logger = logger;
             _eventAggregator = eventAggregator;
         }
@@ -71,6 +74,15 @@ namespace NzbDrone.Core.Tv
             if (episodes.Any())
             {
                 _refreshEpisodeService.RefreshEpisodeInfo(seriesData, episodes);
+            }
+
+            try
+            {
+                _mediaCoverService?.EnsureCovers(seriesData);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to ensure covers during AddSeries for {0}", seriesData);
             }
 
             _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent("Series successfully added!", newSeries.AniDbId));
@@ -156,6 +168,15 @@ namespace NzbDrone.Core.Tv
                 if (eps.Any())
                 {
                     _refreshEpisodeService.RefreshEpisodeInfo(series, eps);
+                }
+
+                try
+                {
+                    _mediaCoverService?.EnsureCovers(series);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Failed to ensure covers during bulk AddSeries for {0}", series);
                 }
             }
 

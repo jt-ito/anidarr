@@ -78,6 +78,73 @@ namespace NzbDrone.Core.Test.MetadataSource.AniList
         }
 
         [Test]
+        public void should_reject_year_outside_tolerance()
+        {
+            var json = @"{
+  ""data"": {
+    ""page"": {
+      ""media"": [
+        { ""id"": 104, ""title"": { ""romaji"": ""Some Anime"" }, ""startDate"": { ""year"": 2020 }, ""episodes"": 12, ""format"": ""TV"" }
+      ]
+    }
+  }
+}";
+            GivenJsonResponse(json);
+
+            // Expected 2015, found 2020 — well outside the +/- 1 tolerance.
+            var result = Subject.SearchAniListIdByTitle("Some Anime", 2015, 12);
+
+            result.Should().BeNull();
+        }
+
+        [Test]
+        public void should_match_regardless_of_year_when_expected_year_is_unknown()
+        {
+            // Anidarr regression test: a newly-added, not-yet-aired series has no AniDB
+            // start date and no aired episodes yet, so EnrichSeriesFromAniListService
+            // passes a null expectedYear rather than defaulting to 0. Before the fix,
+            // AniListEnricher always compared against year 0, so every real candidate
+            // failed Math.Abs(candidateYear - 0) <= 1 and the search always returned
+            // null — even when the title matched perfectly.
+            var json = @"{
+  ""data"": {
+    ""page"": {
+      ""media"": [
+        { ""id"": 105, ""title"": { ""romaji"": ""Some Anime"" }, ""startDate"": { ""year"": 2026 }, ""episodes"": 12, ""format"": ""TV"" }
+      ]
+    }
+  }
+}";
+            GivenJsonResponse(json);
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", null, 12);
+
+            result.Should().Be(105);
+        }
+
+        [Test]
+        public void should_match_by_title_when_expected_year_unknown_and_candidate_has_no_start_date()
+        {
+            // With no expected year and no candidate start date either, there's nothing
+            // to compare on, so matching should fall through to title similarity alone
+            // rather than being rejected for lacking a start date.
+            var json = @"{
+  ""data"": {
+    ""page"": {
+      ""media"": [
+        { ""id"": 106, ""title"": { ""romaji"": ""Some Anime"" }, ""episodes"": 12, ""format"": ""TV"" }
+      ]
+    }
+  }
+}";
+            GivenJsonResponse(json);
+
+            var result = Subject.SearchAniListIdByTitle("Some Anime", null, 12);
+
+            result.Should().Be(106);
+        }
+
+        [Test]
         public void should_use_episode_tiebreaker_when_ambiguous()
         {
             var json = @"{
@@ -317,6 +384,38 @@ namespace NzbDrone.Core.Test.MetadataSource.AniList
             result.AiringTimes[100].Should().ContainKey(1);
 
             result.Titles[200].Should().Contain("Romaji 200");
+        }
+
+        [Test]
+        public void should_evict_expired_title_search_cache_entries_on_next_write()
+        {
+            // Anidarr regression test: cache entries used to only be checked for
+            // staleness on read and never actively removed, so a key that's resolved
+            // once and never looked up again would sit in the static dictionary for
+            // the life of the process. A write should now prune anything expired.
+            var cacheField = typeof(AniListEnricher).GetField("_titleSearchCache", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            var cache = (System.Collections.IDictionary)cacheField.GetValue(null);
+
+            var staleEntryType = cache.GetType().GetGenericArguments()[1];
+            var staleValue = Activator.CreateInstance(staleEntryType, DateTime.UtcNow.AddHours(-25), (int?)999);
+            cache["stale-key"] = staleValue;
+
+            cache.Contains("stale-key").Should().BeTrue("the stale entry should exist before the next write prunes it");
+
+            var json = @"{
+  ""data"": {
+    ""page"": {
+      ""media"": [
+        { ""id"": 107, ""title"": { ""romaji"": ""Fresh Anime"" }, ""startDate"": { ""year"": 2015 }, ""episodes"": 12, ""format"": ""TV"" }
+      ]
+    }
+  }
+}";
+            GivenJsonResponse(json);
+
+            Subject.SearchAniListIdByTitle("Fresh Anime", 2015, 12);
+
+            cache.Contains("stale-key").Should().BeFalse("a write should prune expired entries from the same cache");
         }
     }
 }

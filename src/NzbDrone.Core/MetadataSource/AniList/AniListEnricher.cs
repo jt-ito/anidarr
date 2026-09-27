@@ -26,7 +26,7 @@ namespace NzbDrone.Core.MetadataSource.AniList
         Dictionary<int, TimeSpan> GetAiringTimes(int aniListId);
         Dictionary<int, Dictionary<int, TimeSpan>> GetAiringTimesForMultiple(IEnumerable<int> aniListIds);
         AniListEnrichmentData GetEnrichmentForMultiple(IEnumerable<int> aniListIds);
-        int? SearchAniListIdByTitle(string title, int expectedYear, int? expectedEpisodeCount);
+        int? SearchAniListIdByTitle(string title, int? expectedYear, int? expectedEpisodeCount);
         List<string> GetTitles(int aniListId);
         AniListMediaInfo GetMediaInfo(int aniListId);
         Dictionary<int, AniListMediaInfo> GetMediaInfoForMultiple(IEnumerable<int> aniListIds);
@@ -35,6 +35,17 @@ namespace NzbDrone.Core.MetadataSource.AniList
     public class AniListEnricher : IAniListEnricher
     {
         private const string GraphQlEndpoint = "https://graphql.anilist.co";
+
+        // Anidarr: entries were only ever checked for staleness on read and
+        // overwritten on the next successful fetch for that same key — a key that's
+        // resolved once and never looked up again (common once a title/series has a
+        // persisted AniList ID) stayed in the dictionary for the life of the process.
+        // CacheTtl entries are now actively pruned (on every write, and any stale
+        // entry found on a miss is removed too) so these stay bounded to roughly
+        // "distinct keys touched within the last TTL window" instead of growing
+        // forever.
+        private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
+
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime CachedAt, int? Id)> _titleSearchCache =
             new System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime, int?)>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +60,18 @@ namespace NzbDrone.Core.MetadataSource.AniList
             _titleSearchCache.Clear();
             _enrichmentBatchCache.Clear();
             _mediaInfoCache.Clear();
+        }
+
+        private static void PruneExpired<TKey, TValue>(System.Collections.Concurrent.ConcurrentDictionary<TKey, (DateTime CachedAt, TValue Value)> cache, TimeSpan ttl)
+        {
+            var cutoff = DateTime.UtcNow - ttl;
+            foreach (var entry in cache)
+            {
+                if (entry.Value.CachedAt < cutoff)
+                {
+                    cache.TryRemove(entry.Key, out _);
+                }
+            }
         }
 
         private readonly IHttpClient _httpClient;
@@ -102,9 +125,14 @@ namespace NzbDrone.Core.MetadataSource.AniList
             }
 
             var cacheKey = string.Join(",", idList.OrderBy(x => x));
-            if (_enrichmentBatchCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            if (_enrichmentBatchCache.TryGetValue(cacheKey, out var cached))
             {
-                return cached.Data;
+                if (DateTime.UtcNow - cached.CachedAt < CacheTtl)
+                {
+                    return cached.Data;
+                }
+
+                _enrichmentBatchCache.TryRemove(cacheKey, out _);
             }
 
             if (_rateLimiter.IsRateLimited)
@@ -117,6 +145,7 @@ namespace NzbDrone.Core.MetadataSource.AniList
             {
                 var result = _rateLimiter.ExecuteAsync(() => FetchEnrichmentForMultiple(idList)).GetAwaiter().GetResult();
                 _enrichmentBatchCache[cacheKey] = (DateTime.UtcNow, result);
+                PruneExpired(_enrichmentBatchCache, CacheTtl);
                 return result;
             }
             catch (HttpException ex)
@@ -133,9 +162,14 @@ namespace NzbDrone.Core.MetadataSource.AniList
 
         public AniListMediaInfo GetMediaInfo(int aniListId)
         {
-            if (_mediaInfoCache.TryGetValue(aniListId, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            if (_mediaInfoCache.TryGetValue(aniListId, out var cached))
             {
-                return cached.Info;
+                if (DateTime.UtcNow - cached.CachedAt < CacheTtl)
+                {
+                    return cached.Info;
+                }
+
+                _mediaInfoCache.TryRemove(aniListId, out _);
             }
 
             if (_rateLimiter.IsRateLimited)
@@ -150,6 +184,7 @@ namespace NzbDrone.Core.MetadataSource.AniList
                 if (result != null)
                 {
                     _mediaInfoCache[aniListId] = (DateTime.UtcNow, result);
+                    PruneExpired(_mediaInfoCache, CacheTtl);
                 }
 
                 return result;
@@ -440,12 +475,17 @@ query ($ids: [Int]) {
             return result;
         }
 
-        public int? SearchAniListIdByTitle(string title, int expectedYear, int? expectedEpisodeCount)
+        public int? SearchAniListIdByTitle(string title, int? expectedYear, int? expectedEpisodeCount)
         {
             var cacheKey = $"{title}|{expectedYear}|{expectedEpisodeCount}";
-            if (_titleSearchCache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow - cached.CachedAt < TimeSpan.FromHours(24))
+            if (_titleSearchCache.TryGetValue(cacheKey, out var cached))
             {
-                return cached.Id;
+                if (DateTime.UtcNow - cached.CachedAt < CacheTtl)
+                {
+                    return cached.Id;
+                }
+
+                _titleSearchCache.TryRemove(cacheKey, out _);
             }
 
             if (_rateLimiter.IsRateLimited)
@@ -458,6 +498,7 @@ query ($ids: [Int]) {
             {
                 var result = _rateLimiter.ExecuteAsync(() => FetchAniListIdByTitle(title, expectedYear, expectedEpisodeCount)).GetAwaiter().GetResult();
                 _titleSearchCache[cacheKey] = (DateTime.UtcNow, result);
+                PruneExpired(_titleSearchCache, CacheTtl);
                 return result;
             }
             catch (HttpException ex)
@@ -472,7 +513,7 @@ query ($ids: [Int]) {
             }
         }
 
-        private int? FetchAniListIdByTitle(string title, int expectedYear, int? expectedEpisodeCount)
+        private int? FetchAniListIdByTitle(string title, int? expectedYear, int? expectedEpisodeCount)
         {
             const string query = @"
 query ($search: String) {
@@ -517,10 +558,17 @@ query ($search: String) {
             var candidates = new List<AniListMedia>();
             foreach (var node in mediaList)
             {
-                if (node.Format == "TV" && node.StartDate?.Year.HasValue == true)
+                if (node.Format == "TV")
                 {
-                    var yearDiff = Math.Abs(node.StartDate.Year.Value - expectedYear);
-                    if (yearDiff <= 1)
+                    // Anidarr: when the caller doesn't know the series' year yet (e.g. a
+                    // newly-added, not-yet-aired series with no AniDB start date and no
+                    // aired episodes), don't require a year match at all — falling back to
+                    // "expected year 0" here used to make every real candidate fail the
+                    // year-diff check and silently kill the whole search.
+                    var yearMatches = !expectedYear.HasValue ||
+                        (node.StartDate?.Year.HasValue == true && Math.Abs(node.StartDate.Year.Value - expectedYear.Value) <= 1);
+
+                    if (yearMatches)
                     {
                         var isMatch = false;
 

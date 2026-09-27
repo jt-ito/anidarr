@@ -390,6 +390,30 @@ namespace NzbDrone.Common.Test.Http
         }
 
         [Test]
+        public async Task should_allow_concurrent_downloads_to_the_same_destination()
+        {
+            // Anidarr: regression test for a race where two concurrent downloads to the
+            // same destination (e.g. a cover re-triggered by both SeriesAddedEvent and a
+            // follow-up SeriesUpdatedEvent) shared a fixed "<fileName>.part" temp file —
+            // whichever finished second found it already moved/deleted by the first and
+            // threw FileNotFoundException. Each call now gets its own uniquely-named temp
+            // file, so both should complete cleanly regardless of interleaving.
+            var file = GetTempFilePath();
+            var url = "https://sonarr.tv/img/slider/seriesdetails.png";
+
+            var first = Subject.DownloadFileAsync(url, file);
+            var second = Subject.DownloadFileAsync(url, file);
+
+            await Task.WhenAll(first, second);
+
+            File.Exists(file).Should().BeTrue();
+            File.Exists(file + ".part").Should().BeFalse();
+
+            var fileInfo = new FileInfo(file);
+            fileInfo.Length.Should().Be(114770);
+        }
+
+        [Test]
         public async Task should_download_file_with_redirect()
         {
             var file = GetTempFilePath();

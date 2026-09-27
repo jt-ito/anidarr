@@ -99,6 +99,13 @@ function getRelationConfig(relationType?: string): RelationConfig {
     };
   }
 
+  if (type.includes('manual')) {
+    return {
+      label: 'Manual',
+      accentColor: '#94a3b8', // Neutral slate — user-created mapping, not AniDB-derived
+    };
+  }
+
   return {
     label: relationType || 'Related',
     accentColor: '#06b6d4',
@@ -107,6 +114,35 @@ function getRelationConfig(relationType?: string): RelationConfig {
 
 function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
   const { data: allSeries = [] } = useSeries();
+
+  // Anidarr: was previously an allSeries.find() run inline in the render body for
+  // every related-series pill, on every render — a full O(library size) scan
+  // regardless of whether allSeries had changed. Precompute a lookup once instead.
+  const seriesByAniDbId = useMemo(() => {
+    const map = new Map<number, Series>();
+
+    for (const s of allSeries) {
+      if (s.aniDbId != null) {
+        map.set(s.aniDbId, s);
+      }
+
+      s.mappedAniDbIds?.forEach((id) => map.set(id, s));
+    }
+
+    return map;
+  }, [allSeries]);
+
+  const seriesByTitle = useMemo(() => {
+    const map = new Map<string, Series>();
+
+    for (const s of allSeries) {
+      if (s.title) {
+        map.set(s.title.toLowerCase(), s);
+      }
+    }
+
+    return map;
+  }, [allSeries]);
 
   const groups = useMemo(() => {
     if (!series.aniDbRelatedSeries || series.aniDbRelatedSeries.length === 0) {
@@ -209,13 +245,11 @@ function RelatedSeriesList({ series, className }: RelatedSeriesListProps) {
                 targetUrl = `/series/${related.existingTitleSlug}`;
                 isInLibrary = true;
               } else {
-                const existing = allSeries.find(
-                  (s) =>
-                    s.aniDbId === related.relatedAniDbId ||
-                    s.mappedAniDbIds?.includes(related.relatedAniDbId) ||
-                    (related.title &&
-                      s.title?.toLowerCase() === related.title.toLowerCase())
-                );
+                const existing =
+                  seriesByAniDbId.get(related.relatedAniDbId) ??
+                  (related.title
+                    ? seriesByTitle.get(related.title.toLowerCase())
+                    : undefined);
 
                 if (existing?.titleSlug) {
                   targetUrl = `/series/${existing.titleSlug}`;

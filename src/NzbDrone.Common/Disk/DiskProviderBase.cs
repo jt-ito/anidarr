@@ -64,6 +64,26 @@ namespace NzbDrone.Common.Disk
             return new FileInfo(path).LastWriteTimeUtc;
         }
 
+        public bool TryGetFileLastWrite(string path, out DateTime lastWriteUtc)
+        {
+            Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);
+
+            // A single FileInfo instance caches its stat result across property
+            // reads until Refresh() is called, so Exists + LastWriteTimeUtc here
+            // costs one filesystem stat instead of the two or three separate
+            // stats that FileExists(path) + FileGetLastWrite(path) would cost.
+            var info = new FileInfo(path);
+
+            if (!info.Exists)
+            {
+                lastWriteUtc = default;
+                return false;
+            }
+
+            lastWriteUtc = info.LastWriteTimeUtc;
+            return true;
+        }
+
         private void CheckFolderExists(string path)
         {
             Ensure.That(path, () => path).IsValidPath(PathValidationType.CurrentOs);

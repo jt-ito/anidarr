@@ -11,6 +11,7 @@ using NzbDrone.Core.MediaFiles.EpisodeImport.Manual;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.ProgressMessaging;
+using NzbDrone.Core.Tv.Commands;
 using NzbDrone.SignalR;
 using Sonarr.Http;
 using Sonarr.Http.REST;
@@ -26,7 +27,6 @@ namespace Sonarr.Api.V3.Commands
         private readonly KnownTypes _knownTypes;
         private readonly Debouncer _debouncer;
         private readonly Dictionary<int, CommandResource> _pendingUpdates;
-
         private readonly CommandPriorityComparer _commandPriorityComparer = new CommandPriorityComparer();
 
         public CommandController(IManageCommandQueue commandQueueManager,
@@ -62,11 +62,12 @@ namespace Sonarr.Api.V3.Commands
             using (var reader = new StreamReader(Request.Body))
             {
                 var body = reader.ReadToEnd();
-                var priority = commandType == typeof(ManualImportCommand)
+                var command = STJson.Deserialize(body, commandType) as Command;
+
+                var priority = commandType == typeof(ManualImportCommand) ||
+                               (command is RefreshSeriesCommand refreshCmd && refreshCmd.SeriesIds.Any())
                     ? CommandPriority.High
                     : CommandPriority.Normal;
-
-                var command = STJson.Deserialize(body, commandType) as Command;
 
                 command.SuppressMessages = !command.SendUpdatesToClient;
                 command.SendUpdatesToClient = true;

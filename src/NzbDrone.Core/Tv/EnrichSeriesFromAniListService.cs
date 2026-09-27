@@ -37,8 +37,7 @@ namespace NzbDrone.Core.Tv
 
         public void Execute(EnrichSeriesFromAniListCommand message)
         {
-            var series = _seriesService.GetSeries(message.SeriesId);
-            if (series == null)
+            if (!_seriesService.TryGetSeries(message.SeriesId, out var series))
             {
                 return;
             }
@@ -67,7 +66,14 @@ namespace NzbDrone.Core.Tv
                 if (!currentAniListId.HasValue && !string.IsNullOrWhiteSpace(series.Title))
                 {
                     var seasonEpisodes = episodes.Where(e => e.SeasonNumber == mapping.SeasonNumber).ToList();
-                    var expectedYear = series.Year > 0 ? series.Year : (seasonEpisodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year ?? 0);
+
+                    // Anidarr: leave this null (rather than defaulting to 0) when the year is
+                    // genuinely unknown — e.g. a newly-added series with no AniDB start date yet
+                    // and no aired episodes. AniListEnricher treats a null year as "no year
+                    // constraint" instead of a guaranteed-to-fail match against year 0.
+                    var expectedYear = series.Year > 0
+                        ? (int?)series.Year
+                        : seasonEpisodes.FirstOrDefault(e => !string.IsNullOrWhiteSpace(e.AirDate))?.AirDateUtc?.Year;
                     var expectedCount = seasonEpisodes.Count(e => e.SeasonNumber > 0);
 
                     var fallbackTitles = new List<string>();

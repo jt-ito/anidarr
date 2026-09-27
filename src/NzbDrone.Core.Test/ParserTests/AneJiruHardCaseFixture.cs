@@ -626,5 +626,52 @@ namespace NzbDrone.Core.Test.ParserTests
                 remoteEpisode.Episodes[0].SeasonNumber.Should().Be(1);
             }
         }
+
+        [Test]
+        public void should_not_match_single_word_alias_to_a_distinct_longer_title_like_trigun_to_trigun_stampede()
+        {
+            // Anidarr regression test: a single-word alias (e.g. "Trigun") used to
+            // unconditionally match any release segment starting with that word,
+            // regardless of what followed — so a real, distinct, longer-titled show
+            // ("Trigun Stampede") would incorrectly match the "Trigun" alias just
+            // because it shares a title prefix. Multi-word aliases were already
+            // protected from this via per-token comparison (see the "Love Me" vs
+            // "Love Meter" test above); single-word aliases were not.
+            var trigunSeries = Builder<Series>.CreateNew()
+                .With(s => s.Id = 7777)
+                .With(s => s.Title = "Trigun")
+                .With(s => s.CleanTitle = "trigun")
+                .With(s => s.PrimaryMetadataProvider = "anidb")
+                .With(s => s.SeriesType = SeriesTypes.Anime)
+                .With(s => s.AlternateTitles = new List<string> { "Trigun" })
+                .Build();
+
+            var trigunEpisodes = new List<Episode>
+            {
+                new Episode { Id = 1, SeriesId = 7777, SeasonNumber = 1, EpisodeNumber = 1, AbsoluteEpisodeNumber = 1 }
+            };
+
+            var criteria = new SeasonSearchCriteria
+            {
+                Series = trigunSeries,
+                SeasonNumber = 1,
+                TargetSeasonNumber = 1,
+                Episodes = trigunEpisodes
+            };
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisode(7777, It.IsAny<int>()))
+                  .Returns<int, int>((id, abs) => trigunEpisodes.Find(e => e.AbsoluteEpisodeNumber == abs));
+
+            var stampedeRelease = Parser.Parser.ParseTitle("[Group] Trigun Stampede - 01 [1080p]");
+            var stampedeMapped = Subject.Map(stampedeRelease, 0, 0, null, criteria);
+            stampedeMapped.Series.Should().BeNull("Trigun Stampede is a distinct, unrelated title and must NOT match the Trigun alias");
+
+            // A generic descriptor suffix ("The Animation") must still match, though —
+            // that's not a distinguishing title word, it's release-naming boilerplate.
+            var genericSuffixRelease = Parser.Parser.ParseTitle("[Group] Trigun The Animation - 01 [1080p]");
+            var genericSuffixMapped = Subject.Map(genericSuffixRelease, 0, 0, null, criteria);
+            genericSuffixMapped.Series.Should().NotBeNull("a generic descriptor suffix should not block a real alias match");
+        }
     }
 }

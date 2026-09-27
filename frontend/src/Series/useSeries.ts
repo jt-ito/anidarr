@@ -598,9 +598,16 @@ export const FILTER_BUILDER: FilterBuilderProp<Series>[] = [
 
 const DEFAULT_SERIES: Series[] = [];
 
+// Anidarr: the response cost of this endpoint scales with library size, so give
+// it a generous but bounded timeout instead of letting a stuck request hang the
+// app's loading screen forever (see SeriesController.AllSeries for the backend
+// side of this).
+const SERIES_REQUEST_TIMEOUT = 60 * 1000;
+
 const useSeries = () => {
   const { data, ...result } = useApiQuery<Series[]>({
     path: '/series',
+    timeout: SERIES_REQUEST_TIMEOUT,
     queryOptions: {
       staleTime: 5 * 60 * 1000,
       gcTime: Infinity,

@@ -206,5 +206,85 @@ namespace NzbDrone.Core.Test.MetadataSource
             // 10 in-memory searches should execute in well under 100ms total (<10ms each)
             sw.ElapsedMilliseconds.Should().BeLessThan(200);
         }
+
+        [Test]
+        public void should_find_by_anidb_id_and_cache_positive_and_negative_results()
+        {
+            Subject.ClearFuzzyCache();
+
+            // Positive lookup
+            var found = Subject.FindByAniDbId(1);
+            found.Should().NotBeNull();
+            found.Title.Should().Be("Shingeki no Kyojin");
+
+            // Cached positive lookup returns same instance
+            var cachedFound = Subject.FindByAniDbId(1);
+            cachedFound.Should().BeSameAs(found);
+
+            // Negative lookup
+            var notFound = Subject.FindByAniDbId(999999);
+            notFound.Should().BeNull();
+
+            // Cached negative lookup returns null without errors
+            var cachedNotFound = Subject.FindByAniDbId(999999);
+            cachedNotFound.Should().BeNull();
+        }
+
+        [Test]
+        public void should_find_by_anidb_ids_in_batch()
+        {
+            Subject.ClearFuzzyCache();
+
+            var ids = new List<int> { 1, 2, 999998, 999999 };
+            var results = Subject.FindByAniDbIds(ids);
+
+            results.Should().HaveCount(2);
+            results.Should().ContainKey(1);
+            results.Should().ContainKey(2);
+            results[1].Title.Should().Be("Shingeki no Kyojin");
+            results[2].Title.Should().Be("Boku no Hero Academia");
+
+            // Subsequent call should hit cache for all requested IDs
+            var cachedResults = Subject.FindByAniDbIds(ids);
+            cachedResults.Should().HaveCount(2);
+            cachedResults[1].Should().BeSameAs(results[1]);
+        }
+
+        [Test]
+        public void GetSearchCache_should_serve_stale_cache_immediately_and_refresh_in_background()
+        {
+            // Anidarr regression test: rebuilding this cache used to happen under a
+            // lock that every concurrent caller blocked on once an hour. It should now
+            // return the stale (but still valid) cache immediately and only rebuild in
+            // the background, exactly once.
+            var repoType = typeof(AnimeOfflineTitleRepository);
+            var getSearchCache = repoType.GetMethod("GetSearchCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var cacheTimeField = repoType.GetField("_cacheTime", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var searchCacheField = repoType.GetField("_searchCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+            // Warm the cache (cold-start path, blocks synchronously — expected).
+            var firstResult = getSearchCache.Invoke(Subject, null);
+
+            // Force staleness without touching the cached list itself.
+            cacheTimeField.SetValue(null, System.DateTime.UtcNow.AddHours(-2));
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var secondResult = getSearchCache.Invoke(Subject, null);
+            stopwatch.Stop();
+
+            // Must be the exact same (stale) list reference, returned immediately —
+            // not a freshly rebuilt one.
+            secondResult.Should().BeSameAs(firstResult);
+            stopwatch.ElapsedMilliseconds.Should().BeLessThan(500);
+
+            // The background rebuild should complete shortly and swap in a new list.
+            var deadline = System.DateTime.UtcNow.AddSeconds(5);
+            while (System.DateTime.UtcNow < deadline && ReferenceEquals(searchCacheField.GetValue(null), firstResult))
+            {
+                System.Threading.Thread.Sleep(25);
+            }
+
+            searchCacheField.GetValue(null).Should().NotBeSameAs(firstResult);
+        }
     }
 }

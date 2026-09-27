@@ -135,20 +135,26 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         var seriesResources = new List<SeriesResource>();
         var includeSeasonImages = includeSubresources.Contains(SeriesSubresource.SeasonImages);
 
+        // Anidarr: fetched once and reused below instead of re-querying the whole
+        // library again inside PopulateAniDbRelatedSeries (was a duplicate full
+        // table scan on every single load of the app for large libraries).
+        var allSeries = _seriesService.GetAllSeries();
+
         if (tvdbId.HasValue)
         {
             seriesResources.AddIfNotNull(_seriesService.FindByTvdbId(tvdbId.Value)?.ToResource(includeSeasonImages));
         }
         else
         {
-            seriesResources.AddRange(_seriesService.GetAllSeries().Select(s => s.ToResource(includeSeasonImages)));
+            seriesResources.AddRange(allSeries.Select(s => s.ToResource(includeSeasonImages)));
         }
 
         MapCoversToLocal(seriesResources.ToArray());
         LinkSeriesStatistics(seriesResources, seriesStats.ToDictionary(x => x.SeriesId));
         PopulateAlternateTitles(seriesResources);
-        PopulateAniDbMappings(seriesResources);
-        PopulateAniDbRelatedSeries(seriesResources);
+        var allMappings = _aniDbSeriesMappingService.GetAllMappings();
+        PopulateAniDbMappings(seriesResources, allMappings);
+        PopulateAniDbRelatedSeries(seriesResources, allSeries, allMappings);
         seriesResources.ForEach(LinkRootFolderPath);
 
         return TypedResults.Ok(seriesResources);
@@ -323,10 +329,27 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
     private void MapCoversToLocal(params SeriesResource[] series)
     {
-        foreach (var seriesResource in series)
+        if (series.Length <= 1)
         {
-            _coverMapper.ConvertToLocalUrls(seriesResource.Id, seriesResource.Images);
+            foreach (var seriesResource in series)
+            {
+                _coverMapper.ConvertToLocalUrls(seriesResource.Id, seriesResource.Images);
+            }
+
+            return;
         }
+
+        // Anidarr: each series' covers are checked against disk independently
+        // (see MediaCoverService.ConvertToLocalUrls) with no shared state between
+        // series, so fan the whole-library case out across threads instead of
+        // stat-ing every cover file one series at a time. This is I/O-bound
+        // (waiting on disk, not the CPU), so a degree of parallelism above the
+        // core count is intentional — most of that time is spent blocked, not
+        // computing.
+        Parallel.ForEach(
+            series,
+            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount * 4 },
+            seriesResource => _coverMapper.ConvertToLocalUrls(seriesResource.Id, seriesResource.Images));
     }
 
     private void FetchAndLinkSeriesStatistics(SeriesResource resource)
@@ -365,15 +388,31 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
     private void PopulateAlternateTitles(List<SeriesResource> resources)
     {
+        var aniDbIds = resources
+            .Where(r => r.AniDbId.HasValue && r.AniDbId.Value > 0)
+            .Select(r => r.AniDbId!.Value)
+            .Distinct();
+
+        var offlineTitles = _animeOfflineTitleRepository.FindByAniDbIds(aniDbIds);
+
         foreach (var resource in resources)
         {
-            PopulateAlternateTitles(resource);
+            PopulateAlternateTitles(resource, offlineTitles);
         }
     }
 
-    private void PopulateAlternateTitles(SeriesResource resource)
+    private void PopulateAlternateTitles(SeriesResource resource, Dictionary<int, AnimeOfflineTitle>? offlineTitles = null)
     {
         resource.AlternateTitles ??= new List<AlternateTitleResource>();
+
+        var existingTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var alt in resource.AlternateTitles)
+        {
+            if (!string.IsNullOrWhiteSpace(alt.Title))
+            {
+                existingTitles.Add(alt.Title);
+            }
+        }
 
         var unaccentedTitles = resource.AlternateTitles
             .Select(a => a.Title?.RemoveDiacritics()?.NormalizeRomajiParticles())
@@ -382,7 +421,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
         foreach (var unaccented in unaccentedTitles)
         {
-            if (!resource.AlternateTitles.Any(a => string.Equals(a.Title, unaccented, StringComparison.InvariantCultureIgnoreCase)))
+            if (existingTitles.Add(unaccented!))
             {
                 resource.AlternateTitles.Add(new AlternateTitleResource { Title = unaccented, Comment = "Normalized" });
             }
@@ -393,19 +432,34 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             var mappings = _sceneMappingService.FindByTvdbId(resource.TvdbId);
             if (mappings != null)
             {
-                resource.AlternateTitles.AddRange(mappings.ConvertAll(AlternateTitleResourceMapper.ToResource));
+                foreach (var mapping in mappings)
+                {
+                    var altRes = AlternateTitleResourceMapper.ToResource(mapping);
+                    if (!string.IsNullOrWhiteSpace(altRes.Title) && existingTitles.Add(altRes.Title))
+                    {
+                        resource.AlternateTitles.Add(altRes);
+                    }
+                }
             }
         }
 
         if (resource.AniDbId.HasValue && resource.AniDbId.Value > 0)
         {
-            var animeTitle = _animeOfflineTitleRepository.FindByAniDbId(resource.AniDbId.Value);
-            if (animeTitle != null && animeTitle.SearchSynonyms != null)
+            AnimeOfflineTitle? animeTitle = null;
+            if (offlineTitles != null)
+            {
+                offlineTitles.TryGetValue(resource.AniDbId.Value, out animeTitle);
+            }
+            else
+            {
+                animeTitle = _animeOfflineTitleRepository.FindByAniDbId(resource.AniDbId.Value);
+            }
+
+            if (animeTitle?.SearchSynonyms != null)
             {
                 foreach (var synonym in animeTitle.SearchSynonyms)
                 {
-                    if (!SearchCriteriaBase.IsSpacelessSlug(synonym) &&
-                        !resource.AlternateTitles.Any(a => string.Equals(a.Title, synonym, StringComparison.InvariantCultureIgnoreCase)))
+                    if (!SearchCriteriaBase.IsSpacelessSlug(synonym) && existingTitles.Add(synonym))
                     {
                         resource.AlternateTitles.Add(new AlternateTitleResource { Title = synonym, Comment = "AniDB" });
                     }
@@ -416,11 +470,29 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         resource.AlternateTitles.RemoveAll(a => SearchCriteriaBase.IsSpacelessSlug(a.Title));
     }
 
-    private void PopulateAniDbMappings(List<SeriesResource> resources)
+    private void PopulateAniDbMappings(List<SeriesResource> resources, List<AniDbSeriesMapping>? allMappings = null)
     {
+        allMappings ??= _aniDbSeriesMappingService.GetAllMappings();
+        var mappingsBySeriesId = allMappings.ToLookup(m => m.SeriesId);
+
         foreach (var resource in resources)
         {
-            PopulateAniDbMappings(resource);
+            if (resource.AniDbId.HasValue && resource.AniDbId.Value > 0)
+            {
+                var mappings = mappingsBySeriesId[resource.Id].ToList();
+                if (mappings.Count > 0)
+                {
+                    resource.MappedAniDbIds = mappings.Select(m => m.AniDbId).Distinct().ToList();
+                    resource.AniDbMappings = mappings.Select(m => new AniDbMappingResource
+                    {
+                        Id = m.Id,
+                        SeriesId = m.SeriesId,
+                        AniDbId = m.AniDbId,
+                        SeasonNumber = m.SeasonNumber,
+                        RelationType = m.RelationType
+                    }).ToList();
+                }
+            }
         }
     }
 
@@ -444,14 +516,25 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
         }
     }
 
-    private void PopulateAniDbRelatedSeries(List<SeriesResource> resources)
+    private void PopulateAniDbRelatedSeries(List<SeriesResource> resources, List<NzbDrone.Core.Tv.Series>? allSeries = null, List<AniDbSeriesMapping>? allMappings = null)
     {
         if (resources == null || !resources.Any())
         {
             return;
         }
 
-        var allSeries = _seriesService.GetAllSeries();
+        // Anidarr: check for related series (and bail out) before doing any
+        // O(library size) work below — most libraries have no AniDB relations
+        // configured, so this used to build two full-library dictionaries on
+        // every single GET /series for nothing.
+        var allRelated = _aniDbRelatedSeriesService.GetAllRelatedSeries();
+        if (allRelated == null || allRelated.Count == 0)
+        {
+            return;
+        }
+
+        allSeries ??= _seriesService.GetAllSeries();
+        var seriesById = allSeries.ToDictionary(s => s.Id);
         var seriesByAniDbId = new Dictionary<int, string>();
         var seriesByCleanTitle = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -468,9 +551,65 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             }
         }
 
+        var relatedBySeriesId = allRelated.ToLookup(r => r.SeriesId);
+        var allRelatedAniDbIds = allRelated.Select(r => r.RelatedAniDbId).Distinct().ToList();
+
+        var metadataCache = _aniDbRelatedMetadataCacheRepository.GetByAniDbIds(allRelatedAniDbIds);
+        var cacheDict = metadataCache.ToDictionary(c => c.AniDbId);
+
+        allMappings ??= _aniDbSeriesMappingService.GetAllMappings();
+        var mappingsByAniDbId = allMappings
+            .Where(m => m.AniDbId > 0)
+            .GroupBy(m => m.AniDbId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        foreach (var rid in allRelatedAniDbIds)
+        {
+            if (!seriesByAniDbId.ContainsKey(rid))
+            {
+                if (mappingsByAniDbId.TryGetValue(rid, out var mapping) && seriesById.TryGetValue(mapping.SeriesId, out var mappedSeries))
+                {
+                    seriesByAniDbId[rid] = mappedSeries.TitleSlug;
+                }
+            }
+        }
+
         foreach (var resource in resources)
         {
-            PopulateAniDbRelatedSeries(resource, allSeries, seriesByAniDbId, seriesByCleanTitle);
+            var related = relatedBySeriesId[resource.Id].ToList();
+            if (related.Count == 0)
+            {
+                continue;
+            }
+
+            resource.AniDbRelatedSeries = related.Select(r =>
+            {
+                var cache = cacheDict.GetValueOrDefault(r.RelatedAniDbId);
+                string? existingSlug = null;
+
+                if (seriesByAniDbId.TryGetValue(r.RelatedAniDbId, out var slug))
+                {
+                    existingSlug = slug;
+                }
+                else if (cache != null && !string.IsNullOrWhiteSpace(cache.Title))
+                {
+                    var cleanCacheTitle = Parser.CleanSeriesTitle(cache.Title);
+                    if (seriesByCleanTitle.TryGetValue(cleanCacheTitle, out var titleMatchSlug))
+                    {
+                        existingSlug = titleMatchSlug;
+                    }
+                }
+
+                return new AniDbRelatedSeriesResource
+                {
+                    RelatedAniDbId = r.RelatedAniDbId,
+                    RelationType = r.RelationType,
+                    Title = cache?.Title,
+                    PosterUrl = cache?.PosterUrl,
+                    Overview = cache?.Overview,
+                    ExistingTitleSlug = existingSlug
+                };
+            }).ToList();
         }
     }
 

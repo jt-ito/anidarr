@@ -30,6 +30,12 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             Mocker.GetMock<IAppFolderInfo>()
                 .SetupGet(v => v.AppDataFolder)
                 .Returns(System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString()));
+
+            // Anidarr: AniDbProvider delegates its XML fetch/cache to the shared
+            // IAniDbXmlClient. Wire in a real instance built from the same mocks
+            // above (rather than letting AutoMocker fake it out) so the existing
+            // GivenXmlResponse-style IHttpClient mocking below still drives it.
+            Mocker.SetConstant<IAniDbXmlClient>(Mocker.Resolve<AniDbXmlClient>());
         }
 
         [TearDown]
@@ -125,6 +131,36 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             episodes.Count(e => e.SeasonNumber == 1).Should().Be(12);
             episodes.Count(e => e.SeasonNumber == 2).Should().Be(12);
             episodes.Count(e => e.SeasonNumber == 3).Should().Be(12);
+        }
+
+        [Test]
+        public void should_not_include_spaceless_slug_titles_in_alternate_titles()
+        {
+            // Anidarr regression test: AniDB's raw <titles> list can include compact,
+            // spaceless synonym entries. MapSeries used to put these straight into
+            // Series.AlternateTitles with no filtering, which then got sent to
+            // indexers as an unmatchable literal search term.
+            var xml = @"<?xml version=""1.0"" encoding=""UTF-8""?>
+<anime id=""1"">
+  <titles>
+    <title xml:lang=""en"" type=""main"">Anejiru</title>
+    <title xml:lang=""x-jat"" type=""synonym"">anejirutheanimationshirakawasanshimainiomakase</title>
+    <title xml:lang=""ja"" type=""synonym"">姉汁</title>
+  </titles>
+  <type>TV Series</type>
+  <episodecount>1</episodecount>
+  <relatedanime></relatedanime>
+  <episodes>
+    <episode><epno type=""1"">1</epno><length>25</length><title xml:lang=""en"">Episode 1</title></episode>
+  </episodes>
+</anime>";
+            GivenXmlResponse(1, xml);
+
+            var details = Subject.GetSeriesInfo("1");
+            var series = details.Item1;
+
+            series.AlternateTitles.Should().Contain("姉汁");
+            series.AlternateTitles.Should().NotContain("anejirutheanimationshirakawasanshimainiomakase");
         }
 
         [Test]

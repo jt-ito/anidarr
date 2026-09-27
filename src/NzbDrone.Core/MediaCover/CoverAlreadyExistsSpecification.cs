@@ -26,9 +26,26 @@ namespace NzbDrone.Core.MediaCover
                 return false;
             }
 
-            var headers = _httpClient.Head(new HttpRequest(url)).Headers;
             var fileSize = _diskProvider.GetFileSize(path);
-            return fileSize == headers.ContentLength;
+            if (fileSize == 0)
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return true;
+            }
+
+            try
+            {
+                var headers = _httpClient.Head(new HttpRequest(url)).Headers;
+                return headers.ContentLength.HasValue ? fileSize == headers.ContentLength.Value : false;
+            }
+            catch
+            {
+                return fileSize > 0;
+            }
         }
     }
 }

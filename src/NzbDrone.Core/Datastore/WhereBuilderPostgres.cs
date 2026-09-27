@@ -85,13 +85,19 @@ namespace NzbDrone.Core.Datastore
 
         protected override Expression VisitMemberAccess(MemberExpression expression)
         {
-            var tableName = expression?.Expression?.Type != null ? TableMapping.Mapper.TableNameMapping(expression.Expression.Type) : null;
-            var gotValue = TryGetRightValue(expression, out var value);
+            var targetExpression = expression;
+            if (expression?.Member.Name == "Value" && expression.Expression is MemberExpression inner && Nullable.GetUnderlyingType(inner.Type) != null)
+            {
+                targetExpression = inner;
+            }
+
+            var tableName = targetExpression?.Expression?.Type != null ? TableMapping.Mapper.TableNameMapping(targetExpression.Expression.Type) : null;
+            var gotValue = TryGetRightValue(targetExpression, out var value);
 
             // Only use the SQL condition if the expression didn't resolve to an actual value
             if (tableName != null && !gotValue)
             {
-                _sb.Append($"\"{tableName}\".\"{expression.Member.Name}\"");
+                _sb.Append($"\"{tableName}\".\"{targetExpression.Member.Name}\"");
             }
             else
             {
@@ -328,14 +334,28 @@ namespace NzbDrone.Core.Datastore
             _sb.Append(" = ANY (");
 
             // hardcode the integer list if it exists to bypass parameter limit
-            if (item.Type == typeof(int) && TryGetRightValue(list, out var value))
+            if ((item.Type == typeof(int) || Nullable.GetUnderlyingType(item.Type) == typeof(int)) && TryGetRightValue(list, out var value))
             {
-                var items = (IEnumerable<int>)value;
-                _sb.Append("('{");
-                _sb.Append(string.Join(", ", items));
-                _sb.Append("}')");
+                if (value is IEnumerable<int> intItems)
+                {
+                    _sb.Append("('{");
+                    _sb.Append(string.Join(", ", intItems));
+                    _sb.Append("}')");
 
-                _gotConcreteValue = true;
+                    _gotConcreteValue = true;
+                }
+                else if (value is IEnumerable<int?> nullableIntItems)
+                {
+                    _sb.Append("('{");
+                    _sb.Append(string.Join(", ", nullableIntItems.Where(x => x.HasValue)));
+                    _sb.Append("}')");
+
+                    _gotConcreteValue = true;
+                }
+                else
+                {
+                    Visit(list);
+                }
             }
             else
             {

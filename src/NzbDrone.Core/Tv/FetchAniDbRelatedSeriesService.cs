@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using NLog;
-using NzbDrone.Common.EnvironmentInfo;
-using NzbDrone.Common.Http;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource.AniDb;
@@ -15,16 +12,12 @@ namespace NzbDrone.Core.Tv
 {
     public class FetchAniDbRelatedSeriesService : IExecute<FetchAniDbRelatedSeriesCommand>
     {
-        private const string AniDbApiBase = "http://api.anidb.net:9001/httpapi";
-
         private readonly ISeriesService _seriesService;
         private readonly IAniDbSeriesMappingService _mappingService;
         private readonly IAniDbRelatedSeriesService _relatedSeriesService;
         private readonly IAniDbRelatedMetadataCacheRepository _cacheRepository;
         private readonly IConfigFileProvider _configService;
-        private readonly IHttpClient _httpClient;
-        private readonly IAppFolderInfo _appFolderInfo;
-        private readonly IAniDbRateLimiter _rateLimiter;
+        private readonly IAniDbXmlClient _xmlClient;
         private readonly Logger _logger;
 
         public FetchAniDbRelatedSeriesService(
@@ -33,9 +26,7 @@ namespace NzbDrone.Core.Tv
             IAniDbRelatedSeriesService relatedSeriesService,
             IAniDbRelatedMetadataCacheRepository cacheRepository,
             IConfigFileProvider configService,
-            IHttpClient httpClient,
-            IAppFolderInfo appFolderInfo,
-            IAniDbRateLimiter rateLimiter,
+            IAniDbXmlClient xmlClient,
             Logger logger)
         {
             _seriesService = seriesService;
@@ -43,9 +34,7 @@ namespace NzbDrone.Core.Tv
             _relatedSeriesService = relatedSeriesService;
             _cacheRepository = cacheRepository;
             _configService = configService;
-            _httpClient = httpClient;
-            _appFolderInfo = appFolderInfo;
-            _rateLimiter = rateLimiter;
+            _xmlClient = xmlClient;
             _logger = logger;
         }
 
@@ -56,8 +45,7 @@ namespace NzbDrone.Core.Tv
                 return;
             }
 
-            var series = _seriesService.GetSeries(message.SeriesId);
-            if (series == null)
+            if (!_seriesService.TryGetSeries(message.SeriesId, out var series))
             {
                 return;
             }
@@ -100,7 +88,7 @@ namespace NzbDrone.Core.Tv
                 XDocument doc;
                 try
                 {
-                    doc = GetAnimeXml(current.Id);
+                    doc = _xmlClient.GetAnimeXml(current.Id);
                 }
                 catch (Exception ex)
                 {
@@ -110,7 +98,7 @@ namespace NzbDrone.Core.Tv
 
                 ParseAndCacheMetadata(doc, current.Id);
 
-                var allRelations = GetAllRelations(doc);
+                var allRelations = _xmlClient.GetAllRelations(doc.Root);
                 foreach (var relation in allRelations)
                 {
                     if (!hubIds.Contains(relation.Id))
@@ -140,69 +128,12 @@ namespace NzbDrone.Core.Tv
             }
         }
 
-        private XDocument GetAnimeXml(int id)
-        {
-            var xml = FetchXml("anime", $"aid={id}");
-            var doc = XDocument.Parse(xml);
-
-            if (doc.Root?.Name.LocalName == "error")
-            {
-                if (doc.Root.Value.ToLowerInvariant().Contains("banned"))
-                {
-                    _configService.SetAniDbBanExpiration(DateTime.UtcNow.AddHours(24));
-                }
-
-                throw new Exception($"AniDB error for ID {id}: {doc.Root.Value}");
-            }
-
-            return doc;
-        }
-
-        private string FetchXml(string request, string extraParams)
-        {
-            var clientName = _configService.AniDbClientName;
-            var clientVersion = _configService.AniDbClientVersion;
-            var url = $"{AniDbApiBase}?request={request}&client={clientName}&clientver={clientVersion}&protover=1&{extraParams}";
-
-            var cacheDir = Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache");
-            if (!Directory.Exists(cacheDir))
-            {
-                Directory.CreateDirectory(cacheDir);
-            }
-
-            var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
-            var cacheFile = Path.Combine(cacheDir, $"{request}_{safeParams}.xml");
-
-            if (File.Exists(cacheFile))
-            {
-                var lastModified = File.GetLastWriteTimeUtc(cacheFile);
-                if (lastModified > DateTime.UtcNow.AddHours(-24))
-                {
-                    _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
-                    return File.ReadAllText(cacheFile);
-                }
-            }
-
-            return _rateLimiter.ExecuteAsync(() =>
-            {
-                var httpRequest = new HttpRequest(url);
-                var response = _httpClient.Execute(httpRequest);
-
-                if (!response.Content.Contains("<error"))
-                {
-                    File.WriteAllText(cacheFile, response.Content);
-                }
-
-                return response.Content;
-            }).GetAwaiter().GetResult();
-        }
-
         private void ParseAndCacheMetadata(XDocument doc, int aniDbId)
         {
             var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
 
             var titleElements = doc.Root?.Elements(ns + "titles").Elements(ns + "title");
-            var title = GetBestTitle(titleElements, $"AniDB {aniDbId}");
+            var title = _xmlClient.GetBestTitle(titleElements, $"AniDB {aniDbId}");
 
             var description = doc.Root?.Element(ns + "description")?.Value;
             if (!string.IsNullOrWhiteSpace(description))
@@ -235,57 +166,6 @@ namespace NzbDrone.Core.Tv
                     Overview = description
                 });
             }
-        }
-
-        private static string GetBestTitle(IEnumerable<XElement> titles, string defaultTitle)
-        {
-            if (titles == null || !titles.Any())
-            {
-                return defaultTitle;
-            }
-
-            var enTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "en" || (string)t.Attribute("lang") == "en")?.Value;
-            if (!string.IsNullOrWhiteSpace(enTitle))
-            {
-                return enTitle;
-            }
-
-            var xjatTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "x-jat" || (string)t.Attribute("lang") == "x-jat")?.Value;
-            if (!string.IsNullOrWhiteSpace(xjatTitle))
-            {
-                return xjatTitle;
-            }
-
-            var jaTitle = titles.FirstOrDefault(t => (string)t.Attribute(XNamespace.Xml + "lang") == "ja" || (string)t.Attribute("lang") == "ja")?.Value;
-            if (!string.IsNullOrWhiteSpace(jaTitle))
-            {
-                return jaTitle;
-            }
-
-            return titles.FirstOrDefault()?.Value ?? defaultTitle;
-        }
-
-        private List<(int Id, string RelationType)> GetAllRelations(XDocument doc)
-        {
-            var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
-            var related = doc.Root?.Element(ns + "relatedanime");
-            if (related == null)
-            {
-                return new List<(int, string)>();
-            }
-
-            var results = new List<(int, string)>();
-            foreach (var anime in related.Elements(ns + "anime"))
-            {
-                var type = (string)anime.Attribute("type");
-                var idStr = (string)anime.Attribute("id");
-                if (int.TryParse(idStr, out var id) && id > 0 && !string.IsNullOrWhiteSpace(type))
-                {
-                    results.Add((id, type));
-                }
-            }
-
-            return results;
         }
     }
 }

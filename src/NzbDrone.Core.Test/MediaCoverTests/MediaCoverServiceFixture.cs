@@ -7,6 +7,7 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.EnvironmentInfo;
+using NzbDrone.Common.Http;
 using NzbDrone.Core.MediaCover;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
@@ -38,10 +39,9 @@ namespace NzbDrone.Core.Test.MediaCoverTests
                     new MediaCover.MediaCover { CoverType = MediaCoverTypes.Banner }
                 };
 
-            Mocker.GetMock<IDiskProvider>().Setup(c => c.FileGetLastWrite(It.IsAny<string>()))
-                  .Returns(new DateTime(1234));
+            var lastWrite = new DateTime(1234);
 
-            Mocker.GetMock<IDiskProvider>().Setup(c => c.FileExists(It.IsAny<string>()))
+            Mocker.GetMock<IDiskProvider>().Setup(c => c.TryGetFileLastWrite(It.IsAny<string>(), out lastWrite))
                   .Returns(true);
 
             Subject.ConvertToLocalUrls(12, covers);
@@ -157,6 +157,69 @@ namespace NzbDrone.Core.Test.MediaCoverTests
 
             Mocker.GetMock<IImageResizer>()
                   .Verify(v => v.Resize(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Exactly(2));
+        }
+
+        [Test]
+        public void should_download_covers_when_series_added()
+        {
+            Mocker.GetMock<ICoverExistsSpecification>()
+                  .Setup(v => v.AlreadyExists(It.IsAny<string>(), It.IsAny<string>()))
+                  .Returns(false);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.FileExists(It.IsAny<string>()))
+                  .Returns(true);
+
+            Subject.HandleAsync(new SeriesAddedEvent(_series));
+
+            Mocker.GetMock<IHttpClient>()
+                  .Verify(v => v.DownloadFile(It.IsAny<string>(), It.IsAny<string>()), Times.Once());
+        }
+
+        [Test]
+        public void should_copy_from_proxy_cache_if_available_when_downloading()
+        {
+            _series.Images = new List<MediaCover.MediaCover>
+            {
+                new MediaCover.MediaCover(MediaCoverTypes.Poster, "http://example.com/poster.jpg")
+            };
+
+            Mocker.GetMock<ICoverExistsSpecification>()
+                  .Setup(v => v.AlreadyExists(It.IsAny<string>(), It.IsAny<string>()))
+                  .Returns(false);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.FileExists(It.Is<string>(s => s.Contains("ProxyCache"))))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.GetFileSize(It.Is<string>(s => s.Contains("ProxyCache"))))
+                  .Returns(5000);
+
+            Subject.HandleAsync(new SeriesAddedEvent(_series));
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Verify(v => v.CopyFile(It.Is<string>(s => s.Contains("ProxyCache")), It.IsAny<string>(), true), Times.Once());
+
+            Mocker.GetMock<IHttpClient>()
+                  .Verify(v => v.DownloadFile(It.IsAny<string>(), It.IsAny<string>()), Times.Never());
+        }
+
+        [Test]
+        public void should_return_path_from_ensure_cover_when_already_exists()
+        {
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.FileExists(It.IsAny<string>()))
+                  .Returns(true);
+
+            Mocker.GetMock<IDiskProvider>()
+                  .Setup(v => v.GetFileSize(It.IsAny<string>()))
+                  .Returns(1000);
+
+            var path = Subject.EnsureCover(2, MediaCoverTypes.Poster, 500);
+
+            path.Should().NotBeNullOrWhiteSpace();
+            path.Should().Contain("poster-500.jpg");
         }
     }
 }

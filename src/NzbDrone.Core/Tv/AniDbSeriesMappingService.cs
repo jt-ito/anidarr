@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Tv.Events;
 
@@ -6,6 +7,7 @@ namespace NzbDrone.Core.Tv
 {
     public interface IAniDbSeriesMappingService
     {
+        List<AniDbSeriesMapping> GetAllMappings();
         List<AniDbSeriesMapping> GetMappingsForSeries(int seriesId);
         AniDbSeriesMapping GetMappingByAniDbId(int aniDbId);
         void UpdateMappings(int seriesId, List<AniDbSeriesMapping> mappings);
@@ -19,6 +21,11 @@ namespace NzbDrone.Core.Tv
         public AniDbSeriesMappingService(IAniDbSeriesMappingRepository repository)
         {
             _repository = repository;
+        }
+
+        public List<AniDbSeriesMapping> GetAllMappings()
+        {
+            return _repository.All().ToList();
         }
 
         public List<AniDbSeriesMapping> GetMappingsForSeries(int seriesId)

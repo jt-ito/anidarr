@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Datastore;
+using NzbDrone.Core.IndexerSearch.Definitions;
 using NzbDrone.Core.Languages;
 using NzbDrone.Core.Profiles.Qualities;
 
@@ -104,13 +105,20 @@ namespace NzbDrone.Core.Tv
 
             if (otherSeries.AlternateTitles != null && otherSeries.AlternateTitles.Any())
             {
+                // Anidarr: filter spaceless slugs here too — this merge runs on every
+                // series update (including ones fed by AniDbProvider/AniList data that
+                // hasn't already been through SeriesResource.ToResource's filtering),
+                // so a slug making it into AlternateTitles here means it gets sent to
+                // indexers as an unmatchable literal search term.
+                var incoming = otherSeries.AlternateTitles.Where(t => !SearchCriteriaBase.IsSpacelessSlug(t));
+
                 if (AlternateTitles == null)
                 {
-                    AlternateTitles = otherSeries.AlternateTitles;
+                    AlternateTitles = incoming.ToList();
                 }
                 else
                 {
-                    AlternateTitles = AlternateTitles.Concat(otherSeries.AlternateTitles)
+                    AlternateTitles = AlternateTitles.Concat(incoming)
                         .Distinct(StringComparer.InvariantCultureIgnoreCase)
                         .ToList();
                 }

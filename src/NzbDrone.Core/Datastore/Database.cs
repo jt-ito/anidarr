@@ -73,10 +73,19 @@ namespace NzbDrone.Core.Datastore
                 _logger.Info("Vacuuming {0} database", _databaseName);
                 using (var db = _datamapperFactory())
                 {
-                    db.Execute("Vacuum;");
+                    if (db is SQLiteConnection)
+                    {
+                        db.Execute("PRAGMA optimize;");
+                        db.Execute("Vacuum;");
+                        db.Execute("PRAGMA wal_checkpoint(TRUNCATE);");
+                    }
+                    else
+                    {
+                        db.Execute("Vacuum;");
+                    }
                 }
 
-                _logger.Info("{0} database compressed", _databaseName);
+                _logger.Info("{0} database compressed and optimized", _databaseName);
             }
             catch (Exception e)
             {

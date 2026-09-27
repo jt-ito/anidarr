@@ -59,12 +59,13 @@ namespace NzbDrone.Core.Datastore
             var connectionBuilder = new SQLiteConnectionStringBuilder
             {
                 DataSource = dbPath,
-                CacheSize = (int)-20000,
+                CacheSize = (int)-40000,
                 DateTimeKind = DateTimeKind.Utc,
                 JournalMode = OsInfo.IsOsx ? SQLiteJournalModeEnum.Truncate : SQLiteJournalModeEnum.Wal,
+                SyncMode = SynchronizationModes.Normal,
                 Pooling = true,
                 Version = 3,
-                BusyTimeout = 1000
+                BusyTimeout = 30000
             };
 
             if (OsInfo.IsOsx)

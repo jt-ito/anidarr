@@ -48,12 +48,24 @@ namespace NzbDrone.Core.Backup
                     // Reset database migration version to Sonarr Vanilla max version (230)
                     ExecuteNonQuery(connection, "DELETE FROM VersionInfo WHERE Version > 230;", transaction);
 
+                    // Drop Anidarr-specific indexes on ImportListExclusions before dropping columns
+                    ExecuteNonQueryIgnoreErrors(connection, "DROP INDEX IF EXISTS IX_ImportListExclusions_AniDbId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "DROP INDEX IF EXISTS IX_ImportListExclusions_MalId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "DROP INDEX IF EXISTS IX_ImportListExclusions_AniListId;", transaction);
+
                     // Drop Anidarr-specific columns. We use IgnoreErrors in case the columns are already missing or SQLite version is too old.
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN AniDbId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN SimklId;", transaction);
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN PrimaryMetadataProvider;", transaction);
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN FansubGroup;", transaction);
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE Series DROP COLUMN AlternateTitles;", transaction);
                     ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE QualityProfiles DROP COLUMN ReleaseRules;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE QualityProfiles DROP COLUMN UseRuleListMode;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE QualityProfiles DROP COLUMN FallbackQualityProfileId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE ImportListExclusions DROP COLUMN AniDbId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE ImportListExclusions DROP COLUMN MalId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE ImportListExclusions DROP COLUMN AniListId;", transaction);
+                    ExecuteNonQueryIgnoreErrors(connection, "ALTER TABLE ImportListExclusions DROP COLUMN SimklId;", transaction);
 
                     // Scrub Anidarr-specific schema from JSON blobs
                     ScrubSeriesSeasonsJson(connection, transaction);
@@ -63,6 +75,8 @@ namespace NzbDrone.Core.Backup
                     ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AnimeOfflineTitles;", transaction);
                     ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AnimeOfflineMetadata;", transaction);
                     ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AniDbMappings;", transaction);
+                    ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AniDbSeriesMappings;", transaction);
+                    ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AniDbRelatedSeries;", transaction);
                     ExecuteNonQuery(connection, "DROP TABLE IF EXISTS AniDbRelatedMetadataCache;", transaction);
 
                     transaction.Commit();

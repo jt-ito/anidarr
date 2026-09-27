@@ -1311,6 +1311,7 @@ namespace NzbDrone.Core.Parser
                             if (segmentTokens.Count > aliasTokens.Count)
                             {
                                 var nextToken = segmentTokens[aliasTokens.Count];
+
                                 if (nextToken.Length > 0 && char.IsDigit(nextToken[0]) && !char.IsDigit(aliasTokens[aliasTokens.Count - 1].LastOrDefault()))
                                 {
                                     if (Regex.IsMatch(nextToken, @"^\d{3,4}p?$", RegexOptions.IgnoreCase))
@@ -1318,6 +1319,17 @@ namespace NzbDrone.Core.Parser
                                         return true;
                                     }
 
+                                    continue;
+                                }
+
+                                // Anidarr: tokens trailing the alias match must all be
+                                // generic descriptors (e.g. "The Animation", "OVA") to still
+                                // count — a real, distinguishing word here almost always
+                                // means this segment names a distinct, longer title (e.g.
+                                // alias "Trigun" vs a "Trigun Stampede" release).
+                                var extraTokens = segmentTokens.Skip(aliasTokens.Count);
+                                if (!extraTokens.All(SearchCriteriaBase.IsStopword))
+                                {
                                     continue;
                                 }
                             }

@@ -63,14 +63,17 @@ The backend `src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs` is the primary so
   ```
 
 ### 2. Files Updated for the Pipeline & Packaging
+> [!IMPORTANT]
+> Always update **all** of these files during a bump. If `build_v5.yml` or `Directory.Build.props` are missed, Docker images, CI branch builds, and runtime startup logs will display an outdated version number (e.g., `Version 10.0.14.XXXX`).
+
 - **`.github/workflows/build_v5.yml`**:
-  Update the environment variables:
+  Update the base version environment variable (used by CI to compute `SONARR_VERSION` for branch and container builds):
   ```yaml
   SONARR_MAJOR_VERSION: 10
   VERSION: 10.0.X
   ```
 - **`src/Directory.Build.props`**:
-  Update `<AssemblyVersion>`:
+  Update `<AssemblyVersion>` (embedded into binary assemblies during local and container `dotnet publish`):
   ```xml
   <AssemblyVersion>10.0.X.*</AssemblyVersion>
   ```
@@ -79,6 +82,8 @@ The backend `src/NzbDrone.Common/EnvironmentInfo/BuildInfo.cs` is the primary so
   ```json
   "version": "10.0.X"
   ```
+- **`src/NzbDrone.Host/Bootstrap.cs`**:
+  Uses `BuildInfo.Version` for the `Starting Sonarr - {processPath} - Version {version}` startup banner.
 - **`distribution/macOS/Anidarr.app/Contents/Info.plist`**:
   Ensure version placeholders are `10.0.0.0` (for `CFBundleShortVersionString` and `CFBundleVersion`) to match the pipeline's sed substitution command in `.github/actions/build/action.yml`:
   ```bash

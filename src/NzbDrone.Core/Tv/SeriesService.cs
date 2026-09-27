@@ -4,6 +4,7 @@ using System.Linq;
 using NLog;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AutoTagging;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
@@ -14,6 +15,7 @@ namespace NzbDrone.Core.Tv
     public interface ISeriesService
     {
         Series GetSeries(int seriesId);
+        bool TryGetSeries(int seriesId, out Series series);
         List<Series> GetSeries(IEnumerable<int> seriesIds);
         Series AddSeries(Series newSeries);
         List<Series> AddSeries(List<Series> newSeries);
@@ -76,6 +78,24 @@ namespace NzbDrone.Core.Tv
             return _seriesRepository.Get(seriesId);
         }
 
+        // Anidarr: for callers (e.g. command handlers) that need to quietly no-op
+        // when a series was deleted between the command being enqueued and it
+        // being executed, rather than let ModelNotFoundException surface as an
+        // unhandled command failure.
+        public bool TryGetSeries(int seriesId, out Series series)
+        {
+            try
+            {
+                series = _seriesRepository.Get(seriesId);
+                return true;
+            }
+            catch (ModelNotFoundException)
+            {
+                series = null;
+                return false;
+            }
+        }
+
         public List<Series> GetSeries(IEnumerable<int> seriesIds)
         {
             return _seriesRepository.Get(seriesIds).ToList();
@@ -90,19 +110,9 @@ namespace NzbDrone.Core.Tv
                 _aniDbSeriesMappingService.UpdateMappings(newSeries.Id, newSeries.AniDbMappings);
             }
 
-            if (newSeries.AniDbRelatedSeries != null && newSeries.AniDbRelatedSeries.Any())
-            {
-                _aniDbRelatedSeriesService.UpdateRelatedSeries(newSeries.Id, newSeries.AniDbRelatedSeries);
-                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(newSeries.Id));
-            }
-
-            if (newSeries.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
-                (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any()))
-            {
-                _commandQueueManager.Push(new Tv.Commands.EnrichSeriesFromAniListCommand(newSeries.Id));
-            }
-
             _eventAggregator.PublishEvent(new SeriesAddedEvent(GetSeries(newSeries.Id)));
+
+            QueueAniDbEnrichmentCommands(newSeries);
 
             return newSeries;
         }
@@ -112,7 +122,38 @@ namespace NzbDrone.Core.Tv
             _seriesRepository.InsertMany(newSeries);
             _eventAggregator.PublishEvent(new SeriesImportedEvent(newSeries.Select(s => s.Id).ToList()));
 
+            // Anidarr: queue the same deferred AniDB-related enrichment as the
+            // single-series add path (below) so a bulk/import-existing-series add
+            // doesn't silently skip it. AniDB data itself is already present on
+            // newSeries from the add flow's lookup — this only queues the
+            // secondary, non-blocking follow-up work (AniList air times/alt
+            // titles, related-series discovery).
+            foreach (var series in newSeries)
+            {
+                QueueAniDbEnrichmentCommands(series);
+            }
+
             return newSeries;
+        }
+
+        // Anidarr: AniDB is the primary metadata source for anime — it's what
+        // gives a newly added series real, visible info immediately. AniList is
+        // secondary (episode air times, alternate titles, etc.) and is
+        // deliberately fetched afterwards via a queued command rather than
+        // inline, so it never adds to how long adding a series takes.
+        private void QueueAniDbEnrichmentCommands(Series newSeries)
+        {
+            if (newSeries.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
+                (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any()))
+            {
+                _commandQueueManager.Push(new Tv.Commands.EnrichSeriesFromAniListCommand(newSeries.Id), CommandPriority.High);
+            }
+
+            if (newSeries.AniDbRelatedSeries != null && newSeries.AniDbRelatedSeries.Any())
+            {
+                _aniDbRelatedSeriesService.UpdateRelatedSeries(newSeries.Id, newSeries.AniDbRelatedSeries);
+                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(newSeries.Id), CommandPriority.Low);
+            }
         }
 
         public Series FindByTvdbId(int tvRageId)
@@ -277,7 +318,7 @@ namespace NzbDrone.Core.Tv
             if (series.AniDbRelatedSeries != null && series.AniDbRelatedSeries.Any())
             {
                 _aniDbRelatedSeriesService.UpdateRelatedSeries(series.Id, series.AniDbRelatedSeries);
-                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(series.Id));
+                _commandQueueManager.Push(new Tv.Commands.FetchAniDbRelatedSeriesCommand(series.Id), CommandPriority.Low);
             }
 
             if (publishUpdatedEvent)

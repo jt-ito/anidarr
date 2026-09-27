@@ -187,7 +187,15 @@ public static class SeriesResourceMapper
             Added = resource.Added,
             AddOptions = resource.AddOptions,
             Ratings = resource.Ratings,
-            AlternateTitles = resource.AlternateTitles?.Select(t => t.Title).OfType<string>().ToList() ?? new List<string>()
+
+            // Anidarr: filter spaceless slugs on the inbound side too — ToResource
+            // already does this outbound, but a POST/PUT (add or edit) goes through
+            // this path directly, independent of Series.ApplyChanges' own filtering.
+            AlternateTitles = resource.AlternateTitles?
+                .Select(t => t.Title)
+                .OfType<string>()
+                .Where(t => !SearchCriteriaBase.IsSpacelessSlug(t))
+                .ToList() ?? new List<string>()
         };
     }
 

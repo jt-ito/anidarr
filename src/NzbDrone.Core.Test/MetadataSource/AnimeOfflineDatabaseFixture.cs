@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
 using FluentAssertions;
 using Moq;
@@ -205,12 +206,13 @@ namespace NzbDrone.Core.Test.MetadataSource
             Subject.BackfillFromCachedAniDbXml();
 
             _titleRepositoryMock.Verify(
-                c => c.Update(It.Is<AnimeOfflineTitle>(t =>
-                    t.PictureUrl == "https://cdn.anidb.net/images/main/257324.jpg" &&
-                    t.Overview == "Clean description here" &&
-                    t.Year == 2021 &&
-                    t.Status == SeriesStatusType.Ended &&
-                    t.Genres.Contains("Comedy"))),
+                c => c.UpdateMany(It.Is<IList<AnimeOfflineTitle>>(list =>
+                    list.Any(t =>
+                        t.PictureUrl == "https://cdn.anidb.net/images/main/257324.jpg" &&
+                        t.Overview == "Clean description here" &&
+                        t.Year == 2021 &&
+                        t.Status == SeriesStatusType.Ended &&
+                        t.Genres.Contains("Comedy")))),
                 Times.Once);
 
             Directory.Delete(tempDir, true);

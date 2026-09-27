@@ -30,7 +30,20 @@ namespace NzbDrone.Core.Tv
                 return new List<AniDbRelatedMetadataCache>();
             }
 
-            return Query(c => aniDbIds.Contains(c.AniDbId)).ToList();
+            var distinctIds = aniDbIds.Distinct().ToList();
+            if (distinctIds.Count <= 500)
+            {
+                return Query(c => distinctIds.Contains(c.AniDbId)).ToList();
+            }
+
+            var results = new List<AniDbRelatedMetadataCache>(distinctIds.Count);
+            foreach (var chunk in distinctIds.Chunk(500))
+            {
+                var chunkList = chunk.ToList();
+                results.AddRange(Query(c => chunkList.Contains(c.AniDbId)));
+            }
+
+            return results;
         }
     }
 }

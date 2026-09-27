@@ -32,7 +32,12 @@ namespace NzbDrone.Core.IndexerSearch.Definitions
 
         private static readonly HashSet<string> Stopwords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "the", "animation", "anime", "the animation", "ova", "the series", "movie", "project", "extra"
+            "the", "animation", "anime", "the animation", "ova", "the series", "movie", "project", "extra",
+
+            // Anidarr: also used (via IsStopword) as a per-token check in
+            // ParsingService.IsAliasMatch to tell a generic trailing descriptor
+            // apart from a real, distinguishing title word.
+            "ep", "eps", "episode"
         };
 
         public List<string> AllSceneTitles => SceneTitles.Concat(CleanSceneTitles).Distinct().ToList();

@@ -62,5 +62,14 @@ namespace NzbDrone.Core.Test.MediaCoverTests
             GivenExistingFileSize(100);
             Subject.AlreadyExists("http://url", "c:\\file.exe").Should().BeFalse();
         }
+
+        [Test]
+        public void should_return_true_if_head_throws_and_file_exists()
+        {
+            GivenExistingFileSize(100);
+            Mocker.GetMock<IHttpClient>().Setup(c => c.Head(It.IsAny<HttpRequest>())).Throws(new WebException("Remote host error"));
+
+            Subject.AlreadyExists("http://url", "c:\\file.exe").Should().BeTrue();
+        }
     }
 }

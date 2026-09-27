@@ -936,7 +936,8 @@ namespace NzbDrone.Core.MetadataSource
                     return;
                 }
 
-                var anyUpdated = false;
+                var toInsert = new List<AnimeOfflineTitle>();
+                var toUpdate = new List<AnimeOfflineTitle>();
 
                 foreach (var file in files)
                 {
@@ -1070,13 +1071,11 @@ namespace NzbDrone.Core.MetadataSource
 
                         if (isNew)
                         {
-                            _animeOfflineTitleRepository.Insert(existing);
-                            anyUpdated = true;
+                            toInsert.Add(existing);
                         }
                         else if (updated)
                         {
-                            _animeOfflineTitleRepository.Update(existing);
-                            anyUpdated = true;
+                            toUpdate.Add(existing);
                         }
                     }
                     catch (Exception ex)
@@ -1085,7 +1084,19 @@ namespace NzbDrone.Core.MetadataSource
                     }
                 }
 
-                if (anyUpdated)
+                if (toInsert.Any())
+                {
+                    _animeOfflineTitleRepository.InsertMany(toInsert);
+                    _logger.Info("Inserted {0} backfilled anime titles from cached AniDB XML.", toInsert.Count);
+                }
+
+                if (toUpdate.Any())
+                {
+                    _animeOfflineTitleRepository.UpdateMany(toUpdate);
+                    _logger.Info("Updated {0} backfilled anime titles from cached AniDB XML.", toUpdate.Count);
+                }
+
+                if (toInsert.Any() || toUpdate.Any())
                 {
                     _animeOfflineTitleRepository.ClearFuzzyCache();
                     _logger.Info("Backfilled rich metadata from cached AniDB XML files.");

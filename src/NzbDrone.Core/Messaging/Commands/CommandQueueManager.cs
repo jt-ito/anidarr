@@ -16,7 +16,7 @@ namespace NzbDrone.Core.Messaging.Commands
 {
     public interface IManageCommandQueue
     {
-        List<CommandModel> PushMany<TCommand>(List<TCommand> commands)
+        List<CommandModel> PushMany<TCommand>(List<TCommand> commands, CommandPriority priority = CommandPriority.Normal, CommandTrigger trigger = CommandTrigger.Unspecified)
             where TCommand : Command;
         CommandModel Push<TCommand>(TCommand command, CommandPriority priority = CommandPriority.Normal, CommandTrigger trigger = CommandTrigger.Unspecified)
             where TCommand : Command;
@@ -55,7 +55,7 @@ namespace NzbDrone.Core.Messaging.Commands
             _commandQueue = new CommandQueue();
         }
 
-        public List<CommandModel> PushMany<TCommand>(List<TCommand> commands)
+        public List<CommandModel> PushMany<TCommand>(List<TCommand> commands, CommandPriority priority = CommandPriority.Normal, CommandTrigger trigger = CommandTrigger.Unspecified)
             where TCommand : Command
         {
             _logger.Trace("Publishing {0} commands", commands.Count);
@@ -67,6 +67,8 @@ namespace NzbDrone.Core.Messaging.Commands
 
                 foreach (var command in commands)
                 {
+                    command.Trigger = trigger;
+
                     var existing = existingCommands.FirstOrDefault(c => c.Name == command.Name && CommandEqualityComparer.Instance.Equals(c.Body, command));
 
                     if (existing != null)
@@ -79,8 +81,8 @@ namespace NzbDrone.Core.Messaging.Commands
                         Name = command.Name,
                         Body = command,
                         QueuedAt = DateTime.UtcNow,
-                        Trigger = CommandTrigger.Unspecified,
-                        Priority = CommandPriority.Normal,
+                        Trigger = trigger,
+                        Priority = priority,
                         Status = CommandStatus.Queued
                     };
 

@@ -264,7 +264,12 @@ namespace NzbDrone.Common.Http
 
         public async Task DownloadFileAsync(string url, string fileName, CancellationToken cancellationToken = default)
         {
-            var fileNamePart = fileName + ".part";
+            // Anidarr: each call gets its own temp file instead of a fixed "<fileName>.part".
+            // Two concurrent downloads to the same destination (e.g. a cover re-triggered by
+            // both SeriesAddedEvent and a follow-up SeriesUpdatedEvent from AniList enrichment)
+            // used to race on that shared temp file — whichever finished second would find it
+            // already moved/deleted by the first and throw FileNotFoundException.
+            var fileNamePart = $"{fileName}.{Guid.NewGuid():N}.part";
 
             try
             {
@@ -293,12 +298,10 @@ namespace NzbDrone.Common.Http
 
                 stopWatch.Stop();
 
-                if (File.Exists(fileName))
-                {
-                    File.Delete(fileName);
-                }
-
-                File.Move(fileNamePart, fileName);
+                // Each caller now owns a uniquely-named source file, so two concurrent
+                // downloads to the same destination each just overwrite it independently
+                // (last one wins) instead of racing on file existence beforehand.
+                File.Move(fileNamePart, fileName, overwrite: true);
                 _logger.Debug("Downloading Completed. took {0:0}s", stopWatch.Elapsed.Seconds);
             }
             finally
