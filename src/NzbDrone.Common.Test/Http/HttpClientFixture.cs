@@ -398,11 +398,13 @@ namespace NzbDrone.Common.Test.Http
             // whichever finished second found it already moved/deleted by the first and
             // threw FileNotFoundException. Each call now gets its own uniquely-named temp
             // file, so both should complete cleanly regardless of interleaving.
+            // (Served from a local listener: this is about file handling, so it must not depend on, or
+            // load, an external website.)
+            using var server = new LocalFileServer(114770);
             var file = GetTempFilePath();
-            var url = "https://sonarr.tv/img/slider/seriesdetails.png";
 
-            var first = Subject.DownloadFileAsync(url, file);
-            var second = Subject.DownloadFileAsync(url, file);
+            var first = Subject.DownloadFileAsync(server.Url, file);
+            var second = Subject.DownloadFileAsync(server.Url, file);
 
             await Task.WhenAll(first, second);
 
@@ -419,10 +421,10 @@ namespace NzbDrone.Common.Test.Http
             // Stress version of the test above: when downloads finish together they all try to move
             // their own temp file over the same destination, and on Windows the loser of that race can
             // briefly be refused ("access denied") while another move completes.
+            using var server = new LocalFileServer(114770);
             var file = GetTempFilePath();
-            var url = "https://sonarr.tv/img/slider/seriesdetails.png";
 
-            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Subject.DownloadFileAsync(url, file)));
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Subject.DownloadFileAsync(server.Url, file)));
 
             File.Exists(file).Should().BeTrue();
             new FileInfo(file).Length.Should().Be(114770);
@@ -914,6 +916,82 @@ namespace NzbDrone.Common.Test.Http
             var response = await Subject.ExecuteAsync(request);
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+    }
+
+    // A minimal local web server that answers every request with `size` bytes, for tests that are about
+    // file handling and should not depend on an external website.
+    internal sealed class LocalFileServer : IDisposable
+    {
+        private readonly HttpListener _listener = new HttpListener();
+        private readonly byte[] _body;
+
+        public LocalFileServer(int size)
+        {
+            _body = new byte[size];
+            new Random(42).NextBytes(_body);
+
+            var port = GetFreePort();
+
+            Url = $"http://127.0.0.1:{port}/file.png";
+            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+            _listener.Start();
+
+            _ = Task.Run(AcceptRequestsAsync);
+        }
+
+        public string Url { get; }
+
+        public void Dispose()
+        {
+            _listener.Close();
+        }
+
+        private static int GetFreePort()
+        {
+            var probe = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+
+            probe.Start();
+
+            var port = ((IPEndPoint)probe.LocalEndpoint).Port;
+
+            probe.Stop();
+
+            return port;
+        }
+
+        private async Task AcceptRequestsAsync()
+        {
+            while (_listener.IsListening)
+            {
+                HttpListenerContext context;
+
+                try
+                {
+                    context = await _listener.GetContextAsync();
+                }
+                catch (Exception)
+                {
+                    // the listener was closed
+                    return;
+                }
+
+                _ = Task.Run(() => Respond(context));
+            }
+        }
+
+        private void Respond(HttpListenerContext context)
+        {
+            try
+            {
+                context.Response.ContentType = "image/png";
+                context.Response.ContentLength64 = _body.Length;
+                context.Response.OutputStream.Write(_body, 0, _body.Length);
+            }
+            finally
+            {
+                context.Response.Close();
+            }
         }
     }
 
