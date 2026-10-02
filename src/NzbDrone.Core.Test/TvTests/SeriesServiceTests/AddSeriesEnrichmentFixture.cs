@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using FizzWare.NBuilder;
 using Moq;
@@ -24,7 +25,20 @@ namespace NzbDrone.Core.Test.TvTests.SeriesServiceTests
                 .With(s => s.PrimaryMetadataProvider = "anidb")
                 .With(s => s.AniDbMappings = null)
                 .With(s => s.AniDbRelatedSeries = null)
+                .With(s => s.LastInfoSync = DateTime.UtcNow)
                 .Build();
+        }
+
+        [Test]
+        public void AddSeries_bulk_should_not_queue_enrichment_for_a_series_added_without_its_metadata()
+        {
+            var series = GivenAniDbSeries(5);
+            series.LastInfoSync = null;
+
+            Subject.AddSeries(new List<Series> { series });
+
+            Mocker.GetMock<IManageCommandQueue>()
+                  .Verify(c => c.Push(It.IsAny<EnrichSeriesFromAniListCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never());
         }
 
         [Test]
@@ -36,6 +50,18 @@ namespace NzbDrone.Core.Test.TvTests.SeriesServiceTests
 
             Mocker.GetMock<IManageCommandQueue>()
                   .Verify(c => c.Push(It.Is<EnrichSeriesFromAniListCommand>(cmd => cmd.SeriesId == 1), CommandPriority.High, CommandTrigger.Unspecified), Times.Once());
+        }
+
+        [Test]
+        public void AddSeries_bulk_should_save_the_anidb_season_mappings()
+        {
+            var series = GivenAniDbSeries(4);
+            var mappings = new List<AniDbSeriesMapping> { new AniDbSeriesMapping { AniDbId = 1, SeasonNumber = 1 } };
+            series.AniDbMappings = mappings;
+
+            Subject.AddSeries(new List<Series> { series });
+
+            Mocker.GetMock<IAniDbSeriesMappingService>().Verify(m => m.UpdateMappings(4, mappings), Times.Once());
         }
 
         [Test]

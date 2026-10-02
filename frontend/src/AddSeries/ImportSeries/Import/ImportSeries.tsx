@@ -16,6 +16,7 @@ import translate from 'Utilities/String/translate';
 import ImportSeriesFooter from './ImportSeriesFooter';
 import { clearImportSeries } from './importSeriesStore';
 import ImportSeriesTable from './ImportSeriesTable';
+import useLookupQueueWorker from './useLookupQueueWorker';
 
 function ImportSeries() {
   const { rootFolderId: rootFolderIdString = '' } = useParams<{
@@ -31,6 +32,7 @@ function ImportSeries() {
   } = useRootFolders();
 
   useRootFolder(rootFolderId, false);
+  useLookupQueueWorker();
 
   const { path, unmappedFolders } = useMemo(() => {
     const rootFolder = rootFolders.find((r) => r.id === rootFolderId);
@@ -69,6 +71,11 @@ function ImportSeries() {
   }, [rootFolderId]);
 
   useEffect(() => {
+    // Profiles load asynchronously; nothing to default to yet.
+    if (!qualityProfiles.length) {
+      return;
+    }
+
     if (
       !defaultQualityProfileId ||
       !qualityProfiles.some((p) => p.id === defaultQualityProfileId)

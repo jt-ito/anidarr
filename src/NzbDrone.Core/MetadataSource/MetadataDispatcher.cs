@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using NLog;
 using NzbDrone.Core.Tv;
@@ -95,22 +96,31 @@ namespace NzbDrone.Core.MetadataSource
                 : _providers;
 
             var results = new List<Series>();
-
             foreach (var provider in targets)
             {
+                var stopwatch = Stopwatch.StartNew();
+
                 try
                 {
                     var providerResults = provider.Search(query);
+
                     results.AddRange(providerResults);
+
+                    _logger.Info("Lookup [{0}] term='{1}' -> {2} result(s) in {3}ms{4}",
+                        provider.ProviderType,
+                        query,
+                        providerResults.Count,
+                        stopwatch.ElapsedMilliseconds,
+                        DescribeTopResults(providerResults));
                 }
                 catch (Exception ex)
                 {
-                    _logger.Warn(ex, "Search failed for provider {0}: {1}", provider.GetType().Name, ex.Message);
+                    _logger.Warn(ex, "Lookup [{0}] term='{1}' FAILED after {2}ms: {3}", provider.ProviderType, query, stopwatch.ElapsedMilliseconds, ex.Message);
                 }
             }
 
             // Deduplicate by provider and ID
-            return results
+            var deduplicated = results
                 .GroupBy(s => s.PrimaryMetadataProvider switch
                 {
                     "anidb" => $"anidb:{s.AniDbId}",
@@ -121,6 +131,26 @@ namespace NzbDrone.Core.MetadataSource
                 })
                 .Select(g => g.First())
                 .ToList();
+
+            if (deduplicated.Count != results.Count)
+            {
+                _logger.Info("Lookup term='{0}' deduplicated {1} -> {2} result(s)", query, results.Count, deduplicated.Count);
+            }
+
+            return deduplicated;
+        }
+
+        // First few results as "title (tvdb/anidb/anilist ids)" so misses can be diagnosed from the log
+        private static string DescribeTopResults(List<Series> results)
+        {
+            if (results.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            var top = results.Take(5).Select(s => $"{s.Title} ({s.Year}; tvdb={s.TvdbId}, anidb={s.AniDbId}, anilist={s.AniListIds?.FirstOrDefault()})");
+
+            return ": " + string.Join(" | ", top);
         }
 
         private static string ResolveExternalId(Series series, MetadataProviderType providerType)

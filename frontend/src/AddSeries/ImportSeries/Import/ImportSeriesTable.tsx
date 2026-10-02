@@ -10,6 +10,7 @@ import {
   UnamppedFolderItem,
   useEnsureImportSeriesItems,
 } from './importSeriesStore';
+import useSyncImportSelection from './useSyncImportSelection';
 import styles from './ImportSeriesTable.css';
 
 const ROW_HEIGHT = 52;
@@ -67,6 +68,7 @@ function ImportSeriesTable({ items, scrollerRef }: ImportSeriesTableProps) {
   const hasSelectItems = useHasItems();
 
   useEnsureImportSeriesItems(items);
+  useSyncImportSelection();
 
   if (!items.length || !hasSelectItems) {
     return null;

@@ -18,6 +18,17 @@ namespace NzbDrone.Core.Tv
     {
         Series AddSeries(Series newSeries);
         List<Series> AddSeries(List<Series> newSeries, bool ignoreErrors = false);
+        List<AddSeriesOutcome> AddSeriesBackground(List<Series> newSeries, bool deferMetadata);
+    }
+
+    // What happened to one series of an add: Added is set when it was saved, otherwise Reason says why not
+    public class AddSeriesOutcome
+    {
+        public Series Requested { get; set; }
+
+        public Series Added { get; set; }
+
+        public string Reason { get; set; }
     }
 
     public class AddSeriesService : IAddSeriesService
@@ -28,6 +39,7 @@ namespace NzbDrone.Core.Tv
         private readonly IRefreshEpisodeService _refreshEpisodeService;
         private readonly IAddSeriesValidator _addSeriesValidator;
         private readonly MediaCover.IMapCoversToLocal _mediaCoverService;
+        private readonly IAniDbSeriesMappingService _aniDbSeriesMappingService;
         private readonly Messaging.Events.IEventAggregator _eventAggregator;
         private readonly Logger _logger;
 
@@ -38,8 +50,10 @@ namespace NzbDrone.Core.Tv
                                 IAddSeriesValidator addSeriesValidator,
                                 Logger logger,
                                 Messaging.Events.IEventAggregator eventAggregator = null,
-                                MediaCover.IMapCoversToLocal mediaCoverService = null)
+                                MediaCover.IMapCoversToLocal mediaCoverService = null,
+                                IAniDbSeriesMappingService aniDbSeriesMappingService = null)
         {
+            _aniDbSeriesMappingService = aniDbSeriesMappingService;
             _seriesService = seriesService;
             _metadataDispatcher = metadataDispatcher;
             _fileNameBuilder = fileNameBuilder;
@@ -59,13 +73,16 @@ namespace NzbDrone.Core.Tv
 
             _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent("Preparing series metadata...", newSeries.AniDbId));
 
-            var (seriesData, episodes) = AddSkyhookData(newSeries);
+            var (seriesData, episodes, isIncomplete) = AddSkyhookData(newSeries);
             seriesData = SetPropertiesAndValidate(seriesData);
 
             // ponytail: always record fetch time so RefreshSeriesService's "alreadyFresh"
             // guard skips the redundant AniDB API call — even when AniDB returns zero
             // episodes (e.g. during a temporary ban).
-            seriesData.LastInfoSync = DateTime.UtcNow;
+            // Exception: when the provider could not be reached (e.g. an AniDB ban) the series was
+            // added from the data we already had. Leave LastInfoSync empty so the next refresh fills in
+            // the hub, seasons and episodes instead of treating it as up to date.
+            seriesData.LastInfoSync = isIncomplete ? (DateTime?)null : DateTime.UtcNow;
 
             _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent($"Saving series and {episodes.Count} episode(s) to library...", newSeries.AniDbId));
             _logger.Info("Adding Series {0} Path: [{1}]", seriesData, seriesData.Path);
@@ -91,18 +108,38 @@ namespace NzbDrone.Core.Tv
 
         public List<Series> AddSeries(List<Series> newSeries, bool ignoreErrors = false)
         {
-            MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
-            MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = true;
+            return AddSeriesCore(newSeries, ignoreErrors, isManual: true, deferMetadata: false)
+                .Where(o => o.Added != null)
+                .Select(o => o.Added)
+                .ToList();
+        }
+
+        // Import job: runs at background priority (anything the user does by hand goes first) and
+        // reports what happened to each series. With deferMetadata, AniDB-only series are added from
+        // the lookup data alone, and their hub, seasons and episodes are filled in by a background refresh.
+        public List<AddSeriesOutcome> AddSeriesBackground(List<Series> newSeries, bool deferMetadata)
+        {
+            return AddSeriesCore(newSeries, ignoreErrors: true, isManual: false, deferMetadata);
+        }
+
+        private List<AddSeriesOutcome> AddSeriesCore(List<Series> newSeries, bool ignoreErrors, bool isManual, bool deferMetadata)
+        {
+            MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = isManual;
+            MetadataSource.AniList.AniListRateLimiter.IsManualContext.Value = isManual;
 
             var added = DateTime.UtcNow;
+            var outcomes = newSeries.Select(s => new AddSeriesOutcome { Requested = s }).ToList();
 
             // ponytail: parallel episodes list so we can persist after bulk insert
             var seriesToAdd = new List<Series>();
             var episodesForSeries = new List<List<Episode>>();
+            var outcomeForSeries = new List<AddSeriesOutcome>();
             var existingSeries = _seriesService.GetAllSeries();
 
-            foreach (var s in newSeries)
+            foreach (var outcome in outcomes)
             {
+                var s = outcome.Requested;
+
                 if (s.Path.IsNullOrWhiteSpace())
                 {
                     _logger.Info("Adding Series {0} Root Folder Path: [{1}]", s, s.RootFolderPath);
@@ -114,19 +151,21 @@ namespace NzbDrone.Core.Tv
 
                 try
                 {
-                    var (series, episodes) = AddSkyhookData(s);
+                    var (series, episodes, isIncomplete) = deferMetadata && CanDefer(s) ? PrepareDeferred(s) : AddSkyhookData(s);
                     series = SetPropertiesAndValidate(series);
                     series.Added = added;
 
                     if (IsDuplicate(series, existingSeries))
                     {
                         _logger.Debug("Series {0} was not added due to validation failure: Series already exists in database", s);
+                        outcome.Reason = "Already in your library (it is the same series, or a season of one)";
                         continue;
                     }
 
                     if (IsDuplicate(series, seriesToAdd))
                     {
                         _logger.Trace("Series {0} was already added from another import list, not adding again", s);
+                        outcome.Reason = "Another folder in this import is the same series";
                         continue;
                     }
 
@@ -134,16 +173,19 @@ namespace NzbDrone.Core.Tv
                     if (duplicateSlug != null)
                     {
                         _logger.Debug("Series {0} was not added due to validation failure: Duplicate Slug {1} used by series {2}", GetProviderDisplay(s), s.TitleSlug, GetProviderDisplay(duplicateSlug));
+                        outcome.Reason = "Another series in this import has the same name";
                         continue;
                     }
 
-                    // ponytail: always record fetch time so RefreshSeriesService's "alreadyFresh"
-                    // guard skips the redundant AniDB API call — even when AniDB returns zero
-                    // episodes (e.g. during a temporary ban).
-                    series.LastInfoSync = DateTime.UtcNow;
+                    // ponytail: record fetch time so RefreshSeriesService's "alreadyFresh"
+                    // guard skips the redundant AniDB API call. Not for series added without
+                    // their metadata (deferred, or the provider was unreachable): leaving it empty is
+                    // what makes the next refresh fetch the hub, seasons and episodes.
+                    series.LastInfoSync = isIncomplete ? (DateTime?)null : DateTime.UtcNow;
 
                     seriesToAdd.Add(series);
                     episodesForSeries.Add(episodes);
+                    outcomeForSeries.Add(outcome);
                 }
                 catch (ValidationException ex)
                 {
@@ -152,6 +194,7 @@ namespace NzbDrone.Core.Tv
                         throw;
                     }
 
+                    outcome.Reason = string.Join("; ", ex.Errors.Select(e => e.ErrorMessage));
                     _logger.Debug("Series {0} with TVDB ID {1} was not added due to validation failures. {2}", s, s.TvdbId, ex.Message);
                 }
             }
@@ -164,6 +207,8 @@ namespace NzbDrone.Core.Tv
             {
                 var series = addedSeries[i];
                 var eps = episodesForSeries[i];
+
+                outcomeForSeries[i].Added = series;
 
                 if (eps.Any())
                 {
@@ -180,12 +225,26 @@ namespace NzbDrone.Core.Tv
                 }
             }
 
-            return addedSeries;
+            return outcomes;
         }
 
-        private (Series Series, List<Episode> Episodes) AddSkyhookData(Series newSeries)
+        // AniDB-only series can be added from the lookup data; anything with a TVDB id is quick to fetch anyway
+        private static bool CanDefer(Series series)
+        {
+            return series.AniDbId > 0 && series.TvdbId <= 0;
+        }
+
+        private static (Series Series, List<Episode> Episodes, bool IsIncomplete) PrepareDeferred(Series series)
+        {
+            series.PrimaryMetadataProvider = "anidb";
+
+            return (series, new List<Episode>(), true);
+        }
+
+        private (Series Series, List<Episode> Episodes, bool IsIncomplete) AddSkyhookData(Series newSeries)
         {
             Tuple<Series, List<Episode>> tuple;
+            var isIncomplete = false;
 
             try
             {
@@ -207,6 +266,7 @@ namespace NzbDrone.Core.Tv
                 // If AniDB bans us, we still want to add the series to the database.
                 // Episodes will be populated by the scheduled background refresh once the ban lifts.
                 tuple = Tuple.Create(newSeries, new List<Episode>());
+                isIncomplete = true;
             }
 
             var series = tuple.Item1;
@@ -217,7 +277,7 @@ namespace NzbDrone.Core.Tv
 
             series.ApplyChanges(newSeries);
 
-            return (series, episodes);
+            return (series, episodes, isIncomplete);
         }
 
         private Series SetPropertiesAndValidate(Series newSeries)
@@ -288,15 +348,38 @@ namespace NzbDrone.Core.Tv
             return newSeries;
         }
 
-        private static bool IsDuplicate(Series candidate, IEnumerable<Series> existingSeries)
+        private bool IsDuplicate(Series candidate, IEnumerable<Series> existingSeries)
         {
-            return existingSeries.Any(series => candidate.PrimaryMetadataProvider switch
+            var existing = existingSeries.ToList();
+
+            return existing.Any(series => candidate.PrimaryMetadataProvider switch
             {
                 "anidb" => candidate.AniDbId.HasValue && candidate.AniDbId == series.AniDbId,
                 "anilist" => candidate.AniListIds != null && series.AniListIds != null && candidate.AniListIds.Intersect(series.AniListIds).Any(),
                 "mal" => candidate.MalIds != null && series.MalIds != null && candidate.MalIds.Intersect(series.MalIds).Any(),
                 _ => candidate.TvdbId == series.TvdbId && series.TvdbId > 0,
-            });
+            }) || IsSeasonOfExistingHub(candidate, existing);
+        }
+
+        // A later season is not its own series: if a hub already in the library lists this AniDB entry, it is covered
+        private bool IsSeasonOfExistingHub(Series candidate, List<Series> existing)
+        {
+            if (!(candidate.AniDbId > 0) || _aniDbSeriesMappingService == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                var mapping = _aniDbSeriesMappingService.GetMappingByAniDbId(candidate.AniDbId.Value);
+
+                return mapping != null && mapping.SeriesId > 0 && existing.Any(s => s.Id == mapping.SeriesId);
+            }
+            catch (InvalidOperationException)
+            {
+                // more than one mapping row for this entry: don't guess
+                return false;
+            }
         }
 
         private static string GetProviderDisplay(Series series)

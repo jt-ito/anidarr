@@ -1,6 +1,6 @@
 {
   "name": "sonarr",
-  "version": "10.0.20",
+  "version": "10.0.21",
   "description": "Sonarr is a PVR for Usenet and BitTorrent users",
   "scripts": {
     "build": "webpack --config ./frontend/build/webpack.config.js",
@@ -11,7 +11,8 @@
     "lint": "eslint --config frontend/.eslintrc.js --ignore-path frontend/.eslintignore frontend/",
     "lint-fix": "yarn lint --fix",
     "stylelint": "stylelint \"frontend/**/*.css\" --config frontend/.stylelintrc",
-    "test": "echo 'no tests'"
+    "test": "echo 'no tests'",
+    "test:unit": "vitest run"
   },
   "repository": "https://github.com/Sonarr/Sonarr",
   "author": "Team Sonarr",
@@ -93,6 +94,8 @@
     "@babel/preset-env": "7.29.5",
     "@babel/preset-react": "7.28.5",
     "@babel/preset-typescript": "7.28.5",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "^16",
     "@types/lodash": "4.17.24",
     "@types/moment-timezone": "0.5.30",
     "@types/mousetrap": "1.6.15",
@@ -127,6 +130,7 @@
     "filemanager-webpack-plugin": "8.0.0",
     "fork-ts-checker-webpack-plugin": "8.0.0",
     "html-webpack-plugin": "5.6.6",
+    "jsdom": "30.1.1",
     "loader-utils": "^3.2.1",
     "mini-css-extract-plugin": "2.9.1",
     "postcss": "8.5.14",
@@ -146,6 +150,8 @@
     "ts-node": "10.9.2",
     "typescript-plugin-css-modules": "5.0.1",
     "url-loader": "4.1.1",
+    "vite-tsconfig-paths": "6.1.1",
+    "vitest": "^3",
     "webpack": "5.105.2",
     "webpack-cli": "5.1.4",
     "webpack-livereload-plugin": "3.0.2",

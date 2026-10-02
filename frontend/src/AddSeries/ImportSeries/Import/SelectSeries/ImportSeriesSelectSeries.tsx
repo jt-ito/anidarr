@@ -7,9 +7,11 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
+import { useQueryClient } from '@tanstack/react-query';
 /* eslint-disable react/jsx-no-bind */
-import React, { useCallback, useEffect, useState } from 'react';
-import { useLookupSeries } from 'AddSeries/AddNewSeries/useAddSeries';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { rememberImportChoice } from 'AddSeries/AddNewSeries/useAddSeries';
+import AddSeries from 'AddSeries/AddSeries';
 import FormInputButton from 'Components/Form/FormInputButton';
 import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
@@ -19,19 +21,18 @@ import useDebounce from 'Helpers/Hooks/useDebounce';
 import { icons, kinds } from 'Helpers/Props';
 import useExistingSeries from 'Series/useExistingSeries';
 import { InputChanged } from 'typings/inputs';
-import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import translate from 'Utilities/String/translate';
 import {
-  addToLookupQueue,
-  removeFromLookupQueue,
   updateImportSeriesItem,
   useImportSeriesItem,
   useIsCurrentedItemQueued,
-  useIsCurrentLookupQueueItem,
 } from '../importSeriesStore';
+import lookupFolder from '../lookupFolder';
 import ImportSeriesSearchResult from './ImportSeriesSearchResult';
 import ImportSeriesTitle from './ImportSeriesTitle';
 import styles from './ImportSeriesSelectSeries.css';
+
+const NO_RESULTS: AddSeries[] = [];
 
 interface ImportSeriesSelectSeriesProps {
   id: string;
@@ -43,22 +44,33 @@ function ImportSeriesSelectSeries({
   onInputChange,
 }: ImportSeriesSelectSeriesProps) {
   const importSeriesItem = useImportSeriesItem(id);
-  const { selectedSeries, name } = importSeriesItem ?? {};
-  const isExistingSeries = !!useExistingSeries({
-    tvdbId: selectedSeries?.tvdbId,
-  });
+  const {
+    selectedSeries,
+    name,
+    displayTerm,
+    hasSearched,
+    matchStatus,
+    matchReason,
+    isSearching,
+    importState,
+    importMessage,
+    searchResults = NO_RESULTS,
+    searchError,
+  } = importSeriesItem ?? {};
+  const isExistingSeries = !!useExistingSeries(selectedSeries);
 
-  const [term, setTerm] = useState(name);
+  const [term, setTerm] = useState(displayTerm ?? name);
   const [isOpen, setIsOpen] = useState(false);
-  const [provider, setProvider] = useState<string | undefined>(undefined);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
   } | null>(null);
 
   const query = useDebounce(term, term ? 300 : 0);
-  const isCurrentLookupQueueItem = useIsCurrentLookupQueueItem(id);
+  const queryClient = useQueryClient();
   const isQueued = useIsCurrentedItemQueued(id);
+  const isBusy = isQueued || !!isSearching;
+  const isEdited = useRef(false);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -75,15 +87,6 @@ function ImportSeriesSelectSeries({
     };
   }, [contextMenu]);
 
-  const { isFetching, isFetched, error, data, refetch } = useLookupSeries(
-    query,
-    provider,
-    isCurrentLookupQueueItem
-  );
-
-  const errorMessage = getErrorMessage(error);
-  const isLookingUpSeries = isFetching || isQueued;
-
   const handlePress = useCallback(() => {
     setIsOpen((prevIsOpen) => !prevIsOpen);
   }, []);
@@ -91,33 +94,41 @@ function ImportSeriesSelectSeries({
   const handleSearchInputChange = useCallback(
     ({ value }: InputChanged<string>) => {
       setTerm(value);
-      setProvider(undefined);
-      addToLookupQueue(id);
+      isEdited.current = true;
     },
-    [id]
+    []
   );
 
+  // Searches the user asks for run straight away, ahead of the background queue
   const handleRefreshPress = useCallback(() => {
-    if (provider === undefined) refetch();
-    else setProvider(undefined);
-  }, [provider, refetch]);
+    updateImportSeriesItem({ id, searchProvider: undefined });
+    lookupFolder(queryClient, id, false);
+  }, [id, queryClient]);
 
   const handleAniDbScan = useCallback(() => {
-    if (provider === 'anidb') refetch();
-    else setProvider('anidb');
+    updateImportSeriesItem({ id, searchProvider: 'anidb' });
+    lookupFolder(queryClient, id, false);
     setContextMenu(null);
-  }, [provider, refetch]);
+  }, [id, queryClient]);
 
   const handleSeriesSelect = useCallback(
     (index: number) => {
       setIsOpen(false);
 
-      const selectedSeries = data[index];
+      const selectedSeries = searchResults[index];
 
       updateImportSeriesItem({
         id,
         selectedSeries,
+        matchStatus: 'matched',
+        importState: undefined,
+        importMessage: undefined,
       });
+
+      // The user decided: remember it for this folder name
+      if (name) {
+        rememberImportChoice(name, selectedSeries);
+      }
 
       if (selectedSeries.seriesType !== 'standard') {
         onInputChange({
@@ -126,24 +137,30 @@ function ImportSeriesSelectSeries({
         });
       }
     },
-    [id, data, onInputChange]
+    [id, name, searchResults, onInputChange]
   );
 
+  // Follow the cleaned folder name, unless the user is typing their own search
   useEffect(() => {
-    if (isFetched) {
-      updateImportSeriesItem({
-        id,
-        hasSearched: isFetched,
-        selectedSeries: data[0],
-      });
-
-      removeFromLookupQueue(id);
+    if (!isEdited.current) {
+      setTerm(displayTerm ?? name);
     }
-  }, [id, isFetched, data]);
+  }, [displayTerm, name]);
 
+  // Queue a lookup once the user has finished typing
   useEffect(() => {
-    setTerm(name);
-  }, [name]);
+    if (!isEdited.current) {
+      return;
+    }
+
+    isEdited.current = false;
+    updateImportSeriesItem({
+      id,
+      searchTerm: query,
+      searchProvider: undefined,
+    });
+    lookupFolder(queryClient, id, false);
+  }, [id, query, queryClient]);
 
   useEffect(() => {
     const handleGlobalClick = () => setContextMenu(null);
@@ -176,11 +193,11 @@ function ImportSeriesSelectSeries({
     <>
       <div ref={refs.setReference} {...getReferenceProps()}>
         <Link className={styles.button} component="div" onPress={handlePress}>
-          {isLookingUpSeries && isQueued && !isFetched ? (
+          {isBusy && !hasSearched ? (
             <LoadingIndicator className={styles.loading} size={20} />
           ) : null}
 
-          {isFetched && selectedSeries && isExistingSeries ? (
+          {hasSearched && selectedSeries && isExistingSeries ? (
             <Icon
               className={styles.warningIcon}
               name={icons.WARNING}
@@ -188,7 +205,7 @@ function ImportSeriesSelectSeries({
             />
           ) : null}
 
-          {isFetched && selectedSeries ? (
+          {hasSearched && selectedSeries ? (
             <ImportSeriesTitle
               title={selectedSeries.title}
               year={selectedSeries.year}
@@ -197,29 +214,44 @@ function ImportSeriesSelectSeries({
             />
           ) : null}
 
-          {isFetched && !selectedSeries ? (
-            <div>
+          {hasSearched && !selectedSeries ? (
+            <div className={styles.status} title={matchReason}>
               <Icon
                 className={styles.warningIcon}
                 name={icons.WARNING}
                 kind={kinds.WARNING}
               />
 
-              {translate('NoMatchFound')}
+              <span className={styles.statusText}>
+                {translate(
+                  matchStatus === 'possible'
+                    ? 'PossibleMatchesFound'
+                    : 'NoMatchFound'
+                )}
+              </span>
             </div>
           ) : null}
 
-          {!isFetching && !!error ? (
+          {!isBusy && !!searchError ? (
             <div>
               <Icon
                 className={styles.warningIcon}
-                title={errorMessage}
+                title={searchError}
                 name={icons.WARNING}
                 kind={kinds.WARNING}
               />
 
               {translate('SearchFailedError')}
             </div>
+          ) : null}
+
+          {importMessage ? (
+            <Icon
+              className={styles.warningIcon}
+              title={importMessage}
+              name={icons.WARNING}
+              kind={importState === 'failed' ? kinds.DANGER : kinds.WARNING}
+            />
           ) : null}
 
           <div className={styles.dropdownArrowContainer}>
@@ -260,7 +292,7 @@ function ImportSeriesSelectSeries({
                       kind={kinds.DEFAULT}
                       spinnerIcon={icons.REFRESH}
                       canSpin={true}
-                      isSpinning={isFetching}
+                      isSpinning={isBusy}
                       onPress={handleRefreshPress}
                     >
                       <Icon name={icons.REFRESH} />
@@ -310,8 +342,11 @@ function ImportSeriesSelectSeries({
                 </div>
 
                 <div className={styles.results}>
-                  {data.map((item, index) => {
-                    const key = item.tvdbId || item.aniDbId || index;
+                  {searchResults.map((item, index) => {
+                    // tvdbId and aniDbId can collide numerically, so key on both
+                    const key = `${item.tvdbId || 0}:${
+                      item.aniDbId || 0
+                    }:${index}`;
                     return (
                       <ImportSeriesSearchResult
                         key={key}
@@ -322,6 +357,9 @@ function ImportSeriesSelectSeries({
                         title={item.title}
                         year={item.year}
                         network={item.network}
+                        images={item.images}
+                        seasons={item.seasons}
+                        overview={item.overview}
                         onPress={handleSeriesSelect}
                       />
                     );

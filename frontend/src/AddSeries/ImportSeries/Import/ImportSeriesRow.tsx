@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import { useSelect } from 'App/Select/SelectContext';
 import FormInputGroup from 'Components/Form/FormInputGroup';
 import VirtualTableRowCell from 'Components/Table/Cells/VirtualTableRowCell';
@@ -34,12 +34,9 @@ function ImportSeriesRow({ unmappedFolder }: ImportSeriesRowProps) {
     selectedSeries,
   } = item ?? {};
 
-  const isExistingSeries = !!useExistingSeries({
-    tvdbId: selectedSeries?.tvdbId,
-  });
+  const isExistingSeries = !!useExistingSeries(selectedSeries);
 
-  const { getIsSelected, toggleSelected, toggleDisabled } =
-    useSelect<ImportSeriesItem>();
+  const { getIsSelected, toggleSelected } = useSelect<ImportSeriesItem>();
 
   const handleInputChange = useCallback(
     ({ name, value }: InputChanged) => {
@@ -59,14 +56,6 @@ function ImportSeriesRow({ unmappedFolder }: ImportSeriesRowProps) {
     [toggleSelected]
   );
 
-  useEffect(() => {
-    toggleDisabled(id, !selectedSeries || isExistingSeries);
-  }, [id, selectedSeries, isExistingSeries, toggleDisabled]);
-
-  useEffect(() => {
-    toggleSelected({ id, isSelected: !!selectedSeries, shiftKey: false });
-  }, [id, selectedSeries, toggleSelected]);
-
   return (
     <>
       <VirtualTableSelectCell<string>
@@ -77,7 +66,7 @@ function ImportSeriesRow({ unmappedFolder }: ImportSeriesRowProps) {
         onSelectedChange={handleSelectedChange}
       />
 
-      <VirtualTableRowCell className={styles.folder}>
+      <VirtualTableRowCell className={styles.folder} title={relativePath}>
         {relativePath}
       </VirtualTableRowCell>
 

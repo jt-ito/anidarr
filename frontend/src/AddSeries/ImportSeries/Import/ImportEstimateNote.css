@@ -1,0 +1,9 @@
+.estimate {
+  margin-top: 8px;
+  color: var(--disabledColor);
+  font-size: 12px;
+}
+
+.disclaimer {
+  margin-top: 4px;
+}

@@ -17,7 +17,21 @@
 }
 
 .warningIcon {
+  flex: 0 0 auto;
   margin-right: 8px;
+}
+
+/* Status line ("No match found", "Possible matches"): stay inside the box, ellipsis if too long */
+.status {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .existing {

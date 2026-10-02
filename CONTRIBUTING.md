@@ -1,10 +1,12 @@
 # How to Contribute
 
-We're always looking for people to help make Sonarr even better, there are a number of ways to contribute.
+We're always looking for people to help make Anidarr even better, there are a number of ways to contribute.
+
+Anidarr is a fork of [Sonarr](https://github.com/Sonarr/Sonarr). Anything not specific to anime still behaves like Sonarr, so the contribution rules below apply to both, and issues that are not about Anidarr's anime features are better reported upstream.
 
 ## Documentation
 
-Setup guides, [FAQ](https://wiki.servarr.com/sonarr/faq), the more information we have on the [wiki](https://wiki.servarr.com/sonarr) the better.
+Setup guides and anime-specific behaviour (AniDB, hub grouping, library import) belong in the [README](README.md). For everything Anidarr inherits from Sonarr, Sonarr's [FAQ](https://wiki.servarr.com/sonarr/faq) and [wiki](https://wiki.servarr.com/sonarr) still apply, the more information we have the better.
 
 ## Development
 
@@ -18,8 +20,8 @@ Setup guides, [FAQ](https://wiki.servarr.com/sonarr/faq), the more information w
 
 ### Getting started
 
-1. Fork Sonarr
-2. Clone the repository into your development machine. [_info_](https://docs.github.com/en/get-started/quickstart/fork-a-repo)
+1. Fork [Anidarr](https://github.com/jt-ito/anidarr)
+2. Clone your fork into your development machine. [_info_](https://docs.github.com/en/get-started/quickstart/fork-a-repo)
 3. Install the required Node Packages `yarn install`
 4. Start webpack to monitor your dev environment for any frontend changes that need post processing using `yarn start` command.
 5. Build the project in Visual Studio, Setting startup project to `Sonarr.Console` and framework to `x86`
@@ -33,7 +35,7 @@ All issues must follow the provided templates, these templates help us triage an
 - We expect that all issues are opened by a human selecting the appropriate issue template while opening the issue
 - Issues opened automatically or by other means may be closed automatically
 - We also expect discussions on issues to be conducted by humans, we are not interested in conversing with AI or triaging AI hallucinations
-- Bug reports for issues that generate logs must contain a link to the approproate trace logs. See the [Wiki](https://wiki.servarr.com/sonarr/troubleshooting#logging-and-log-files) for more information
+- Bug reports for issues that generate logs must contain a link to the approproate trace logs. See Sonarr's [Wiki](https://wiki.servarr.com/sonarr/troubleshooting#logging-and-log-files) for more information (Anidarr writes its logs to the same `logs` folder in its data directory)
 
 ### How to Contribute
 
@@ -41,7 +43,7 @@ All issues must follow the provided templates, these templates help us triage an
 - Discuss before building large features. For major features or architectural changes, please open an issue first. Once we've agreed on a solution the work can begin
 - Small bug fixes or improvements can usually go straight to PR, but we may ask for additional information, including logs before reviewing
 - Understand the code before changing it. Follow existing code structure and standards
-- Add tests (unit/integration) when appropriate
+- Add tests (unit/integration) when appropriate. Backend tests run with `dotnet test src/NzbDrone.Core.Test`, frontend tests with `yarn test:unit`
 - Commit with \*nix line endings for consistency
 - Test thoroughly, all code must be tested to ensure it compiles and works correctly
 - You are responsible for all code and you should understand it's functionality, including reviewing it before submission

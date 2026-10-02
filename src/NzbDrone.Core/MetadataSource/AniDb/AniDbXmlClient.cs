@@ -30,6 +30,9 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         // operation looking stuck. Callers that don't have anywhere to put that
         // (e.g. the background related-series crawler) just omit it.
         XDocument GetAnimeXml(int aniDbId, Action<string> reportProgress = null);
+
+        // True when this entry is already in the local AniDB cache (fetching it needs no API call)
+        bool IsCached(int aniDbId);
         List<(int Id, string RelationType)> GetAllRelations(XElement root);
         string GetBestTitle(IEnumerable<XElement> titles, string defaultTitle);
     }
@@ -64,6 +67,24 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             _logger = logger;
         }
 
+        public bool IsCached(int aniDbId)
+        {
+            var cacheFile = CacheFilePath("anime", $"aid={aniDbId}");
+
+            return File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0;
+        }
+
+        private string CacheFilePath(string request, string extraParams)
+        {
+            // Keep the alnum prefix for human-readable cache dir browsing, but key
+            // on a hash of the full extraParams too — stripping punctuation alone
+            // can collapse two different queries onto the same cache file.
+            var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
+            var paramsHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(extraParams)))[..12];
+
+            return Path.Combine(_appFolderInfo.AppDataFolder, "AniDbCache", $"{request}_{safeParams}_{paramsHash}.xml");
+        }
+
         public XDocument GetAnimeXml(int aniDbId, Action<string> reportProgress = null)
         {
             var xml = FetchXml("anime", $"aid={aniDbId}", reportProgress);
@@ -95,12 +116,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 Directory.CreateDirectory(cacheDir);
             }
 
-            // Keep the alnum prefix for human-readable cache dir browsing, but key
-            // on a hash of the full extraParams too — stripping punctuation alone
-            // can collapse two different queries onto the same cache file.
-            var safeParams = new string(extraParams.Where(char.IsLetterOrDigit).ToArray());
-            var paramsHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(extraParams)))[..12];
-            var cacheFile = Path.Combine(cacheDir, $"{request}_{safeParams}_{paramsHash}.xml");
+            var cacheFile = CacheFilePath(request, extraParams);
 
             if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
             {
@@ -117,6 +133,13 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                 {
                     _logger.Debug(ex, "Failed to read cached AniDB response for {0} {1}", request, extraParams);
                 }
+            }
+
+            // Without a registered client AniDB rejects every request, and each rejected request would
+            // still take its turn in the rate limiter. Say what is wrong instead.
+            if (!_configService.IsAniDbClientConfigured)
+            {
+                throw new InvalidOperationException("The AniDB client name and version are not set. Enter them under Settings > Metadata Source (see the README for how to register an HTTP API client on AniDB).");
             }
 
             Task<string> fetchTask;

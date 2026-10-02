@@ -29,6 +29,15 @@ namespace NzbDrone.Core.Test.TvTests
                                            .ToList());
         }
 
+        [Test]
+        public void should_refresh_a_series_that_was_never_fully_synced()
+        {
+            _series.LastInfoSync = null;
+            GivenSeriesIsEnded();
+
+            Subject.ShouldRefresh(_series).Should().BeTrue();
+        }
+
         private void GivenSeriesIsEnded()
         {
             _series.Status = SeriesStatusType.Ended;

@@ -11,6 +11,8 @@ interface CssExports {
   'searchContainer': string;
   'searchIconContainer': string;
   'searchInput': string;
+  'status': string;
+  'statusText': string;
   'warningIcon': string;
 }
 export const cssExports: CssExports;

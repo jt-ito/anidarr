@@ -19,6 +19,7 @@ namespace NzbDrone.Core.Tv
         Series FindByImdbId(string imdbId);
         Series FindByPath(string path);
         List<int> AllSeriesTvdbIds();
+        int CountPendingMetadata();
         Dictionary<int, string> AllSeriesPaths();
         Dictionary<int, List<int>> AllSeriesTags();
         Dictionary<int, int> AllSeriesQualityProfiles();
@@ -195,6 +196,16 @@ namespace NzbDrone.Core.Tv
             using (var conn = _database.OpenConnection())
             {
                 return conn.Query<int>("SELECT \"TvdbId\" FROM \"Series\"").ToList();
+            }
+        }
+
+        // AniDB-only series (no real tvdb id) that were added without their metadata and have not been
+        // refreshed since: the ones still being updated in the background
+        public int CountPendingMetadata()
+        {
+            using (var conn = _database.OpenConnection())
+            {
+                return conn.ExecuteScalar<int>("SELECT COUNT(*) FROM \"Series\" WHERE \"LastInfoSync\" IS NULL AND \"AniDbId\" > 0 AND \"TvdbId\" <= 0");
             }
         }
 

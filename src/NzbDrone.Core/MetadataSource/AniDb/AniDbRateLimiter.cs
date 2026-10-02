@@ -17,6 +17,9 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
         public static readonly AsyncLocal<bool> IsManualContext = new AsyncLocal<bool>();
 
+        // Work nobody is waiting on (e.g. discovering related series): behind everything else
+        public static readonly AsyncLocal<bool> IsIdleContext = new AsyncLocal<bool>();
+
         private static readonly PriorityQueue<Func<Task>, int> _queue = new PriorityQueue<Func<Task>, int>();
         private static readonly SemaphoreSlim _signal = new SemaphoreSlim(0);
         private static readonly object _lock = new object();
@@ -58,8 +61,8 @@ namespace NzbDrone.Core.MetadataSource.AniDb
 
             lock (_lock)
             {
-                // Priority 0 for manual (high priority), 1 for background (low priority)
-                _queue.Enqueue(wrappedAction, IsManualContext.Value ? 0 : 1);
+                // Priority 0 for manual (high priority), 1 for background, 2 for idle work
+                _queue.Enqueue(wrappedAction, IsManualContext.Value ? 0 : IsIdleContext.Value ? 2 : 1);
             }
 
             _signal.Release();

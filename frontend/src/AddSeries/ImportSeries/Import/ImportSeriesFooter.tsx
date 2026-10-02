@@ -15,8 +15,9 @@ import PageContentFooter from 'Components/Page/PageContentFooter';
 import Popover from 'Components/Tooltip/Popover';
 import { icons, inputTypes, kinds, tooltipPositions } from 'Helpers/Props';
 import { SeriesMonitor, SeriesType } from 'Series/Series';
-import { InputChanged } from 'typings/inputs';
+import { CheckInputChanged, InputChanged } from 'typings/inputs';
 import translate from 'Utilities/String/translate';
+import ImportEstimateNote from './ImportEstimateNote';
 import {
   ImportSeriesItem,
   startProcessing,
@@ -25,6 +26,7 @@ import {
   useImportSeriesItems,
   useLookupQueueHasItems,
 } from './importSeriesStore';
+import useImportEstimate from './useImportEstimate';
 import { useImportSeries } from './useImportSeries';
 import styles from './ImportSeriesFooter.css';
 
@@ -54,9 +56,13 @@ function ImportSeriesFooter() {
     defaultSeasonFolder
   );
 
-  const { selectedCount, getSelectedIds } = useSelect<ImportSeriesItem>();
+  const { selectedCount, getSelectedIds, useSelectedIds } =
+    useSelect<ImportSeriesItem>();
+  const selectedIds = useSelectedIds();
 
-  const { importSeries, isImporting, importError } = useImportSeries();
+  const { importSeries, isImporting, importProgress, importError } =
+    useImportSeries();
+  const [deferMetadata, setDeferMetadata] = useState(false);
 
   const {
     hasUnsearchedItems,
@@ -109,6 +115,32 @@ function ImportSeriesFooter() {
     isLookingUpSeries,
   ]);
 
+  // Once every folder is processed and before importing: how long will importing the AniDB ones take?
+  const aniDbIds = useMemo(() => {
+    const selected = new Set(selectedIds);
+
+    return items.reduce<number[]>((acc, item) => {
+      const series = item.selectedSeries;
+
+      if (
+        selected.has(item.id) &&
+        series &&
+        series.tvdbId <= 0 &&
+        series.aniDbId &&
+        series.aniDbId > 0
+      ) {
+        acc.push(series.aniDbId);
+      }
+
+      return acc;
+    }, []);
+  }, [items, selectedIds]);
+
+  const estimate = useImportEstimate(
+    aniDbIds,
+    !isLookingUpSeries && !hasUnsearchedItems && !isImporting
+  );
+
   const handleInputChange = useCallback(
     ({ name, value }: InputChanged<string | number | boolean | number[]>) => {
       if (name === 'monitor') {
@@ -142,8 +174,15 @@ function ImportSeriesFooter() {
   }, []);
 
   const handleImportPress = useCallback(() => {
-    importSeries(getSelectedIds());
-  }, [importSeries, getSelectedIds]);
+    importSeries(getSelectedIds(), deferMetadata);
+  }, [importSeries, getSelectedIds, deferMetadata]);
+
+  const handleDeferMetadataChange = useCallback(
+    ({ value }: CheckInputChanged) => {
+      setDeferMetadata(value);
+    },
+    []
+  );
 
   useEffect(() => {
     if (isMonitorMixed && monitor !== 'mixed') {
@@ -232,6 +271,22 @@ function ImportSeriesFooter() {
         />
       </div>
 
+      <div className={styles.deferContainer}>
+        <div className={styles.label}>
+          {translate('AddNowFetchDetailsLater')}
+        </div>
+
+        <CheckInput
+          name="deferMetadata"
+          value={deferMetadata}
+          helpText={translate('AddNowFetchDetailsLaterHelpText')}
+          isDisabled={isImporting}
+          onChange={handleDeferMetadataChange}
+        />
+
+        {estimate ? <ImportEstimateNote estimate={estimate} /> : null}
+      </div>
+
       <div>
         <div className={styles.label}>&nbsp;</div>
 
@@ -240,11 +295,20 @@ function ImportSeriesFooter() {
             className={styles.importButton}
             kind={kinds.PRIMARY}
             isSpinning={isImporting}
-            isDisabled={!selectedCount || isLookingUpSeries}
+            isDisabled={!selectedCount || isLookingUpSeries || isImporting}
             onPress={handleImportPress}
           >
             {translate('ImportCountSeries', { selectedCount })}
           </SpinnerButton>
+
+          {importProgress ? (
+            <span className={styles.importProgress}>
+              {translate('ImportingProgress', {
+                done: importProgress.done,
+                total: importProgress.total,
+              })}
+            </span>
+          ) : null}
 
           {isLookingUpSeries ? (
             <Button

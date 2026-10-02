@@ -29,6 +29,7 @@ namespace NzbDrone.Core.Tv
         void DeleteSeries(List<int> seriesIds, bool deleteFiles, bool addImportListExclusion);
         List<Series> GetAllSeries();
         List<int> AllSeriesTvdbIds();
+        int CountPendingMetadata();
         Dictionary<int, string> GetAllSeriesPaths();
         Dictionary<int, List<int>> GetAllSeriesTags();
         List<Series> AllForTag(int tagId);
@@ -120,6 +121,14 @@ namespace NzbDrone.Core.Tv
         public List<Series> AddSeries(List<Series> newSeries)
         {
             _seriesRepository.InsertMany(newSeries);
+
+            // The single-series add saves the AniDB season mappings; the bulk add used to skip them,
+            // which left imported hubs without the entries that make up their other seasons.
+            foreach (var series in newSeries.Where(s => s.AniDbMappings != null && s.AniDbMappings.Any()))
+            {
+                _aniDbSeriesMappingService.UpdateMappings(series.Id, series.AniDbMappings);
+            }
+
             _eventAggregator.PublishEvent(new SeriesImportedEvent(newSeries.Select(s => s.Id).ToList()));
 
             // Anidarr: queue the same deferred AniDB-related enrichment as the
@@ -143,6 +152,13 @@ namespace NzbDrone.Core.Tv
         // inline, so it never adds to how long adding a series takes.
         private void QueueAniDbEnrichmentCommands(Series newSeries)
         {
+            // Added without its metadata: its AniDB entry may be season 2+ of a hub (it can still be merged
+            // away), so enrichment waits until the refresh has resolved the hub.
+            if (newSeries.LastInfoSync == null)
+            {
+                return;
+            }
+
             if (newSeries.PrimaryMetadataProvider?.Equals("anidb", StringComparison.OrdinalIgnoreCase) == true ||
                 (newSeries.AniDbMappings != null && newSeries.AniDbMappings.Any()))
             {
@@ -254,6 +270,11 @@ namespace NzbDrone.Core.Tv
         public List<Series> GetAllSeries()
         {
             return _seriesRepository.All().ToList();
+        }
+
+        public int CountPendingMetadata()
+        {
+            return _seriesRepository.CountPendingMetadata();
         }
 
         public List<int> AllSeriesTvdbIds()

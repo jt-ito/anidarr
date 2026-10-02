@@ -9,6 +9,7 @@ using NzbDrone.Core.History;
 using NzbDrone.Core.Indexers;
 using NzbDrone.Core.Indexers.TorrentRss;
 using NzbDrone.Core.Languages;
+using NzbDrone.Core.Messaging.Events;
 using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Test.Framework;
@@ -84,6 +85,41 @@ namespace NzbDrone.Core.Test.Download.TrackedDownloads
             trackedDownload.RemoteEpisode.Episodes.First().Id.Should().Be(4);
             trackedDownload.RemoteEpisode.ParsedEpisodeInfo.SeasonNumber.Should().Be(1);
             trackedDownload.RemoteEpisode.MappedSeasonNumber.Should().Be(1);
+        }
+
+        [Test]
+        public void should_stop_tracking_downloads_when_series_is_deleted()
+        {
+            GivenDownloadHistory();
+
+            var series = new Series { Id = 5 };
+
+            Mocker.GetMock<IParsingService>()
+                  .Setup(s => s.Map(It.IsAny<ParsedEpisodeInfo>(), It.IsAny<int>(), It.IsAny<IEnumerable<int>>()))
+                  .Returns(new RemoteEpisode
+                  {
+                      Series = series,
+                      Episodes = new List<Episode> { new Episode { Id = 4 } },
+                      ParsedEpisodeInfo = new ParsedEpisodeInfo { SeriesTitle = "TV Series", SeasonNumber = 1 }
+                  });
+
+            var client = new DownloadClientDefinition { Id = 1, Protocol = DownloadProtocol.Torrent };
+
+            var item = new DownloadClientItem
+            {
+                Title = "The torrent release folder",
+                DownloadId = "35238",
+                DownloadClientInfo = new DownloadClientItemClientInfo { Protocol = client.Protocol, Id = client.Id, Name = client.Name }
+            };
+
+            Subject.TrackDownload(client, item);
+
+            Subject.Handle(new SeriesDeletedEvent(new List<Series> { series }, false, false));
+
+            Subject.Find("35238").Should().BeNull();
+
+            Mocker.GetMock<IEventAggregator>()
+                  .Verify(v => v.PublishEvent(It.IsAny<TrackedDownloadsRemovedEvent>()), Times.Once());
         }
 
         [Test]

@@ -20,6 +20,23 @@ export interface ImportSeriesItem {
   seriesType: SeriesType;
   name: string;
   hasSearched: boolean;
+  // Manual search overrides (otherwise the folder name is searched on all providers)
+  searchTerm?: string;
+  searchProvider?: string;
+  searchResults?: Series[];
+  searchError?: string;
+  // How sure the lookup was: matched (auto-selected), possible (user must choose), none
+  matchStatus?: 'matched' | 'possible' | 'none';
+  // The server's explanation of that status, and how many video files the folder holds
+  matchReason?: string;
+  fileCount?: number;
+  // A search for this row is running right now (queued or typed by the user)
+  isSearching?: boolean;
+  // The folder name without release tags, as the server searched for it
+  displayTerm?: string;
+  // The import ran but this folder was not added (skipped: nothing to add; failed: error) and why
+  importState?: 'skipped' | 'failed';
+  importMessage?: string;
 }
 
 interface ImportSeriesState {
@@ -92,6 +109,19 @@ export const updateImportSeriesItem = (
   });
 };
 
+export const updateImportSeriesItemByPath = (
+  path: string,
+  itemData: Partial<ImportSeriesItem>
+) => {
+  const item = Object.values(importSeriesStore.getState().items).find(
+    (i) => i.path === path
+  );
+
+  if (item) {
+    updateImportSeriesItem({ ...itemData, id: item.id });
+  }
+};
+
 export const removeImportSeriesItemByPath = (path: string) => {
   importSeriesStore.setState((state) => {
     const item = Object.values(state.items).find((i) => i.path === path);
@@ -129,9 +159,11 @@ export const stopProcessing = () => {
 };
 
 export const addToLookupQueue = (id: string) => {
-  importSeriesStore.setState((state) => ({
-    lookupQueue: [...state.lookupQueue, id],
-  }));
+  importSeriesStore.setState((state) =>
+    state.lookupQueue.includes(id)
+      ? state
+      : { lookupQueue: [...state.lookupQueue, id] }
+  );
 };
 
 export const removeFromLookupQueue = (id: string) => {
@@ -140,8 +172,16 @@ export const removeFromLookupQueue = (id: string) => {
   }));
 };
 
-export const useIsCurrentLookupQueueItem = (id: string) => {
-  return importSeriesStore((state) => state.lookupQueue[0] === id);
+export const useLookupQueue = () => {
+  return importSeriesStore((state) => state.lookupQueue);
+};
+
+export const isInLookupQueue = (id: string) => {
+  return importSeriesStore.getState().lookupQueue.includes(id);
+};
+
+export const getImportSeriesItem = (id: string) => {
+  return importSeriesStore.getState().items[id];
 };
 
 export const useIsCurrentedItemQueued = (id: string) => {

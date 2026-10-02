@@ -40,6 +40,24 @@ namespace NzbDrone.Core.Tv
 
         public void Execute(FetchAniDbRelatedSeriesCommand message)
         {
+            // This crawls the relation graph, one AniDB request per entry. Nobody waits for it, so it
+            // goes behind every other AniDB request (like the hub lookups an import is waiting on).
+            // Command threads are reused: put the priority back when done.
+            AniDbRateLimiter.IsManualContext.Value = false;
+            AniDbRateLimiter.IsIdleContext.Value = true;
+
+            try
+            {
+                FetchRelatedSeries(message);
+            }
+            finally
+            {
+                AniDbRateLimiter.IsIdleContext.Value = false;
+            }
+        }
+
+        private void FetchRelatedSeries(FetchAniDbRelatedSeriesCommand message)
+        {
             if (!_configService.IsRelatedSeriesEnabled)
             {
                 return;

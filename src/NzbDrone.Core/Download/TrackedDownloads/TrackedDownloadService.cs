@@ -348,17 +348,18 @@ namespace NzbDrone.Core.Download.TrackedDownloads
 
         public void Handle(SeriesDeletedEvent message)
         {
-            var cachedItems = _cache.Values
+            var downloadIds = _cache.Values
                 .Where(t =>
                     t.RemoteEpisode?.Series != null &&
                     message.Series.Any(s => s.Id == t.RemoteEpisode.Series.Id || s.TvdbId == t.RemoteEpisode.Series.TvdbId))
+                .Select(t => t.DownloadItem.DownloadId)
                 .ToList();
 
-            if (cachedItems.Any())
+            // Drop them (instead of re-mapping and republishing the whole cache, which also
+            // surfaced already-imported items) so the queue refreshes immediately.
+            if (downloadIds.Any())
             {
-                cachedItems.ForEach(UpdateCachedItem);
-
-                _eventAggregator.PublishEvent(new TrackedDownloadRefreshedEvent(GetTrackedDownloads()));
+                StopTracking(downloadIds);
             }
         }
     }

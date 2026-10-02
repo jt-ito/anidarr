@@ -6,6 +6,7 @@ using NLog;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Extensions;
+using NzbDrone.Core.Datastore;
 using NzbDrone.Core.Download.TrackedDownloads;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
@@ -137,6 +138,17 @@ namespace NzbDrone.Core.Download
             if (trackedDownload.RemoteEpisode == null)
             {
                 trackedDownload.Warn("Unable to parse download, automatic import is not possible.");
+                SetStateToImportBlocked(trackedDownload);
+
+                return;
+            }
+
+            // The series may have been deleted after this download was mapped (stale RemoteEpisode)
+            // ponytail: narrows the delete/import race, can't close it if the delete lands mid-import
+            if (trackedDownload.RemoteEpisode.Series != null && !SeriesExists(trackedDownload.RemoteEpisode.Series.Id))
+            {
+                _logger.Debug("Series for '{0}' was deleted, skipping import", trackedDownload.DownloadItem.Title);
+                trackedDownload.Warn("Series was deleted, automatic import is not possible.");
                 SetStateToImportBlocked(trackedDownload);
 
                 return;
@@ -296,6 +308,20 @@ namespace NzbDrone.Core.Download
                 var manualInteractionEvent = new ManualInteractionRequiredEvent(trackedDownload, releaseInfo);
 
                 _eventAggregator.PublishEvent(manualInteractionEvent);
+            }
+        }
+
+        private bool SeriesExists(int seriesId)
+        {
+            try
+            {
+                _seriesService.GetSeries(seriesId);
+
+                return true;
+            }
+            catch (ModelNotFoundException)
+            {
+                return false;
             }
         }
 

@@ -3,7 +3,11 @@
 interface CssExports {
   'aniDbBadge': string;
   'container': string;
+  'details': string;
+  'meta': string;
+  'poster': string;
   'series': string;
+  'tvdbBadge': string;
   'tvdbLink': string;
   'tvdbLinkIcon': string;
 }

@@ -77,6 +77,9 @@ namespace NzbDrone.Core.Configuration
         string MalClientId { get; }
         string AniDbClientName { get; }
         int AniDbClientVersion { get; }
+
+        // AniDB only answers registered HTTP API clients: both the name and a version are needed
+        bool IsAniDbClientConfigured { get; }
         DateTime? AniDbBanExpiration { get; }
         void SetAniDbBanExpiration(DateTime? expiration);
         bool IsRelatedSeriesEnabled { get; }
@@ -338,6 +341,7 @@ namespace NzbDrone.Core.Configuration
         public string MalClientId => GetValue("MalClientId", string.Empty);
         public string AniDbClientName => GetValue("AniDbClientName", string.Empty);
         public int AniDbClientVersion => GetValueInt("AniDbClientVersion", 0);
+        public bool IsAniDbClientConfigured => !string.IsNullOrWhiteSpace(AniDbClientName) && AniDbClientVersion > 0;
         public DateTime? AniDbBanExpiration
         {
             get

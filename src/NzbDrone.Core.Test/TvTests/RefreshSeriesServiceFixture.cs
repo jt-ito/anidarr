@@ -9,6 +9,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Core.AutoTagging;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MediaFiles;
+using NzbDrone.Core.Messaging.Commands;
 using NzbDrone.Core.MetadataSource;
 using NzbDrone.Core.Test.Framework;
 using NzbDrone.Core.Tv;
@@ -107,6 +108,68 @@ namespace NzbDrone.Core.Test.TvTests
 
             Mocker.GetMock<ISeriesService>()
                 .Verify(v => v.UpdateSeries(It.Is<Series>(s => s.Seasons.Count == 2 && s.Seasons.Single(season => season.SeasonNumber == 0).Monitored == false), It.IsAny<bool>(), It.IsAny<bool>()));
+        }
+
+        [Test]
+        public void should_stop_after_merging_a_series_that_was_a_later_season_of_a_hub()
+        {
+            _series.LastInfoSync = null;
+            _series.AniDbId = 4738;
+
+            var hubInfo = _series.JsonClone();
+            hubInfo.AniDbId = 4337;
+            GivenNewSeriesInfo(hubInfo);
+
+            Mocker.GetMock<IAniDbHubReconciler>()
+                  .Setup(r => r.Reconcile(It.IsAny<Series>(), It.IsAny<Series>()))
+                  .Returns(HubOutcome.MergedIntoExisting);
+
+            Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }, true));
+
+            // the series no longer exists: nothing to save or scan
+            Mocker.GetMock<ISeriesService>().Verify(v => v.UpdateSeries(It.IsAny<Series>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.Never());
+            Mocker.GetMock<IDiskScanService>().Verify(v => v.Scan(It.IsAny<Series>()), Times.Never());
+
+            // it is done, even though it was merged away
+            Mocker.GetMock<IPendingMetadataTracker>().Verify(t => t.Completed(), Times.Once());
+            Mocker.GetMock<IManageCommandQueue>().Verify(c => c.Push(It.IsAny<EnrichSeriesFromAniListCommand>(), It.IsAny<CommandPriority>(), It.IsAny<CommandTrigger>()), Times.Never());
+        }
+
+        [Test]
+        public void should_carry_on_normally_when_a_series_became_its_hub()
+        {
+            _series.LastInfoSync = null;
+            _series.AniDbId = 4738;
+
+            GivenNewSeriesInfo(_series.JsonClone());
+
+            Mocker.GetMock<IAniDbHubReconciler>()
+                  .Setup(r => r.Reconcile(It.IsAny<Series>(), It.IsAny<Series>()))
+                  .Returns(HubOutcome.BecameHub);
+
+            Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }, true));
+
+            Mocker.GetMock<ISeriesService>().Verify(v => v.UpdateSeries(It.IsAny<Series>(), It.IsAny<bool>(), It.IsAny<bool>()), Times.AtLeastOnce());
+            Mocker.GetMock<IDiskScanService>().Verify(v => v.Scan(It.IsAny<Series>()), Times.Once());
+
+            Mocker.GetMock<IPendingMetadataTracker>().Verify(t => t.Completed(), Times.Once());
+
+            // enrichment waits until the hub is known, and goes behind the refreshes still queued
+            Mocker.GetMock<IManageCommandQueue>().Verify(c => c.Push(It.Is<EnrichSeriesFromAniListCommand>(cmd => cmd.SeriesId == _series.Id), CommandPriority.Low, CommandTrigger.Unspecified), Times.Once());
+        }
+
+        [Test]
+        public void should_not_look_for_a_hub_when_the_series_was_fully_synced()
+        {
+            _series.LastInfoSync = DateTime.UtcNow.AddDays(-1);
+            _series.AniDbId = 4738;
+
+            GivenNewSeriesInfo(_series.JsonClone());
+
+            Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }));
+
+            Mocker.GetMock<IAniDbHubReconciler>().Verify(r => r.Reconcile(It.IsAny<Series>(), It.IsAny<Series>()), Times.Never());
+            Mocker.GetMock<IPendingMetadataTracker>().Verify(t => t.Completed(), Times.Never());
         }
 
         [Test]

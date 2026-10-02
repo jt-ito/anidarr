@@ -9,6 +9,8 @@
 }
 
 .series {
+  display: flex;
+  align-items: center;
   flex: 1 0 0;
   overflow: hidden;
 }
@@ -25,11 +27,43 @@
 }
 
 .aniDbBadge {
-  margin-left: 8px;
   padding: 2px 6px;
   border-radius: 4px;
   background-color: var(--buttonPrimaryBackgroundColor);
   color: var(--buttonPrimaryTextColor);
   font-weight: bold;
   font-size: 11px;
+}
+
+.tvdbBadge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--themeDarkColor);
+  color: #fff;
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.poster {
+  flex: 0 0 auto;
+  margin-right: 12px;
+  width: 36px;
+  height: 52px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+
+.details {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 4px;
+  color: var(--disabledColor);
+  font-size: 12px;
 }

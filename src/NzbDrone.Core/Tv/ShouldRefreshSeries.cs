@@ -25,6 +25,12 @@ namespace NzbDrone.Core.Tv
         {
             try
             {
+                if (series.LastInfoSync == null)
+                {
+                    _logger.Trace("Series {0} has never been fully synced (added without its metadata), should refresh.", series.Title);
+                    return true;
+                }
+
                 if (series.LastInfoSync < DateTime.UtcNow.AddDays(-30))
                 {
                     _logger.Trace("Series {0} last updated more than 30 days ago, should refresh.", series.Title);

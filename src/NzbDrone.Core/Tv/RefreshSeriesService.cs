@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using NLog;
@@ -25,6 +26,9 @@ namespace NzbDrone.Core.Tv
         private readonly IEventAggregator _eventAggregator;
         private readonly IDiskScanService _diskScanService;
         private readonly ICheckIfSeriesShouldBeRefreshed _checkIfSeriesShouldBeRefreshed;
+        private readonly IAniDbHubReconciler _hubReconciler;
+        private readonly IManageCommandQueue _commandQueueManager;
+        private readonly IPendingMetadataTracker _pendingMetadataTracker;
         private readonly IConfigService _configService;
         private readonly ICommandResultReporter _commandResultReporter;
         private readonly Logger _logger;
@@ -35,6 +39,9 @@ namespace NzbDrone.Core.Tv
                                     IEventAggregator eventAggregator,
                                     IDiskScanService diskScanService,
                                     ICheckIfSeriesShouldBeRefreshed checkIfSeriesShouldBeRefreshed,
+                                    IAniDbHubReconciler hubReconciler,
+                                    IManageCommandQueue commandQueueManager,
+                                    IPendingMetadataTracker pendingMetadataTracker,
                                     IConfigService configService,
                                     ICommandResultReporter commandResultReporter,
                                     Logger logger)
@@ -45,6 +52,9 @@ namespace NzbDrone.Core.Tv
             _eventAggregator = eventAggregator;
             _diskScanService = diskScanService;
             _checkIfSeriesShouldBeRefreshed = checkIfSeriesShouldBeRefreshed;
+            _hubReconciler = hubReconciler;
+            _commandQueueManager = commandQueueManager;
+            _pendingMetadataTracker = pendingMetadataTracker;
             _configService = configService;
             _commandResultReporter = commandResultReporter;
             _logger = logger;
@@ -63,11 +73,17 @@ namespace NzbDrone.Core.Tv
             return $"provider: {provider}, id: {id}";
         }
 
+        // Returns null when the series was a later season of a hub and was merged into it (it no longer exists)
         private Series RefreshSeriesInfo(int seriesId)
         {
             // Get the series before updating, that way any changes made to the series after the refresh started,
             // but before this series was refreshed won't be lost.
             var series = _seriesService.GetSeries(seriesId);
+
+            // Added without its metadata (deferred, or the provider was unreachable): its AniDB entry may be
+            // season 2+ of a hub, which this refresh is the first chance to find out.
+            var wasPending = series.LastInfoSync == null && series.AniDbId > 0;
+            var stopwatch = Stopwatch.StartNew();
 
             _logger.ProgressInfo("Updating {0}", series.Title);
 
@@ -91,6 +107,16 @@ namespace NzbDrone.Core.Tv
                 }
 
                 throw;
+            }
+
+            var metadataMs = stopwatch.ElapsedMilliseconds;
+
+            if (wasPending && _hubReconciler.Reconcile(series, seriesInfo) == HubOutcome.MergedIntoExisting)
+            {
+                _logger.Debug("Refreshed '{0}' in {1}ms (provider {2}ms): merged into its hub", series.Title, stopwatch.ElapsedMilliseconds, metadataMs);
+                _pendingMetadataTracker.Completed();
+
+                return null;
             }
 
             if (seriesInfo.TvdbId != 0 && series.TvdbId != seriesInfo.TvdbId)
@@ -142,8 +168,16 @@ namespace NzbDrone.Core.Tv
             _seriesService.UpdateSeries(series, publishUpdatedEvent: false);
             _refreshEpisodeService.RefreshEpisodeInfo(series, episodes);
 
-            _logger.Debug("Finished series refresh for {0}", series.Title);
+            _logger.Debug("Finished series refresh for {0} in {1}ms (provider {2}ms)", series.Title, stopwatch.ElapsedMilliseconds, metadataMs);
             _eventAggregator.PublishEvent(new SeriesUpdatedEvent(series));
+
+            // A series added without its metadata was not enriched when it was added (its AniDB entry was a
+            // guess); now that it is a real hub, queue it behind the refreshes still waiting.
+            if (wasPending)
+            {
+                _pendingMetadataTracker.Completed();
+                _commandQueueManager.Push(new EnrichSeriesFromAniListCommand(series.Id), CommandPriority.Low);
+            }
 
             return series;
         }
@@ -228,10 +262,9 @@ namespace NzbDrone.Core.Tv
             var isNew = message.IsNewSeries;
             _eventAggregator.PublishEvent(new SeriesRefreshStartingEvent(trigger == CommandTrigger.Manual));
 
-            if (trigger == CommandTrigger.Manual)
-            {
-                NzbDrone.Core.MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = true;
-            }
+            // Command threads are reused, so set this both ways: a scheduled/background refresh must not
+            // inherit "manual" (top priority at AniDB) from a manual command that ran on this thread before.
+            NzbDrone.Core.MetadataSource.AniDb.AniDbRateLimiter.IsManualContext.Value = trigger == CommandTrigger.Manual;
 
             if (message.SeriesIds.Any())
             {
@@ -250,7 +283,15 @@ namespace NzbDrone.Core.Tv
                     {
                         if (!alreadyFresh)
                         {
-                            series = RefreshSeriesInfo(seriesId);
+                            var refreshed = RefreshSeriesInfo(seriesId);
+
+                            if (refreshed == null)
+                            {
+                                // merged into its hub: nothing left to rescan
+                                continue;
+                            }
+
+                            series = refreshed;
                         }
                         else
                         {
@@ -293,7 +334,14 @@ namespace NzbDrone.Core.Tv
                     {
                         try
                         {
-                            seriesLocal = RefreshSeriesInfo(seriesLocal.Id);
+                            var refreshedLocal = RefreshSeriesInfo(seriesLocal.Id);
+
+                            if (refreshedLocal == null)
+                            {
+                                continue;
+                            }
+
+                            seriesLocal = refreshedLocal;
                         }
                         catch (SeriesNotFoundException)
                         {

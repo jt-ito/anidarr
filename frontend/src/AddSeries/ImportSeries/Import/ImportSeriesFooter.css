@@ -8,6 +8,13 @@
   font-weight: bold;
 }
 
+/* The checkbox's help text is long: keep it from squeezing the buttons */
+.deferContainer {
+  composes: inputContainer;
+
+  max-width: 360px;
+}
+
 .importButtonContainer {
   display: flex;
   align-items: center;
@@ -16,7 +23,9 @@
 .importButton {
   composes: button from '~Components/Link/SpinnerButton.css';
 
+  flex: 0 0 auto;
   height: 35px;
+  white-space: nowrap;
 }
 
 .loadingButton {
@@ -48,4 +57,9 @@
   .importButtonContainer {
     margin-top: 10px;
   }
+}
+
+.importProgress {
+  margin-left: 10px;
+  white-space: nowrap;
 }

@@ -56,6 +56,9 @@ namespace NzbDrone.Core.Test.TvTests
             // IAniDbXmlClient. Wire in a real instance built from the same mocks
             // above so the GivenXmlResponse-style IHttpClient mocking below still
             // drives the AniDbProvider resolved just after this.
+            // the real XML client refuses to call AniDB without a client name and version
+            Mocker.GetMock<NzbDrone.Core.Configuration.IConfigFileProvider>().SetupGet(c => c.IsAniDbClientConfigured).Returns(true);
+
             Mocker.SetConstant<IAniDbXmlClient>(Mocker.Resolve<AniDbXmlClient>());
 
             var anidbProvider = Mocker.Resolve<AniDbProvider>();
