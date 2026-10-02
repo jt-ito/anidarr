@@ -42,6 +42,8 @@ namespace NzbDrone.Common.Http
     public class HttpClient : IHttpClient
     {
         private const int MaxRedirects = 5;
+        private const int MoveAttempts = 5;
+        private const int MoveRetryDelayMs = 50;
 
         private readonly Logger _logger;
         private readonly IRateLimitService _rateLimitService;
@@ -262,6 +264,26 @@ namespace NzbDrone.Common.Http
             }
         }
 
+        // Two downloads that finish together both replace the same destination. On Windows the one that
+        // loses that race can briefly be refused ("access denied" / file in use) while the other replace
+        // completes, so try again a few times. The files are equivalent, whichever lands last wins.
+        private static async Task MoveIntoPlaceAsync(string source, string destination)
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    File.Move(source, destination, overwrite: true);
+
+                    return;
+                }
+                catch (Exception ex) when (attempt < MoveAttempts && (ex is UnauthorizedAccessException || ex is IOException))
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(MoveRetryDelayMs * attempt));
+                }
+            }
+        }
+
         public async Task DownloadFileAsync(string url, string fileName, CancellationToken cancellationToken = default)
         {
             // Anidarr: each call gets its own temp file instead of a fixed "<fileName>.part".
@@ -301,7 +323,7 @@ namespace NzbDrone.Common.Http
                 // Each caller now owns a uniquely-named source file, so two concurrent
                 // downloads to the same destination each just overwrite it independently
                 // (last one wins) instead of racing on file existence beforehand.
-                File.Move(fileNamePart, fileName, overwrite: true);
+                await MoveIntoPlaceAsync(fileNamePart, fileName);
                 _logger.Debug("Downloading Completed. took {0:0}s", stopWatch.Elapsed.Seconds);
             }
             finally

@@ -414,6 +414,22 @@ namespace NzbDrone.Common.Test.Http
         }
 
         [Test]
+        public async Task should_survive_many_simultaneous_downloads_to_the_same_destination()
+        {
+            // Stress version of the test above: when downloads finish together they all try to move
+            // their own temp file over the same destination, and on Windows the loser of that race can
+            // briefly be refused ("access denied") while another move completes.
+            var file = GetTempFilePath();
+            var url = "https://sonarr.tv/img/slider/seriesdetails.png";
+
+            await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => Subject.DownloadFileAsync(url, file)));
+
+            File.Exists(file).Should().BeTrue();
+            new FileInfo(file).Length.Should().Be(114770);
+            Directory.GetFiles(Path.GetDirectoryName(file), Path.GetFileName(file) + ".*.part").Should().BeEmpty();
+        }
+
+        [Test]
         public async Task should_download_file_with_redirect()
         {
             var file = GetTempFilePath();
