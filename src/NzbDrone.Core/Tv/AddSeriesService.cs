@@ -9,6 +9,7 @@ using NzbDrone.Common.EnsureThat;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Core.Exceptions;
 using NzbDrone.Core.MetadataSource;
+using NzbDrone.Core.MetadataSource.AniDb;
 using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser;
 
@@ -87,6 +88,7 @@ namespace NzbDrone.Core.Tv
             _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent($"Saving series and {episodes.Count} episode(s) to library...", newSeries.AniDbId));
             _logger.Info("Adding Series {0} Path: [{1}]", seriesData, seriesData.Path);
             _seriesService.AddSeries(seriesData);
+            AniDbProvider.EvictCached(seriesData);
 
             if (episodes.Any())
             {
@@ -200,6 +202,7 @@ namespace NzbDrone.Core.Tv
             }
 
             var addedSeries = _seriesService.AddSeries(seriesToAdd);
+            seriesToAdd.ForEach(AniDbProvider.EvictCached);
 
             // Persist episodes and stamp LastInfoSync so RefreshSeriesService
             // skips the AniDB API call for each newly-added series.

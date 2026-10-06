@@ -26,6 +26,19 @@ namespace NzbDrone.Core.MetadataSource.AniDb
         private static readonly ConcurrentDictionary<int, (DateTime CachedAt, Tuple<Series, List<Episode>> Result)> _seriesInfoCache = new ConcurrentDictionary<int, (DateTime, Tuple<Series, List<Episode>>)>();
         private static readonly TimeSpan SeriesInfoCacheTtl = TimeSpan.FromMinutes(15);
 
+        // Adding a series writes its database IDs onto the cached objects, so a cached
+        // entry that has been added must not be handed out again (e.g. delete + re-add).
+        public static void EvictCached(Series series)
+        {
+            foreach (var entry in _seriesInfoCache)
+            {
+                if (ReferenceEquals(entry.Value.Result.Item1, series))
+                {
+                    _seriesInfoCache.TryRemove(entry.Key, out _);
+                }
+            }
+        }
+
         public static void ClearCache()
         {
             _seriesInfoCache.Clear();

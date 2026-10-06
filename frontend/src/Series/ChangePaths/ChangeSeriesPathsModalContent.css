@@ -1,0 +1,24 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.arrow {
+  flex: 0 0 auto;
+}
+
+.help {
+  margin-top: 10px;
+  color: var(--helpTextColor);
+}
+
+.error {
+  margin-top: 10px;
+  color: var(--dangerColor);
+}

@@ -64,6 +64,16 @@ function ImportSeriesFooter() {
     useImportSeries();
   const [deferMetadata, setDeferMetadata] = useState(false);
 
+  // Only real messages count: an error with an empty body shouldn't show an empty popover
+  const importErrorMessages = useMemo(() => {
+    const body: unknown = importError?.statusBody;
+    const messages = Array.isArray(body)
+      ? body.map((error: { errorMessage?: string }) => error.errorMessage)
+      : [(body as { message?: string } | undefined)?.message];
+
+    return messages.filter((message): message is string => !!message);
+  }, [importError]);
+
   const {
     hasUnsearchedItems,
     isMonitorMixed,
@@ -336,7 +346,7 @@ function ImportSeriesFooter() {
 
           {isLookingUpSeries ? translate('ProcessingFolders') : null}
 
-          {importError ? (
+          {importErrorMessages.length ? (
             <Popover
               anchor={
                 <Icon
@@ -348,13 +358,9 @@ function ImportSeriesFooter() {
               title={translate('ImportErrors')}
               body={
                 <ul>
-                  {Array.isArray(importError.statusBody) ? (
-                    importError.statusBody.map((error, index) => {
-                      return <li key={index}>{error.errorMessage}</li>;
-                    })
-                  ) : (
-                    <li>{JSON.stringify(importError.statusBody)}</li>
-                  )}
+                  {importErrorMessages.map((message, index) => (
+                    <li key={index}>{message}</li>
+                  ))}
                 </ul>
               }
               position={tooltipPositions.RIGHT}

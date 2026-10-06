@@ -167,6 +167,29 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
         }
 
         [Test]
+        public void should_return_the_same_cached_series_until_it_is_evicted()
+        {
+            GivenXmlResponse(1, BuildAnimeXml(1, "Season 1", new List<Tuple<int, string>> { Tuple.Create(2, "Sequel") }));
+            GivenXmlResponse(2, BuildAnimeXml(2, "Season 2", new List<Tuple<int, string>> { Tuple.Create(1, "Prequel") }));
+
+            var first = Subject.GetSeriesInfo("1").Item1;
+
+            // Adding a series writes its database ID onto the cached object.
+            first.Id = 2375;
+
+            Subject.GetSeriesInfo("1").Item1.Should().BeSameAs(first);
+
+            AniDbProvider.EvictCached(first);
+
+            // Evicting also drops the entry cached for the sequel, which shares the same series.
+            var second = Subject.GetSeriesInfo("2").Item1;
+
+            second.Should().NotBeSameAs(first);
+            second.Id.Should().Be(0);
+            Subject.GetSeriesInfo("1").Item1.Should().BeSameAs(second);
+        }
+
+        [Test]
         public void should_find_hub_when_starting_from_sequel()
         {
             // Setup: same chain, but we start searching from ID 2

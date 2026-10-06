@@ -18,6 +18,7 @@ import { useCustomFiltersList } from 'Filters/useCustomFilters';
 import { align, icons, kinds } from 'Helpers/Props';
 import { DESCENDING } from 'Helpers/Props/sortDirections';
 import ParseToolbarButton from 'Parse/ParseToolbarButton';
+import ChangeSeriesPathsToolbarButton from 'Series/ChangePaths/ChangeSeriesPathsToolbarButton';
 import NoSeries from 'Series/NoSeries';
 import {
   setSeriesOption,
@@ -229,6 +230,7 @@ function SeriesIndex() {
 
               <PageToolbarSeparator />
               <ParseToolbarButton />
+              <ChangeSeriesPathsToolbarButton />
             </PageToolbarSection>
 
             <PageToolbarSection
