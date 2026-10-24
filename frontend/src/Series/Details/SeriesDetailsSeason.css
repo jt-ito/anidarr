@@ -74,7 +74,8 @@
 .actionsMenu {
   composes: menu from '~Components/Menu/Menu.css';
 
-  flex: 0 0 45px;
+  flex: 0 0 auto;
+  padding: 0 14px 0 4px;
 }
 
 .actionsMenuContent {
@@ -131,10 +132,10 @@
 }
 
 @media only screen and (max-width: $breakpointSmall) {
+  /* Inset the card so the page background shows at the sides, like on desktop */
   .season {
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
+    margin-right: 10px;
+    margin-left: 10px;
   }
 
   .expandButtonIcon {
