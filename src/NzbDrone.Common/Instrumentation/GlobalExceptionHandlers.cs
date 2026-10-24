@@ -45,6 +45,9 @@ namespace NzbDrone.Common.Instrumentation
 
             Console.WriteLine("EPIC FAIL: {0}", exception);
             Logger.Fatal(exception, "EPIC FAIL.");
+
+            // The process is about to die: get the log lines onto disk first
+            LogManager.Flush(TimeSpan.FromSeconds(5));
         }
     }
 }

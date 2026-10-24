@@ -294,5 +294,59 @@ namespace NzbDrone.Core.Test.MetadataSource
             File.Delete(jsonlPath);
             File.Delete(gzPath);
         }
+
+        [Test]
+        public void should_keep_only_the_lowest_anidb_id_when_entries_share_a_mal_id()
+        {
+            // A pending duplicate submission (20446) got the same MAL/AniList IDs and cover as the real entry (20442)
+            var matches = new List<AnimeOfflineTitle>
+            {
+                new AnimeOfflineTitle { AniDbId = 20446, MalId = 99, AniListId = 77, Title = "Backstage at Oushun Academy" },
+                new AnimeOfflineTitle { AniDbId = 20442, MalId = 99, AniListId = 77, Title = "Oushun Jogakuen no Danyuu" }
+            };
+
+            var result = AnimeOfflineDatabase.CollapseSharedExternalIds(matches);
+
+            result.Should().ContainSingle().Which.AniDbId.Should().Be(20442);
+        }
+
+        [Test]
+        public void should_collapse_entries_that_only_share_an_anilist_id()
+        {
+            var matches = new List<AnimeOfflineTitle>
+            {
+                new AnimeOfflineTitle { AniDbId = 30, AniListId = 5 },
+                new AnimeOfflineTitle { AniDbId = 10, AniListId = 5 }
+            };
+
+            AnimeOfflineDatabase.CollapseSharedExternalIds(matches).Should().ContainSingle().Which.AniDbId.Should().Be(10);
+        }
+
+        [Test]
+        public void should_keep_entries_that_have_different_external_ids_or_none()
+        {
+            var matches = new List<AnimeOfflineTitle>
+            {
+                new AnimeOfflineTitle { AniDbId = 1, MalId = 10 },
+                new AnimeOfflineTitle { AniDbId = 2, MalId = 11 },
+                new AnimeOfflineTitle { AniDbId = 3 },
+                new AnimeOfflineTitle { AniDbId = 4 }
+            };
+
+            AnimeOfflineDatabase.CollapseSharedExternalIds(matches).Select(m => m.AniDbId).Should().Equal(1, 2, 3, 4);
+        }
+
+        [Test]
+        public void should_keep_the_position_of_the_first_match_when_collapsing()
+        {
+            var matches = new List<AnimeOfflineTitle>
+            {
+                new AnimeOfflineTitle { AniDbId = 5, MalId = 1 },
+                new AnimeOfflineTitle { AniDbId = 6, MalId = 2 },
+                new AnimeOfflineTitle { AniDbId = 4, MalId = 1 }
+            };
+
+            AnimeOfflineDatabase.CollapseSharedExternalIds(matches).Select(m => m.AniDbId).Should().Equal(4, 6);
+        }
     }
 }

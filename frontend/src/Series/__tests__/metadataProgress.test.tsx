@@ -61,6 +61,7 @@ const isSpinning = (container: HTMLElement) =>
 describe('Update all button', () => {
   it('spins and says how far the AniDB update has got', () => {
     progress = { pending: 48, done: 12, total: 60 };
+    isRefreshing = true;
 
     const { container } = render(button());
 
@@ -86,6 +87,20 @@ describe('Update all button', () => {
     const { container } = render(button());
 
     expect(isSpinning(container)).toBe(true);
+  });
+
+  it('does not spin when series are pending but no update is queued or running, and says they are waiting', () => {
+    // e.g. the update failed for them: nothing will run until the next scheduled refresh
+    progress = { pending: 2, done: 0, total: 2 };
+    isRefreshing = false;
+
+    const { container } = render(button());
+
+    expect(isSpinning(container)).toBe(false);
+
+    const tooltip = container.querySelector('[title*="UpdatingSeriesWaiting"]');
+
+    expect(tooltip?.getAttribute('title')).toContain('"pending":2');
   });
 
   it('does not spin when the AniDB client is not set up, and says what to do', () => {

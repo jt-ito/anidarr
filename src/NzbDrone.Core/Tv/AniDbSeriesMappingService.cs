@@ -45,6 +45,7 @@ namespace NzbDrone.Core.Tv
             foreach (var mapping in mappings)
             {
                 mapping.SeriesId = seriesId;
+                mapping.Id = 0; // the old rows were just deleted: these are new rows, whatever id the object carries
                 _repository.Insert(mapping);
             }
         }

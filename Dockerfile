@@ -45,7 +45,7 @@ COPY src/Sonarr.Http.Test/Sonarr.Http.Test.csproj src/Sonarr.Http.Test/
 COPY src/Sonarr.RuntimePatches/Sonarr.RuntimePatches.csproj src/Sonarr.RuntimePatches/
 
 # Restore dependencies
-RUN dotnet restore src/Sonarr.sln
+RUN dotnet restore src/Sonarr.sln -p:NuGetAudit=false
 
 # Copy the rest of the source code
 COPY . .

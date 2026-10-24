@@ -8,9 +8,16 @@ import { QualityModel } from 'Quality/Quality';
 import clientSideFilterAndSort from 'Utilities/Filter/clientSideFilterAndSort';
 import InteractiveImport from './InteractiveImport';
 import { useInteractiveImportOptions } from './interactiveImportOptionsStore';
+import { useInteractiveImportViewStore } from './interactiveImportViewStore';
 import ReleaseType from './ReleaseType';
 
 const DEFAULT_ITEMS: InteractiveImport[] = [];
+
+// Rows rendered before "show all": each row mounts a dozen cells and eight dialogs
+export const INTERACTIVE_IMPORT_ROW_LIMIT = 100;
+
+const normalize = (text: string) =>
+  text.toLowerCase().replace(/[._\-[\]()]+/g, ' ');
 
 interface InteractiveImportParams {
   downloadIds?: string[];
@@ -39,7 +46,11 @@ const useInteractiveImport = (params: InteractiveImportParams) => {
   const items = data ?? DEFAULT_ITEMS;
   const originalItems = [...items];
 
-  const { data: sortedItems } = useMemo(() => {
+  const search = useInteractiveImportViewStore((state) => state.search);
+  const showAll = useInteractiveImportViewStore((state) => state.showAll);
+  const pinnedIds = useInteractiveImportViewStore((state) => state.pinnedIds);
+
+  const { sortedItems, shownCount, totalCount } = useMemo(() => {
     const sortPredicates = {
       series: (item: InteractiveImport) => item.series?.title || '',
       quality: (item: InteractiveImport) => item.quality?.quality?.name || '',
@@ -47,15 +58,54 @@ const useInteractiveImport = (params: InteractiveImportParams) => {
         item.languages?.map((l) => l.name).join(', ') || '',
     };
 
-    return clientSideFilterAndSort(items, {
+    let { data: sorted } = clientSideFilterAndSort(items, {
       sortKey,
       sortDirection,
       sortPredicates,
     });
-  }, [items, sortKey, sortDirection]);
+
+    // Files matched to a series come first, unless another column was sorted on purpose
+    if (sortKey === 'relativePath') {
+      sorted = [
+        ...sorted.filter((item) => item.series),
+        ...sorted.filter((item) => !item.series),
+      ];
+    }
+
+    const terms = normalize(search).split(' ').filter(Boolean);
+
+    if (terms.length) {
+      sorted = sorted.filter((item) => {
+        const text = normalize(
+          `${item.relativePath} ${item.series?.title ?? ''}`
+        );
+
+        return terms.every((term) => text.includes(term));
+      });
+    }
+
+    const total = sorted.length;
+
+    if (!showAll && total > INTERACTIVE_IMPORT_ROW_LIMIT) {
+      const pinned = new Set(pinnedIds);
+
+      sorted = sorted.filter(
+        (item, index) =>
+          index < INTERACTIVE_IMPORT_ROW_LIMIT || pinned.has(item.id)
+      );
+    }
+
+    return {
+      sortedItems: sorted,
+      shownCount: sorted.length,
+      totalCount: total,
+    };
+  }, [items, sortKey, sortDirection, search, showAll, pinnedIds]);
 
   return {
     data: sortedItems,
+    shownCount,
+    totalCount,
     originalItems,
     isFetching,
     isFetched,

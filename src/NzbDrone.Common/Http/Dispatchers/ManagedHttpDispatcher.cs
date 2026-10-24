@@ -155,6 +155,7 @@ namespace NzbDrone.Common.Http.Dispatchers
                 Credentials = GetCredentialCache(),
                 PreAuthenticate = true,
                 MaxConnectionsPerServer = 12,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5), // re-resolve DNS: a restarted container (Prowlarr, qBittorrent behind a VPN) can come back on a new address
                 ConnectCallback = Socket.OSSupportsIPv6 ? _httpHappyEyeballs.OnConnect : null,
                 SslOptions = new SslClientAuthenticationOptions
                 {

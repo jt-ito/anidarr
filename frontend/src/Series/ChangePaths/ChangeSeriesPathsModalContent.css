@@ -22,3 +22,10 @@
   margin-top: 10px;
   color: var(--dangerColor);
 }
+
+.failures {
+  overflow-y: auto;
+  margin: 10px 0 0;
+  padding-left: 20px;
+  max-height: 200px;
+}

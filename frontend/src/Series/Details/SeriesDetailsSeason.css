@@ -145,4 +145,25 @@
   .sizeOnDisk {
     display: none;
   }
+
+  /* Keep the header's action buttons on screen */
+  .left,
+  .actions {
+    padding: 15px 8px;
+  }
+
+  .left {
+    min-width: 0;
+  }
+
+  .expandButton {
+    margin: 0 4px;
+  }
+
+  /* Give the episode title room: tighter cells */
+  .episodes td,
+  .episodes th {
+    padding-right: 4px;
+    padding-left: 4px;
+  }
 }

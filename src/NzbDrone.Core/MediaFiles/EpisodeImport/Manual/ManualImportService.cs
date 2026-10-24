@@ -319,9 +319,11 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             else
             {
                 // baseFolder is a shared root folder (e.g. Downloads/) containing loose files from many different shows.
-                // We only scan direct video files (non-recursive) in baseFolder and filter to candidate files matching this series.
+                // We only scan direct video files (non-recursive) in baseFolder. Files confidently matching this series are
+                // assigned to it; every other file is still listed, unassigned, so it can be picked by hand.
                 var directFiles = _diskScanService.FilterPaths(rootFolder, _diskScanService.GetVideoFiles(baseFolder, false).ToList());
-                var candidateFiles = FilterCandidateFilesForSeries(directFiles, series, seasonNumber);
+                var candidateFiles = FilterCandidateFilesForSeries(directFiles, series);
+                var otherFiles = directFiles.Except(candidateFiles).ToList();
 
                 var items = new List<ManualImportItem>();
 
@@ -329,6 +331,12 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
                 {
                     var decisions = _importDecisionMaker.GetImportDecisions(candidateFiles, series, downloadClientItem, downloadClientItemInfo, folderInfo, SceneSource(series, baseFolder), filterExistingFiles);
                     items.AddRange(decisions.Select(decision => MapItem(decision, rootFolder, downloadId, directoryInfo.Name)));
+                }
+
+                // Listing is cheap (no parsing or media info): picking a series and episode on a row reprocesses just that file.
+                if (otherFiles.Any())
+                {
+                    items.AddRange(ProcessDownloadDirectory(rootFolder, otherFiles));
                 }
 
                 // Check subfolders that might be dedicated to this series
@@ -451,46 +459,18 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
             return !(series.Path.PathEquals(folder) || series.Path.IsParentPath(folder));
         }
 
-        private List<string> FilterCandidateFilesForSeries(List<string> files, Series series, int? seasonNumber)
+        private List<string> FilterCandidateFilesForSeries(List<string> files, Series series)
         {
-            if (files.Count <= 10)
-            {
-                return files;
-            }
-
             var seriesCleanTitles = GetSeriesCleanTitles(series);
-            var candidates = new List<string>();
 
-            foreach (var file in files)
-            {
-                var fileName = Path.GetFileNameWithoutExtension(file);
-                var cleanFileName = Parser.Parser.CleanSeriesTitle(fileName);
-
-                if (seriesCleanTitles.Any(t => cleanFileName.Contains(t)))
+            return files
+                .Where(file =>
                 {
-                    candidates.Add(file);
-                    continue;
-                }
+                    var cleanFileName = Parser.Parser.CleanSeriesTitle(Path.GetFileNameWithoutExtension(file));
 
-                // If not containing series title, check if it's an unbranded episode file (e.g. "05.mkv" or "Episode 05")
-                var parsed = Parser.Parser.ParseTitle(fileName);
-                if (parsed == null || parsed.SeriesTitle.IsNullOrWhiteSpace())
-                {
-                    if (seasonNumber.HasValue)
-                    {
-                        if (parsed == null || parsed.SeasonNumber == 0 || parsed.SeasonNumber == seasonNumber.Value)
-                        {
-                            candidates.Add(file);
-                        }
-                    }
-                    else if (files.Count <= 50)
-                    {
-                        candidates.Add(file);
-                    }
-                }
-            }
-
-            return candidates;
+                    return seriesCleanTitles.Any(t => cleanFileName.Contains(t));
+                })
+                .ToList();
         }
 
         private HashSet<string> GetSeriesCleanTitles(Series series)

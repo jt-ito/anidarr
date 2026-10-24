@@ -58,6 +58,10 @@
 }
 
 @media only screen and (max-width: $breakpointSmall) {
+  .info {
+    min-width: 0;
+  }
+
   .modalFooter {
     display: block;
     text-align: center;

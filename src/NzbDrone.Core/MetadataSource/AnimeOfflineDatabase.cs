@@ -188,7 +188,10 @@ namespace NzbDrone.Core.MetadataSource
             var orderedMatches = _animeOfflineTitleRepository.FindSearchMatches(cleanQuery, providerKey);
             _logger.Info("Found {0} matches in SQLite database for {1}", orderedMatches.Count, cleanQuery);
 
-            orderedMatches = orderedMatches.OrderBy(t => t.Title?.Length ?? 100).Take(20).ToList();
+            orderedMatches = CollapseSharedExternalIds(orderedMatches)
+                .OrderBy(t => t.Title?.Length ?? 100)
+                .Take(20)
+                .ToList();
 
             var results = new List<Series>();
 
@@ -239,6 +242,39 @@ namespace NzbDrone.Core.MetadataSource
             }
 
             return results.GroupBy(s => s.TitleSlug + "-" + s.Year).Select(g => g.First()).ToList();
+        }
+
+        // The official AniDB title list also contains pending submissions (an unapproved duplicate of a real entry).
+        // Merging by title copies the same MAL/AniList IDs and cover onto every AniDB entry that matches, so one anime
+        // can show up twice. Entries sharing a MAL or AniList ID are the same anime: keep the lowest AniDB ID, which
+        // is the one submitted first and the one AniDB approved.
+        internal static List<AnimeOfflineTitle> CollapseSharedExternalIds(List<AnimeOfflineTitle> matches)
+        {
+            var result = new List<AnimeOfflineTitle>();
+            var positionByKey = new Dictionary<string, int>();
+
+            foreach (var match in matches)
+            {
+                var key = match.MalId > 0 ? $"mal:{match.MalId}" : (match.AniListId > 0 ? $"anilist:{match.AniListId}" : null);
+
+                if (key == null || !positionByKey.TryGetValue(key, out var position))
+                {
+                    if (key != null)
+                    {
+                        positionByKey[key] = result.Count;
+                    }
+
+                    result.Add(match);
+                    continue;
+                }
+
+                if ((match.AniDbId ?? int.MaxValue) < (result[position].AniDbId ?? int.MaxValue))
+                {
+                    result[position] = match;
+                }
+            }
+
+            return result;
         }
 
         public void HandleAsync(ApplicationStartedEvent message)

@@ -78,3 +78,19 @@
     }
   }
 }
+
+.searchContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  margin-bottom: 10px;
+}
+
+.searchInput {
+  flex: 0 1 300px;
+}
+
+.searchCount {
+  color: var(--helpTextColor);
+}

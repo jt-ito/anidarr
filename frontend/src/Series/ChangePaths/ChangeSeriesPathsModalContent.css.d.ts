@@ -3,6 +3,7 @@
 interface CssExports {
   'arrow': string;
   'error': string;
+  'failures': string;
   'field': string;
   'help': string;
   'row': string;

@@ -16,7 +16,7 @@ import useRootFolders from 'RootFolder/useRootFolders';
 import MoveSeriesModal from 'Series/MoveSeries/MoveSeriesModal';
 import useSeries from 'Series/useSeries';
 import { InputChanged } from 'typings/inputs';
-import fetchJson from 'Utilities/Fetch/fetchJson';
+import fetchJson, { ApiError } from 'Utilities/Fetch/fetchJson';
 import getQueryPath from 'Utilities/Fetch/getQueryPath';
 import translate from 'Utilities/String/translate';
 import styles from './ChangeSeriesPathsModalContent.css';
@@ -48,6 +48,21 @@ const swapPrefix = (path: string, from: string, to: string) => {
   return trimEnd(to) + path.slice(start.length);
 };
 
+interface Failure {
+  title: string;
+  reason: string;
+}
+
+// Validation errors come back as a list, other failures as { message }
+const getReason = (e: unknown) => {
+  const body: unknown = (e as ApiError)?.statusBody;
+  const reasons = Array.isArray(body)
+    ? body.map((f: { errorMessage?: string }) => f.errorMessage)
+    : [(body as { message?: string } | undefined)?.message];
+
+  return reasons.filter(Boolean).join('; ') || (e as Error)?.message || '';
+};
+
 function ChangeSeriesPathsModalContent({
   onModalClose,
 }: ChangeSeriesPathsModalContentProps) {
@@ -61,6 +76,7 @@ function ChangeSeriesPathsModalContent({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [status, setStatus] = useState<'idle' | 'backup' | 'saving'>('idle');
   const [error, setError] = useState('');
+  const [failures, setFailures] = useState<Failure[]>([]);
 
   const from = fromPath || rootFolders[0]?.path || '';
   const to = toPath.trim();
@@ -83,6 +99,7 @@ function ChangeSeriesPathsModalContent({
     (moveFiles: boolean) => {
       setIsConfirmOpen(false);
       setError('');
+      setFailures([]);
       setStatus('backup');
 
       executeCommand({ name: CommandNames.Backup }, async (backup) => {
@@ -94,7 +111,7 @@ function ChangeSeriesPathsModalContent({
 
         setStatus('saving');
 
-        let failed = 0;
+        const failed: Failure[] = [];
 
         // Sequential on purpose: each save can queue a move command.
         for (const series of matches) {
@@ -108,8 +125,8 @@ function ChangeSeriesPathsModalContent({
               },
               body: { ...series, path: swapPrefix(series.path, from, to) },
             });
-          } catch {
-            failed++;
+          } catch (e) {
+            failed.push({ title: series.title, reason: getReason(e) });
           }
         }
 
@@ -117,10 +134,11 @@ function ChangeSeriesPathsModalContent({
 
         setStatus('idle');
 
-        if (failed) {
+        if (failed.length) {
+          setFailures(failed);
           setError(
             translate('ChangeSeriesPathsFailed', {
-              failed,
+              failed: failed.length,
               count: matches.length,
             })
           );
@@ -191,6 +209,17 @@ function ChangeSeriesPathsModalContent({
         </div>
 
         {error ? <div className={styles.error}>{error}</div> : null}
+
+        {failures.length ? (
+          <ul className={styles.failures}>
+            {failures.map(({ title, reason }, index) => (
+              <li key={index}>
+                <strong>{title}</strong>
+                {reason ? `: ${reason}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </ModalBody>
 
       <ModalFooter>

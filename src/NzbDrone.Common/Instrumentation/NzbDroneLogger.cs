@@ -4,6 +4,7 @@ using System.IO;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
+using NLog.Targets.Wrappers;
 using NzbDrone.Common.EnvironmentInfo;
 using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation.Sentry;
@@ -152,7 +153,7 @@ namespace NzbDrone.Common.Instrumentation
         {
             var fileTarget = new CleansingFileTarget();
 
-            fileTarget.Name = name;
+            fileTarget.Name = name + "Writer";
             fileTarget.FileName = Path.Combine(appFolderInfo.GetLogFolder(), fileName);
             fileTarget.AutoFlush = true;
             fileTarget.KeepFileOpen = false;
@@ -165,9 +166,20 @@ namespace NzbDrone.Common.Instrumentation
             fileTarget.ArchiveNumbering = ArchiveNumberingMode.Rolling;
             fileTarget.Layout = FileLogLayout;
 
-            var loggingRule = new LoggingRule("*", minLogLevel, fileTarget);
+            // Writing opens, appends to and closes the file for every line, so do it on a background
+            // thread in batches: the thread that logs no longer waits on the disk. Block (not discard)
+            // when the queue is full so no line is lost. The wrapper keeps the name the log rules use.
+            var asyncTarget = new AsyncTargetWrapper(name, fileTarget)
+            {
+                QueueLimit = 10000,
+                OverflowAction = AsyncTargetWrapperOverflowAction.Block,
+                BatchSize = 500,
+                TimeToSleepBetweenBatches = 20
+            };
 
-            LogManager.Configuration.AddTarget(name, fileTarget);
+            var loggingRule = new LoggingRule("*", minLogLevel, asyncTarget);
+
+            LogManager.Configuration.AddTarget(name, asyncTarget);
             LogManager.Configuration.LoggingRules.Add(loggingRule);
         }
 

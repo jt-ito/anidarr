@@ -6,6 +6,16 @@
 
   &.isMobile {
     display: block;
+    min-width: 0;
+
+    .value {
+      flex-wrap: wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .seriesFolder {
+      flex: 0 1 auto;
+    }
 
     .freeSpace {
       margin-left: 0;

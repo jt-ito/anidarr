@@ -5,6 +5,7 @@ import { SelectProvider, useSelect } from 'App/Select/SelectContext';
 import CommandNames from 'Commands/CommandNames';
 import { useExecuteCommand } from 'Commands/useCommands';
 import SelectInput, { SelectInputOption } from 'Components/Form/SelectInput';
+import TextInput from 'Components/Form/TextInput';
 import Icon from 'Components/Icon';
 import Button from 'Components/Link/Button';
 import SpinnerButton from 'Components/Link/SpinnerButton';
@@ -26,6 +27,7 @@ import {
   useDeleteEpisodeFiles,
   useUpdateEpisodeFiles,
 } from 'EpisodeFile/useEpisodeFiles';
+import useDebounce from 'Helpers/Hooks/useDebounce';
 import usePrevious from 'Helpers/Hooks/usePrevious';
 import { align, icons, kinds, scrollDirections } from 'Helpers/Props';
 import { SortDirection } from 'Helpers/Props/sortDirections';
@@ -41,6 +43,12 @@ import {
   setInteractiveImportSort,
   useInteractiveImportOptions,
 } from 'InteractiveImport/interactiveImportOptionsStore';
+import {
+  resetInteractiveImportView,
+  setInteractiveImportSearch,
+  setInteractiveImportShowAll,
+  useInteractiveImportViewStore,
+} from 'InteractiveImport/interactiveImportViewStore';
 import SelectLanguageModal from 'InteractiveImport/Language/SelectLanguageModal';
 import SelectQualityModal from 'InteractiveImport/Quality/SelectQualityModal';
 import SelectReleaseGroupModal from 'InteractiveImport/ReleaseGroup/SelectReleaseGroupModal';
@@ -57,7 +65,7 @@ import Language from 'Language/Language';
 import { QualityModel } from 'Quality/Quality';
 import Series from 'Series/Series';
 import { SortCallback } from 'typings/callbacks';
-import { CheckInputChanged } from 'typings/inputs';
+import { CheckInputChanged, InputChanged } from 'typings/inputs';
 import getErrorMessage from 'Utilities/Object/getErrorMessage';
 import hasDifferentItems from 'Utilities/Object/hasDifferentItems';
 import translate from 'Utilities/String/translate';
@@ -258,6 +266,8 @@ function InteractiveImportModalContentInner(
     error,
     data,
     originalItems,
+    shownCount,
+    totalCount,
   } = useInteractiveImport({
     downloadIds,
     seriesId,
@@ -277,6 +287,29 @@ function InteractiveImportModalContentInner(
   const wasReprocessing = usePrevious(isReprocessing);
 
   const items = data;
+
+  const { getSelectedIds } = useSelect<InteractiveImport>();
+  const appliedSearch = useInteractiveImportViewStore((state) => state.search);
+  const [searchText, setSearchText] = useState(appliedSearch);
+  const debouncedSearch = useDebounce(searchText, 250);
+
+  // Rows selected right now stay visible whatever the new search hides
+  useEffect(() => {
+    if (debouncedSearch !== appliedSearch) {
+      setInteractiveImportSearch(debouncedSearch, getSelectedIds() as number[]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+
+  const handleSearchChange = useCallback(
+    ({ value }: InputChanged<string>) => setSearchText(value),
+    []
+  );
+
+  const handleShowAllPress = useCallback(
+    () => setInteractiveImportShowAll(getSelectedIds() as number[]),
+    [getSelectedIds]
+  );
 
   const { isDeleting, deleteEpisodeFiles, deleteError } =
     useDeleteEpisodeFiles();
@@ -996,6 +1029,32 @@ function InteractiveImportModalContentInner(
       </ModalHeader>
 
       <ModalBody scrollDirection={scrollDirections.BOTH}>
+        {isPopulated && originalItems.length > 1 ? (
+          <div className={styles.searchContainer}>
+            <div className={styles.searchInput}>
+              <TextInput
+                name="search"
+                value={searchText}
+                placeholder={translate('SearchFiles')}
+                onChange={handleSearchChange}
+              />
+            </div>
+
+            <div className={styles.searchCount}>
+              {translate('ShowingFilesCount', {
+                shown: shownCount,
+                total: totalCount,
+              })}
+            </div>
+
+            {shownCount < totalCount ? (
+              <Button onPress={handleShowAllPress}>
+                {translate('ShowAllFiles', { count: totalCount })}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+
         {showFilterExistingFiles ? (
           <div className={styles.filterContainer}>
             <Menu alignMenu={align.RIGHT}>
@@ -1213,6 +1272,14 @@ function InteractiveImportModalContent(
   const filterExistingFiles = filterExistingFilesStore((state) => state);
 
   const { downloadIds, seriesId, seasonNumber, folder } = props;
+
+  // The search and "show all" choice only last as long as this modal
+  useEffect(() => {
+    resetInteractiveImportView();
+
+    return () => resetInteractiveImportView();
+  }, []);
+
   const { data } = useInteractiveImport({
     downloadIds,
     seriesId,

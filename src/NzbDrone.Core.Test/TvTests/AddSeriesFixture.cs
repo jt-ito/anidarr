@@ -71,6 +71,34 @@ namespace NzbDrone.Core.Test.TvTests
         }
 
         [Test]
+        public void should_insert_a_series_without_an_id_even_when_the_metadata_still_carries_one_from_an_earlier_add()
+        {
+            // The same metadata object comes back from the lookup cache after the series was added and deleted,
+            // with the id the first insert gave it
+            _fakeSeries.Id = 2375;
+
+            var newSeries = new Series
+            {
+                TvdbId = 1,
+                RootFolderPath = @"C:\Test\TV"
+            };
+
+            GivenValidSeries(newSeries.TvdbId);
+            GivenValidPath();
+
+            var idAtInsert = -1;
+
+            Mocker.GetMock<ISeriesService>()
+                  .Setup(s => s.AddSeries(It.IsAny<Series>()))
+                  .Callback<Series>(s => idAtInsert = s.Id)
+                  .Returns<Series>(s => s);
+
+            Subject.AddSeries(newSeries);
+
+            idAtInsert.Should().Be(0);
+        }
+
+        [Test]
         public void should_have_proper_path()
         {
             var newSeries = new Series

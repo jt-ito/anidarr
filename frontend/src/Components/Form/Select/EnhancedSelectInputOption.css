@@ -52,7 +52,8 @@
 }
 
 .isMobile {
-  height: 50px;
+  /* Taller when a long value wraps, so it can't spill over the next row */
+  min-height: 50px;
   border-bottom: 1px solid var(--borderColor);
 
   &:last-child {

@@ -129,7 +129,7 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
 
     [HttpGet]
     [Produces("application/json")]
-    public Ok<List<SeriesResource>> AllSeries(int? tvdbId, [FromQuery] SeriesSubresource[]? includeSubresources = null)
+    public Ok<List<SeriesResource>> AllSeries(int? tvdbId, [FromQuery] SeriesSubresource[]? includeSubresources = null, CancellationToken cancellationToken = default)
     {
         var seriesStats = _seriesStatisticsService.SeriesStatistics();
         var seriesResources = new List<SeriesResource>();
@@ -149,11 +149,31 @@ public class SeriesController : RestControllerWithSignalR<SeriesResource, NzbDro
             seriesResources.AddRange(allSeries.Select(s => s.ToResource(includeSeasonImages)));
         }
 
+        // The client gives up on this request when it times out or the page is closed, but the work
+        // keeps going unless we stop it. On a big library, abandoned requests pile up and slow
+        // everything else, so stop between the heavy steps once nobody is waiting for the answer.
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return TypedResults.Ok(new List<SeriesResource>());
+        }
+
         MapCoversToLocal(seriesResources.ToArray());
         LinkSeriesStatistics(seriesResources, seriesStats.ToDictionary(x => x.SeriesId));
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return TypedResults.Ok(new List<SeriesResource>());
+        }
+
         PopulateAlternateTitles(seriesResources);
         var allMappings = _aniDbSeriesMappingService.GetAllMappings();
         PopulateAniDbMappings(seriesResources, allMappings);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return TypedResults.Ok(new List<SeriesResource>());
+        }
+
         PopulateAniDbRelatedSeries(seriesResources, allSeries, allMappings);
         seriesResources.ForEach(LinkRootFolderPath);
 

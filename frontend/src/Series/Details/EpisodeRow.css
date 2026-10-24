@@ -71,3 +71,40 @@
 
   width: 50px;
 }
+
+@media only screen and (max-width: $breakpointSmall) {
+  .monitored {
+    width: 30px;
+  }
+
+  .episodeNumber {
+    width: 40px;
+  }
+
+  .episodeNumberAnime {
+    width: 60px;
+  }
+
+  /* Let long titles wrap and put the finale badge on its own line */
+  .title {
+    white-space: normal;
+  }
+
+  .title > div {
+    flex-wrap: wrap;
+  }
+
+  .title button {
+    overflow: visible;
+    text-align: left;
+    overflow-wrap: anywhere;
+
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .title span {
+    margin-top: 4px;
+    margin-left: 0;
+  }
+}

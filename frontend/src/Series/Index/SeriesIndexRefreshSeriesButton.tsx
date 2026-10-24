@@ -34,10 +34,13 @@ function SeriesIndexRefreshSeriesButton(
   }
 
   // Series added "now, details later" are still being updated from AniDB in the background (TVDB
-  // series are never part of this). Spin while that goes on and say how far it has got.
+  // series are never part of this). Spin while that goes on and say how far it has got. A series whose
+  // update failed stays pending until the next scheduled refresh, so only spin while an update is
+  // actually queued or running; otherwise the button would spin for hours with nothing happening.
   const needsClient = metadata.clientConfigured === false;
   const isBlocked = !!metadata.blockedUntil;
-  const isUpdatingMetadata = metadata.pending > 0 && !isBlocked && !needsClient;
+  const isUpdatingMetadata =
+    metadata.pending > 0 && !isBlocked && !needsClient && isRefreshing;
   let metadataTooltip: string | undefined = undefined;
 
   if (metadata.pending > 0 && needsClient) {
@@ -53,6 +56,10 @@ function SeriesIndexRefreshSeriesButton(
     metadataTooltip = translate('UpdatingSeriesBlocked', {
       pending: metadata.pending,
       time: new Date(metadata.blockedUntil).toLocaleTimeString(),
+    });
+  } else if (metadata.pending > 0) {
+    metadataTooltip = translate('UpdatingSeriesWaiting', {
+      pending: metadata.pending,
     });
   }
 

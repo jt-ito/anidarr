@@ -127,7 +127,16 @@ namespace NzbDrone.Core.Tv
 
             series.Title = seriesInfo.Title;
             series.Year = seriesInfo.Year;
-            series.TitleSlug = seriesInfo.TitleSlug;
+            if (series.TitleSlug != seriesInfo.TitleSlug &&
+                _seriesService.GetAllSeries().Any(s => s.Id != series.Id && s.TitleSlug == seriesInfo.TitleSlug))
+            {
+                _logger.Warn("Keeping slug '{0}' for '{1}': '{2}' is already used by another series in the library (same show added from two providers?)", series.TitleSlug, series.Title, seriesInfo.TitleSlug);
+            }
+            else
+            {
+                series.TitleSlug = seriesInfo.TitleSlug;
+            }
+
             series.TvRageId = seriesInfo.TvRageId;
             series.TvMazeId = seriesInfo.TvMazeId;
             series.TmdbId = seriesInfo.TmdbId;

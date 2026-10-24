@@ -87,8 +87,21 @@ namespace NzbDrone.Core.Tv
 
             _eventAggregator?.PublishEvent(new Events.SeriesAddProgressEvent($"Saving series and {episodes.Count} episode(s) to library...", newSeries.AniDbId));
             _logger.Info("Adding Series {0} Path: [{1}]", seriesData, seriesData.Path);
-            _seriesService.AddSeries(seriesData);
-            AniDbProvider.EvictCached(seriesData);
+
+            // A new series has no id yet. One that carries an id (metadata reused from an earlier add of the
+            // same series, or a stale copy of a series that was since deleted) cannot be inserted.
+            seriesData.Id = 0;
+
+            try
+            {
+                _seriesService.AddSeries(seriesData);
+            }
+            finally
+            {
+                // Saving gives the cached metadata its database ids, so it must not be handed out again, even when
+                // the save fails half way (a failed add used to leave a series with an id in the cache for good)
+                AniDbProvider.EvictCached(seriesData);
+            }
 
             if (episodes.Any())
             {
@@ -185,6 +198,7 @@ namespace NzbDrone.Core.Tv
                     // what makes the next refresh fetch the hub, seasons and episodes.
                     series.LastInfoSync = isIncomplete ? (DateTime?)null : DateTime.UtcNow;
 
+                    series.Id = 0; // a new series has no id, even if the metadata it came from was used by an earlier add
                     seriesToAdd.Add(series);
                     episodesForSeries.Add(episodes);
                     outcomeForSeries.Add(outcome);

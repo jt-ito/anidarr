@@ -173,6 +173,30 @@ namespace NzbDrone.Core.Test.TvTests
         }
 
         [Test]
+        public void should_keep_title_slug_when_new_slug_is_used_by_another_series()
+        {
+            var newSeriesInfo = _series.JsonClone();
+            newSeriesInfo.TitleSlug = "taken-slug";
+
+            var other = _series.JsonClone();
+            other.Id = _series.Id + 1;
+            other.TitleSlug = "taken-slug";
+
+            GivenNewSeriesInfo(newSeriesInfo);
+
+            Mocker.GetMock<ISeriesService>()
+                .Setup(s => s.GetAllSeries())
+                .Returns(new List<Series> { _series, other });
+
+            var originalSlug = _series.TitleSlug;
+
+            Subject.Execute(new RefreshSeriesCommand(new List<int> { _series.Id }));
+
+            Mocker.GetMock<ISeriesService>()
+                .Verify(v => v.UpdateSeries(It.Is<Series>(s => s.TitleSlug == originalSlug), It.IsAny<bool>(), It.IsAny<bool>()));
+        }
+
+        [Test]
         public void should_update_tvrage_id_if_changed()
         {
             var newSeriesInfo = _series.JsonClone();

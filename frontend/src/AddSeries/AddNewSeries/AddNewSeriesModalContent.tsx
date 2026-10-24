@@ -110,6 +110,13 @@ function AddNewSeriesModalContent({
     };
   }, [options, addError]);
 
+  // Validation failures are shown next to the fields they are about; any other error from the server
+  // (the series could not be saved, ...) has no field, so say what it is instead of just stopping
+  const addErrorMessage =
+    addError && !Array.isArray(addError.statusBody)
+      ? addError.statusBody?.message || addError.message
+      : null;
+
   const [seriesType, setSeriesType] = useState<SeriesType>(
     initialSeriesType === 'standard'
       ? settings.seriesType.value
@@ -192,6 +199,9 @@ function AddNewSeriesModalContent({
             Management to configure a root folder before adding a series.
           </Alert>
         )}
+        {addErrorMessage ? (
+          <Alert kind="danger">{addErrorMessage}</Alert>
+        ) : null}
         <div className={styles.container}>
           {isSmallScreen ? null : (
             <div className={styles.poster}>

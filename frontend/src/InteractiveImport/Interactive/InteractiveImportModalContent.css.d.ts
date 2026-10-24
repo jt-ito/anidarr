@@ -10,6 +10,9 @@ interface CssExports {
   'importMode': string;
   'leftButtons': string;
   'rightButtons': string;
+  'searchContainer': string;
+  'searchCount': string;
+  'searchInput': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

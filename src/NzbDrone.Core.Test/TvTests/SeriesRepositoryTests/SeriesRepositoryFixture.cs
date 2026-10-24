@@ -34,6 +34,50 @@ namespace NzbDrone.Core.Test.TvTests.SeriesRepositoryTests
             StoredModel.QualityProfile.Should().NotBeNull();
         }
 
+        [Test]
+        public void should_load_only_the_alternate_titles_of_series_that_have_some()
+        {
+            var series = Builder<Series>.CreateListOfSize(3)
+                .All()
+                .With(a => a.Id = 0)
+                .TheFirst(1)
+                .With(x => x.AlternateTitles = new System.Collections.Generic.List<string> { "First Alias", "Second Alias" })
+                .TheNext(1)
+                .With(x => x.AlternateTitles = new System.Collections.Generic.List<string>())
+                .TheNext(1)
+                .With(x => x.AlternateTitles = new System.Collections.Generic.List<string> { "Third Alias" })
+                .BuildList();
+
+            Subject.InsertMany(series);
+
+            var result = Subject.AllAlternateTitles();
+
+            result.Should().HaveCount(2);
+            result[series[0].Id].Should().Equal("First Alias", "Second Alias");
+            result[series[2].Id].Should().Equal("Third Alias");
+            result.ContainsKey(series[1].Id).Should().BeFalse();
+        }
+
+        [Test]
+        public void should_find_a_series_by_an_alternate_title_when_the_index_is_built_from_the_database()
+        {
+            var series = Builder<Series>.CreateListOfSize(2)
+                .All()
+                .With(a => a.Id = 0)
+                .TheFirst(1)
+                .With(x => x.CleanTitle = "firstseries")
+                .With(x => x.AlternateTitles = new System.Collections.Generic.List<string> { "Other Name" })
+                .TheNext(1)
+                .With(x => x.CleanTitle = "secondseries")
+                .With(x => x.AlternateTitles = new System.Collections.Generic.List<string>())
+                .BuildList();
+
+            Subject.InsertMany(series);
+
+            Subject.FindByTitle("othername").Id.Should().Be(series[0].Id);
+            Subject.FindByTitleInexact("othername1080prelease").Select(s => s.Id).Should().Contain(series[0].Id);
+        }
+
         private void GivenSeries()
         {
             var series = Builder<Series>.CreateListOfSize(2)

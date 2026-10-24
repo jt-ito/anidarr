@@ -601,8 +601,13 @@ const DEFAULT_SERIES: Series[] = [];
 // Anidarr: the response cost of this endpoint scales with library size, so give
 // it a generous but bounded timeout instead of letting a stuck request hang the
 // app's loading screen forever (see SeriesController.AllSeries for the backend
-// side of this).
-const SERIES_REQUEST_TIMEOUT = 60 * 1000;
+// side of this). The request takes seconds on a big library and longer when the server is
+// busy, so the timeout has to be longer than that, and a timed-out request is not retried:
+// the server is still working on it, and a retry just adds another one on top.
+const SERIES_REQUEST_TIMEOUT = 3 * 60 * 1000;
+
+export const shouldRetrySeriesRequest = (failureCount: number, error: Error) =>
+  error.name !== 'AbortError' && failureCount < 3;
 
 const useSeries = () => {
   const { data, ...result } = useApiQuery<Series[]>({
@@ -611,6 +616,7 @@ const useSeries = () => {
     queryOptions: {
       staleTime: 5 * 60 * 1000,
       gcTime: Infinity,
+      retry: shouldRetrySeriesRequest,
     },
   });
 

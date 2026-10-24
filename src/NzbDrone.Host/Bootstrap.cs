@@ -21,6 +21,7 @@ using NzbDrone.Common.Extensions;
 using NzbDrone.Common.Instrumentation;
 using NzbDrone.Common.Instrumentation.Extensions;
 using NzbDrone.Common.Options;
+using NzbDrone.Common.TPL;
 using NzbDrone.Core.Configuration;
 using NzbDrone.Core.Datastore.Extensions;
 using LogLevel = Microsoft.Extensions.Logging.LogLevel;
@@ -53,6 +54,7 @@ namespace NzbDrone.Host
 
                 var startupContext = new StartupContext(args);
                 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+                ThreadPoolFloor.Apply();
 
                 var appMode = GetApplicationMode(startupContext);
                 var config = GetConfiguration(startupContext);

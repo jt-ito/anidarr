@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using Dapper;
@@ -28,34 +27,54 @@ namespace NzbDrone.Core.Tv
     public class SeriesRepository : BasicRepository<Series>, ISeriesRepository, IHandle<SeriesAddedEvent>, IHandle<SeriesUpdatedEvent>, IHandle<SeriesDeletedEvent>
     {
         private readonly object _cacheLock = new object();
-        private ConcurrentDictionary<int, List<string>> _alternateTitlesCache;
+        private AlternateTitleIndex _alternateTitles;
 
         public SeriesRepository(IMainDatabase database, IEventAggregator eventAggregator)
             : base(database, eventAggregator)
         {
         }
 
+        private class AlternateTitlesRow
+        {
+            public int Id { get; set; }
+            public List<string> AlternateTitles { get; set; }
+        }
+
+        // Only the id and the alternate titles of every series that has some. Loading whole series for this
+        // reads and parses every other column of every series as well (images, seasons, actors, ...).
+        public Dictionary<int, List<string>> AllAlternateTitles()
+        {
+            using (var conn = _database.OpenConnection())
+            {
+                return conn.Query<AlternateTitlesRow>("SELECT \"Id\", \"AlternateTitles\" FROM \"Series\" WHERE \"AlternateTitles\" IS NOT NULL")
+                    .Where(r => r.AlternateTitles != null && r.AlternateTitles.Count > 0)
+                    .ToDictionary(r => r.Id, r => r.AlternateTitles);
+            }
+        }
+
         private void EnsureCache()
         {
-            if (_alternateTitlesCache == null)
+            if (_alternateTitles == null)
             {
                 lock (_cacheLock)
                 {
-                    if (_alternateTitlesCache == null)
+                    if (_alternateTitles == null)
                     {
-                        var seriesWithAlternateTitles = Query(s => s.AlternateTitles != null).ToList();
-                        var cache = new ConcurrentDictionary<int, List<string>>();
+                        // Cleaning every alternate title (a library has hundreds of thousands) is most of the time
+                        // this takes, and each series is independent, so clean them in parallel
+                        var cleanedTitles = AllAlternateTitles()
+                            .AsParallel()
+                            .Select(entry => new KeyValuePair<int, List<string>>(entry.Key, entry.Value.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle).ToList()))
+                            .ToList();
 
-                        foreach (var series in seriesWithAlternateTitles)
+                        var index = new AlternateTitleIndex();
+
+                        foreach (var entry in cleanedTitles)
                         {
-                            if (series.AlternateTitles != null && series.AlternateTitles.Count > 0)
-                            {
-                                var cleanedTitles = series.AlternateTitles.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle).Distinct().ToList();
-                                cache[series.Id] = cleanedTitles;
-                            }
+                            index.Set(entry.Key, entry.Value);
                         }
 
-                        _alternateTitlesCache = cache;
+                        _alternateTitles = index;
                     }
                 }
             }
@@ -73,27 +92,26 @@ namespace NzbDrone.Core.Tv
 
         public void Handle(SeriesDeletedEvent message)
         {
-            if (_alternateTitlesCache != null)
+            if (_alternateTitles != null)
             {
                 foreach (var series in message.Series)
                 {
-                    _alternateTitlesCache.TryRemove(series.Id, out _);
+                    _alternateTitles.Remove(series.Id);
                 }
             }
         }
 
         private void UpdateCache(Series series)
         {
-            if (_alternateTitlesCache != null)
+            if (_alternateTitles != null)
             {
                 if (series.AlternateTitles != null && series.AlternateTitles.Count > 0)
                 {
-                    var cleanedTitles = series.AlternateTitles.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle).Distinct().ToList();
-                    _alternateTitlesCache[series.Id] = cleanedTitles;
+                    _alternateTitles.Set(series.Id, series.AlternateTitles.Select(NzbDrone.Core.Parser.Parser.CleanSeriesTitle));
                 }
                 else
                 {
-                    _alternateTitlesCache.TryRemove(series.Id, out _);
+                    _alternateTitles.Remove(series.Id);
                 }
             }
         }
@@ -112,7 +130,7 @@ namespace NzbDrone.Core.Tv
             if (series.Count == 0)
             {
                 EnsureCache();
-                var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Contains(cleanTitle)).Select(kvp => kvp.Key).ToList();
+                var matchingIds = _alternateTitles.FindExact(cleanTitle);
                 if (matchingIds.Any())
                 {
                     series.AddRange(Get(matchingIds));
@@ -131,7 +149,7 @@ namespace NzbDrone.Core.Tv
             if (series.Count == 0)
             {
                 EnsureCache();
-                var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Contains(cleanTitle)).Select(kvp => kvp.Key).ToList();
+                var matchingIds = _alternateTitles.FindExact(cleanTitle);
                 if (matchingIds.Any())
                 {
                     series.AddRange(Get(matchingIds).Where(s => s.Year == year));
@@ -155,11 +173,7 @@ namespace NzbDrone.Core.Tv
 
             // Fetch matching IDs from the in-memory cache
             EnsureCache();
-            var matchingIds = _alternateTitlesCache.Where(kvp => kvp.Value.Any(at =>
-                at == cleanTitle ||
-                ((cleanTitle.Contains(at) || at.Contains(cleanTitle)) &&
-                 System.Math.Min(cleanTitle.Length, at.Length) >= 5 &&
-                 (double)System.Math.Min(cleanTitle.Length, at.Length) / System.Math.Max(cleanTitle.Length, at.Length) >= 0.4))).Select(kvp => kvp.Key).ToList();
+            var matchingIds = _alternateTitles.FindSimilar(cleanTitle);
 
             if (matchingIds.Any())
             {

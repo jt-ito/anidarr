@@ -16,7 +16,7 @@ export function translate(
 
   const translation = translations[key] || key;
 
-  tokens.appName = 'Sonarr';
+  tokens.appName = 'Anidarr';
 
   return translation.replace(/\{([a-z0-9]+?)\}/gi, (match, tokenMatch) =>
     String(tokens[tokenMatch] ?? match)
