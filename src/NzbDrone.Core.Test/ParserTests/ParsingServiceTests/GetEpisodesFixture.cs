@@ -228,6 +228,67 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
                   .Verify(v => v.FindEpisode(It.IsAny<int>(), 0, It.IsAny<int>()), Times.Once());
         }
 
+        [TestCase(3, 0, 3, 3, 0)]
+        [TestCase(4, 1, 3, 4, 0)]
+        [TestCase(3, 0, 3, 3, 1)]
+        [TestCase(4, 1, 3, 4, 1)]
+        public void should_use_season_one_episode_number_when_absolute_number_counts_specials(int fileNumber, int absSeason, int absEpisode, int expectedEpisode, int parsedSeason)
+        {
+            _parsedEpisodeInfo.SeasonNumber = parsedSeason;
+            GivenAbsoluteNumberingSeries();
+            _parsedEpisodeInfo.AbsoluteEpisodeNumbers = new[] { fileNumber };
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisodesBySceneNumbering(It.IsAny<int>(), It.IsAny<int>()))
+                  .Returns(new List<Episode>());
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisode(_series.Id, fileNumber))
+                  .Returns(new Episode { SeasonNumber = absSeason, EpisodeNumber = absEpisode, AbsoluteEpisodeNumber = fileNumber });
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisode(_series.Id, 1, fileNumber))
+                  .Returns(new Episode { SeasonNumber = 1, EpisodeNumber = expectedEpisode });
+
+            var result = Subject.GetEpisodes(_parsedEpisodeInfo, _series, true, null);
+
+            result.Should().ContainSingle();
+            result.Single().SeasonNumber.Should().Be(1);
+            result.Single().EpisodeNumber.Should().Be(expectedEpisode);
+        }
+
+        [Test]
+        public void should_use_absolute_match_when_no_season_one_episode_has_that_number()
+        {
+            GivenAbsoluteNumberingSeries();
+            _parsedEpisodeInfo.AbsoluteEpisodeNumbers = new[] { 15 };
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisode(_series.Id, 15))
+                  .Returns(new Episode { SeasonNumber = 1, EpisodeNumber = 13, AbsoluteEpisodeNumber = 15 });
+
+            var result = Subject.GetEpisodes(_parsedEpisodeInfo, _series, false, null);
+
+            result.Should().ContainSingle();
+            result.Single().EpisodeNumber.Should().Be(13);
+        }
+
+        [Test]
+        public void should_not_look_up_season_one_episode_when_absolute_match_has_same_number()
+        {
+            GivenAbsoluteNumberingSeries();
+            _parsedEpisodeInfo.AbsoluteEpisodeNumbers = new[] { 4 };
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Setup(s => s.FindEpisode(_series.Id, 4))
+                  .Returns(new Episode { SeasonNumber = 1, EpisodeNumber = 4, AbsoluteEpisodeNumber = 4 });
+
+            Subject.GetEpisodes(_parsedEpisodeInfo, _series, false, null);
+
+            Mocker.GetMock<IEpisodeService>()
+                  .Verify(v => v.FindEpisode(It.IsAny<int>(), 1, It.IsAny<int>()), Times.Never());
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         [TestCase(2)]
@@ -249,7 +310,7 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
                   .Verify(v => v.FindEpisodesBySceneNumbering(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Once());
 
             Mocker.GetMock<IEpisodeService>()
-                  .Verify(v => v.FindEpisode(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Once());
+                  .Verify(v => v.FindEpisode(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Exactly(seasonNumber == 1 ? 2 : 1));
         }
 
         [TestCase(0)]
@@ -390,7 +451,7 @@ namespace NzbDrone.Core.Test.ParserTests.ParsingServiceTests
                   .Verify(v => v.FindEpisodesBySceneNumbering(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Once());
 
             Mocker.GetMock<IEpisodeService>()
-                  .Verify(v => v.FindEpisode(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Once());
+                  .Verify(v => v.FindEpisode(It.IsAny<int>(), seasonNumber, It.IsAny<int>()), Times.Exactly(seasonNumber == 1 ? 2 : 1));
         }
 
         [Test]

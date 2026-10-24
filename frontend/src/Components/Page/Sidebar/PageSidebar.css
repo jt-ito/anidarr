@@ -53,7 +53,7 @@
   .sidebarContainer {
     position: fixed;
     top: 0;
-    z-index: 2;
+    z-index: 15;
     height: 100vh;
   }
 

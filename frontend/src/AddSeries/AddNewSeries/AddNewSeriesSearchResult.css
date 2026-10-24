@@ -117,3 +117,24 @@
     margin-bottom: 20px;
   }
 }
+
+@media only screen and (max-width: $breakpointSmall) {
+  .searchResult {
+    padding: 12px;
+  }
+
+  .poster {
+    flex-basis: 90px;
+    margin-right: 12px;
+    width: 90px;
+    height: 132px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .icons {
+    height: auto;
+  }
+}

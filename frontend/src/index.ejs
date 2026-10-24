@@ -88,6 +88,8 @@
 
       @media only screen and (max-width: 768px) {
         .root {
+          /* clip, unlike hidden, does not stop position: sticky from using the page scroll */
+          overflow: clip;
           display: flex;
           flex-direction: column;
           min-height: 100%;

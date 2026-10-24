@@ -43,6 +43,7 @@ const PageContentBody = forwardRef(
         className={className}
         scrollDirection="vertical"
         initialScrollTop={initialScrollTop}
+        data-page-scroller={true}
         onScroll={handleScroll}
       >
         <div className={innerClassName}>{children}</div>

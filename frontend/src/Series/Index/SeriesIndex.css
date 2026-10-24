@@ -1,3 +1,7 @@
+.toolbar {
+  composes: toolbar from '~Components/Page/Toolbar/PageToolbar.css';
+}
+
 .pageContentBodyWrapper {
   display: flex;
   flex: 1 0 1px;
@@ -38,6 +42,13 @@
 }
 
 @media only screen and (max-width: $breakpointSmall) {
+  /* Keep the toolbar on screen while the page scrolls */
+  .toolbar {
+    position: sticky;
+    top: $headerHeight;
+    z-index: 10;
+  }
+
   .pageContentBodyWrapper {
     flex-basis: auto;
   }

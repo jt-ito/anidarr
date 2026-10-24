@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import Alert from 'Components/Alert';
 import FieldSet from 'Components/FieldSet';
 import Form from 'Components/Form/Form';
@@ -9,6 +9,11 @@ import { EnhancedSelectInputValue } from 'Components/Form/Select/EnhancedSelectI
 import LoadingIndicator from 'Components/Loading/LoadingIndicator';
 import PageContent from 'Components/Page/PageContent';
 import PageContentBody from 'Components/Page/PageContentBody';
+import {
+  ScrollButtonsState,
+  setScrollButtonsOptions,
+  useScrollButtonsOptions,
+} from 'Components/Page/ScrollButtons/scrollButtonsStore';
 import { inputTypes, kinds } from 'Helpers/Props';
 import { useFilteredLanguages } from 'Language/useLanguages';
 import SettingsToolbar from 'Settings/SettingsToolbar';
@@ -112,14 +117,36 @@ function UISettings() {
     [updateSetting]
   );
 
+  // Scroll buttons are stored in this browser, but are saved with the rest of the page
+  const savedScrollButtons = useScrollButtonsOptions();
+  const [scrollButtons, setScrollButtons] =
+    useState<ScrollButtonsState>(savedScrollButtons);
+
+  const hasScrollButtonChanges =
+    scrollButtons.showScrollButtons !== savedScrollButtons.showScrollButtons ||
+    scrollButtons.splitScrollButtons !== savedScrollButtons.splitScrollButtons;
+
+  const handleScrollButtonsChange = useCallback(
+    ({ name, value }: InputChanged<boolean>) => {
+      setScrollButtons((state) => ({ ...state, [name]: value }));
+    },
+    []
+  );
+
   const handleSavePress = useCallback(() => {
-    saveSettings();
-  }, [saveSettings]);
+    if (hasScrollButtonChanges) {
+      setScrollButtonsOptions(scrollButtons);
+    }
+
+    if (hasPendingChanges) {
+      saveSettings();
+    }
+  }, [hasScrollButtonChanges, scrollButtons, hasPendingChanges, saveSettings]);
 
   return (
     <PageContent title={translate('UiSettings')}>
       <SettingsToolbar
-        hasPendingChanges={hasPendingChanges}
+        hasPendingChanges={hasPendingChanges || hasScrollButtonChanges}
         isSaving={isSaving}
         onSavePress={handleSavePress}
       />
@@ -261,6 +288,32 @@ function UISettings() {
                   {...settings.showAbsoluteEpisodeNumbers}
                 />
               </FormGroup>
+            </FieldSet>
+
+            <FieldSet legend={translate('ScrollButtons')}>
+              <FormGroup>
+                <FormLabel>{translate('ShowScrollButtons')}</FormLabel>
+                <FormInputGroup
+                  type={inputTypes.CHECK}
+                  name="showScrollButtons"
+                  helpText={translate('ShowScrollButtonsHelpText')}
+                  value={scrollButtons.showScrollButtons}
+                  onChange={handleScrollButtonsChange}
+                />
+              </FormGroup>
+
+              {scrollButtons.showScrollButtons ? (
+                <FormGroup>
+                  <FormLabel>{translate('SplitScrollButtons')}</FormLabel>
+                  <FormInputGroup
+                    type={inputTypes.CHECK}
+                    name="splitScrollButtons"
+                    helpText={translate('SplitScrollButtonsHelpText')}
+                    value={scrollButtons.splitScrollButtons}
+                    onChange={handleScrollButtonsChange}
+                  />
+                </FormGroup>
+              ) : null}
             </FieldSet>
 
             <FieldSet legend={translate('Language')}>

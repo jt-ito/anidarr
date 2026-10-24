@@ -682,7 +682,7 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport.Manual
 
             if (imported.Any())
             {
-                _logger.ProgressTrace("Manually imported {0} files", imported.Count);
+                _logger.ProgressTrace("Manually imported {0} of {1} files", imported.Count(i => i.Result == ImportResultType.Imported), imported.Count);
             }
 
             var untrackedImports = importedUntrackedDownload.Where(i => i.Result == ImportResultType.Imported).ToList();

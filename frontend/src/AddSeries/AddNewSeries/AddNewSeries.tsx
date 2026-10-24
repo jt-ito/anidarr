@@ -86,7 +86,7 @@ function AddNewSeries() {
 
   return (
     <PageContent title={translate('AddNewSeries')}>
-      <PageContentBody>
+      <div className={styles.stickyBar}>
         {returnToSeries ? (
           <div style={{ marginBottom: '15px' }}>
             <Button kind={kinds.DEFAULT} onPress={handleReturnToSeriesPress}>
@@ -96,45 +96,49 @@ function AddNewSeries() {
           </div>
         ) : null}
 
-        <div className={styles.searchContainer}>
-          <div className={styles.searchIconContainer}>
-            <Icon name={icons.SEARCH} size={20} />
+        <div>
+          <div className={styles.searchContainer}>
+            <div className={styles.searchIconContainer}>
+              <Icon name={icons.SEARCH} size={20} />
+            </div>
+
+            <TextInput
+              ref={searchInputRef}
+              className={styles.searchInput}
+              name="seriesLookup"
+              value={term}
+              placeholder="eg. Breaking Bad, tvdb:####"
+              autoFocus={true}
+              onChange={handleSearchInputChange}
+            />
+
+            <Button
+              className={styles.clearLookupButton}
+              onPress={handleClearSeriesLookupPress}
+            >
+              <Icon name={icons.REMOVE} size={20} />
+            </Button>
           </div>
 
-          <TextInput
-            ref={searchInputRef}
-            className={styles.searchInput}
-            name="seriesLookup"
-            value={term}
-            placeholder="eg. Breaking Bad, tvdb:####"
-            autoFocus={true}
-            onChange={handleSearchInputChange}
-          />
-
-          <Button
-            className={styles.clearLookupButton}
-            onPress={handleClearSeriesLookupPress}
-          >
-            <Icon name={icons.REMOVE} size={20} />
-          </Button>
+          {/* Anidarr: Provider selector tabs */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {['', 'Tvdb', 'AniDb'].map((p) => {
+              const handlePress = () => dispatch(setProvider(p));
+              return (
+                <Button
+                  key={p}
+                  kind={provider === p ? kinds.PRIMARY : kinds.DEFAULT}
+                  onPress={handlePress}
+                >
+                  {p === '' ? translate('All') : translate(p)}
+                </Button>
+              );
+            })}
+          </div>
         </div>
+      </div>
 
-        {/* Anidarr: Provider selector tabs */}
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          {['', 'Tvdb', 'AniDb'].map((p) => {
-            const handlePress = () => dispatch(setProvider(p));
-            return (
-              <Button
-                key={p}
-                kind={provider === p ? kinds.PRIMARY : kinds.DEFAULT}
-                onPress={handlePress}
-              >
-                {p === '' ? translate('All') : translate(p)}
-              </Button>
-            );
-          })}
-        </div>
-
+      <PageContentBody>
         {isFetching && !data.length ? <LoadingIndicator /> : null}
 
         {!isFetching && !!error && !data.length ? (

@@ -12,6 +12,7 @@ import { useSystemStatusData } from 'System/Status/useSystemStatus';
 import ErrorPage from './ErrorPage';
 import PageHeader from './Header/PageHeader';
 import LoadingPage from './LoadingPage';
+import ScrollButtons from './ScrollButtons/ScrollButtons';
 import PageSidebar from './Sidebar/PageSidebar';
 import styles from './Page.css';
 
@@ -103,6 +104,8 @@ function Page({ children }: PageProps) {
 
           {children}
         </div>
+
+        <ScrollButtons />
 
         <AppUpdatedModal
           isOpen={isUpdatedModalOpen}

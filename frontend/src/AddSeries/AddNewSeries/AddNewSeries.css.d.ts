@@ -10,6 +10,7 @@ interface CssExports {
   'searchIconContainer': string;
   'searchInput': string;
   'searchResults': string;
+  'stickyBar': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

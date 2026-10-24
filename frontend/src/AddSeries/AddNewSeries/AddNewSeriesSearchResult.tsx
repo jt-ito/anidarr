@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import AddSeries from 'AddSeries/AddSeries';
-import { useAppDimension } from 'App/appStore';
 import HeartRating from 'Components/HeartRating';
 import Icon from 'Components/Icon';
 import Label from 'Components/Label';
@@ -48,7 +47,6 @@ function AddNewSeriesSearchResult({
     images,
   } = displaySeries;
   const { isExcluded } = series;
-  const isSmallScreen = useAppDimension('isSmallScreen');
   const [isNewAddSeriesModalOpen, setIsNewAddSeriesModalOpen] = useState(false);
 
   const seasonCount = statistics.seasonCount;
@@ -104,16 +102,14 @@ function AddNewSeriesSearchResult({
       />
 
       <div className={styles.overlay}>
-        {isSmallScreen ? null : (
-          <SeriesPoster
-            className={styles.poster}
-            images={images}
-            size={250}
-            overflow={true}
-            lazy={false}
-            title={title}
-          />
-        )}
+        <SeriesPoster
+          className={styles.poster}
+          images={images}
+          size={250}
+          overflow={true}
+          lazy={false}
+          title={title}
+        />
 
         <div className={styles.content}>
           <div className={styles.titleRow}>

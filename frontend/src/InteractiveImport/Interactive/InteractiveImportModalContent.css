@@ -1,3 +1,29 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.headerTitle {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changeFolderButton {
+  composes: button from '~Components/Link/Button.css';
+
+  flex: 0 0 auto;
+  margin-right: 16px;
+  margin-left: 12px;
+}
+
+.changeFolderIcon {
+  margin-right: 8px;
+}
+
 .filterContainer {
   display: flex;
   justify-content: flex-end;
@@ -93,4 +119,19 @@
 
 .searchCount {
   color: var(--helpTextColor);
+}
+
+@media only screen and (max-width: $breakpointSmall) {
+  .changeFolderButton {
+    margin-right: 0;
+    padding: 6px 10px;
+  }
+
+  .changeFolderIcon {
+    margin-right: 0;
+  }
+
+  .changeFolderText {
+    display: none;
+  }
 }

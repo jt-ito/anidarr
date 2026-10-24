@@ -26,6 +26,7 @@ interface ScrollerProps {
   initialScrollTop?: number;
   children?: ReactNode;
   style?: ComponentProps<'div'>['style'];
+  'data-page-scroller'?: boolean;
   onScroll?: (payload: OnScroll) => void;
 }
 

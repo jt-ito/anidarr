@@ -182,7 +182,13 @@ function EpisodeRow({
         }
 
         if (name === 'airDateUtc') {
-          return <RelativeDateCell key={name} date={airDateUtc} />;
+          return (
+            <RelativeDateCell
+              key={name}
+              className={styles.airDate}
+              date={airDateUtc}
+            />
+          );
         }
 
         if (name === 'runtime') {

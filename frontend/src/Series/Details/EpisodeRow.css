@@ -6,6 +6,13 @@
   width: 100%;
 }
 
+.airDate {
+  composes: cell from '~Components/Table/Cells/TableRowCell.css';
+
+  width: 180px;
+  white-space: nowrap;
+}
+
 .monitored {
   composes: cell from '~Components/Table/Cells/TableRowCell.css';
 
@@ -106,5 +113,22 @@
   .title span {
     margin-top: 4px;
     margin-left: 0;
+  }
+
+  /* Smaller date and status text, wrapped (Jun 24 / 2010, Bluray- / 1080p) so the title keeps more width */
+  .airDate,
+  .status {
+    padding-right: 2px;
+    padding-left: 2px;
+    width: 55px;
+    white-space: normal;
+    font-size: 12px;
+  }
+
+  .status span {
+    max-width: 52px;
+    text-align: center;
+    white-space: normal;
+    font-size: 11px;
   }
 }

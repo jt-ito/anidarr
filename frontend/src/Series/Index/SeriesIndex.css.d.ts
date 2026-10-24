@@ -6,6 +6,7 @@ interface CssExports {
   'pageContentBodyWrapper': string;
   'postersInnerContentBody': string;
   'tableInnerContentBody': string;
+  'toolbar': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

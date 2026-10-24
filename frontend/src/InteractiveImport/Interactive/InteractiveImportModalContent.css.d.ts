@@ -2,11 +2,16 @@
 // Please do not change this file!
 interface CssExports {
   'bulkSelect': string;
+  'changeFolderButton': string;
+  'changeFolderIcon': string;
+  'changeFolderText': string;
   'deleteButton': string;
   'errorMessage': string;
   'filterContainer': string;
   'filterText': string;
   'footer': string;
+  'header': string;
+  'headerTitle': string;
   'importMode': string;
   'leftButtons': string;
   'rightButtons': string;

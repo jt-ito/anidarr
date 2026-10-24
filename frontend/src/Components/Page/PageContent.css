@@ -6,3 +6,11 @@
   overflow-x: hidden;
   width: 100%;
 }
+
+/* The page scrolls on small screens, clip (unlike hidden) keeps position: sticky working */
+
+@media only screen and (max-width: $breakpointSmall) {
+  .content {
+    overflow-x: clip;
+  }
+}

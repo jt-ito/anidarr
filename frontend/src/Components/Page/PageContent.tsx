@@ -24,7 +24,9 @@ function PageContent({
             : window.Sonarr.instanceName
         }
       >
-        <div className={className}>{children}</div>
+        <div className={className} data-page-scroller={true}>
+          {children}
+        </div>
       </DocumentTitle>
     </ErrorBoundary>
   );

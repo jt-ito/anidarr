@@ -1004,25 +1004,21 @@ function InteractiveImportModalContentInner(
   return (
     <ModalContent onModalClose={onModalClose}>
       <ModalHeader>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            width: '100%',
-          }}
-        >
-          <div>
+        <div className={styles.header}>
+          <div className={styles.headerTitle}>
             {modalTitle} - {title || folder}
           </div>
           {onBackToFolderSelect ? (
             <Button
+              className={styles.changeFolderButton}
               kind={kinds.DEFAULT}
-              style={{ marginLeft: 'auto', marginRight: '16px' }}
+              title={translate('ChangeFolder')}
               onPress={onBackToFolderSelect}
             >
-              <Icon name={icons.FOLDER} style={{ marginRight: '8px' }} />
-              {translate('ChangeFolder')}
+              <Icon name={icons.FOLDER} className={styles.changeFolderIcon} />
+              <span className={styles.changeFolderText}>
+                {translate('ChangeFolder')}
+              </span>
             </Button>
           ) : null}
         </div>

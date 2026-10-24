@@ -7,12 +7,14 @@ using Moq;
 using NUnit.Framework;
 using NzbDrone.Common.Disk;
 using NzbDrone.Common.Extensions;
+using NzbDrone.Core.CustomFormats;
 using NzbDrone.Core.Download;
 using NzbDrone.Core.History;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.EpisodeImport;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Organizer;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Profiles.Qualities;
 using NzbDrone.Core.Qualities;
@@ -343,6 +345,43 @@ namespace NzbDrone.Core.Test.MediaFiles.EpisodeImport
             Subject.Import(new List<ImportDecision> { _approvedDecisions.First() }, true, _downloadClientItem);
 
             Mocker.GetMock<IMediaFileService>().Verify(v => v.Add(It.Is<EpisodeFile>(c => c.OriginalFilePath == $"{name}\\subfolder\\{name}.mkv".AsOsAgnostic())));
+        }
+
+        [Test]
+        public void should_link_existing_destination_file_to_new_episodes_instead_of_skipping()
+        {
+            GivenNewDownload();
+
+            var decision = _approvedDecisions.First();
+            decision.LocalEpisode.Episodes.ForEach(e => e.EpisodeFileId = 0);
+            var destination = Path.Combine(decision.LocalEpisode.Series.Path, "Season 1", "30 Rock - S01E01 - Pilot.avi");
+
+            Mocker.GetMock<IBuildFileNames>()
+                  .Setup(s => s.BuildFilePath(It.IsAny<List<Episode>>(), It.IsAny<Series>(), It.IsAny<EpisodeFile>(), It.IsAny<string>(), It.IsAny<NamingConfig>(), It.IsAny<List<CustomFormat>>()))
+                  .Returns(destination);
+
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.FileExists(destination)).Returns(true);
+            Mocker.GetMock<IDiskProvider>().Setup(s => s.GetFileSize(It.IsAny<string>())).Returns(1000);
+
+            var previous = Builder<EpisodeFile>.CreateListOfSize(1).BuildList();
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.GetFilesWithRelativePath(It.IsAny<int>(), Path.Combine("Season 1", "30 Rock - S01E01 - Pilot.avi")))
+                  .Returns(previous);
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Setup(s => s.Add(It.IsAny<EpisodeFile>()))
+                  .Returns<EpisodeFile>(f => f);
+
+            var result = Subject.Import(new List<ImportDecision> { decision }, true);
+
+            result.Single().Result.Should().Be(ImportResultType.Imported);
+
+            Mocker.GetMock<IUpgradeMediaFiles>()
+                  .Verify(v => v.UpgradeEpisodeFile(It.IsAny<EpisodeFile>(), It.IsAny<LocalEpisode>(), It.IsAny<bool>()), Times.Never());
+
+            Mocker.GetMock<IMediaFileService>()
+                  .Verify(v => v.Delete(previous.First(), DeleteMediaFileReason.ManualOverride), Times.Once());
         }
 
         [Test]

@@ -50,6 +50,13 @@
 }
 
 @media only screen and (max-width: $breakpointSmall) {
+  /* Stay on screen while the page scrolls, above the sticky toolbars */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
   .logoContainer {
     flex: 0 0 60px;
   }

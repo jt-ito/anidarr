@@ -125,21 +125,19 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
     []
   );
 
+  const { data: items } = useMemo(() => {
+    return clientSideFilterAndSort<Episode>(data, {
+      sortKey,
+      sortDirection,
+    });
+  }, [data, sortKey, sortDirection]);
+
   const onEpisodesSelectWrapper = useCallback(() => {
     const episodeIds: number[] = getSelectedIds();
 
-    const selectedEpisodes = data.reduce((acc: Episode[], item) => {
-      if (episodeIds.indexOf(item.id) > -1) {
-        acc.push(item);
-      }
-
-      return acc;
-    }, []);
-
-    const episodesPerFile = selectedEpisodes.length / selectedIds.length;
-    const sortedEpisodes = selectedEpisodes.sort((a, b) => {
-      return a.seasonNumber - b.seasonNumber;
-    });
+    // Follow the sort order shown in the list so reversing it reverses the mapping
+    const sortedEpisodes = items.filter((item) => episodeIds.includes(item.id));
+    const episodesPerFile = sortedEpisodes.length / selectedIds.length;
 
     const mappedEpisodes = selectedIds.map((id, index): SelectedEpisode => {
       const startingIndex = index * episodesPerFile;
@@ -155,7 +153,7 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
     });
 
     onEpisodesSelect(mappedEpisodes);
-  }, [selectedIds, data, getSelectedIds, onEpisodesSelect]);
+  }, [selectedIds, items, getSelectedIds, onEpisodesSelect]);
 
   let details = selectedDetails;
 
@@ -165,13 +163,6 @@ function SelectEpisodeModalContentInner(props: SelectEpisodeModalContentProps) {
         ? translate('CountSelectedFiles', { selectedCount })
         : translate('CountSelectedFile', { selectedCount });
   }
-
-  const { data: items } = useMemo(() => {
-    return clientSideFilterAndSort<Episode>(data, {
-      sortKey,
-      sortDirection,
-    });
-  }, [data, sortKey, sortDirection]);
 
   return (
     <ModalContent onModalClose={onModalClose}>

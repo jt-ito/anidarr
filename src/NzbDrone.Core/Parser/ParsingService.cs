@@ -1057,6 +1057,15 @@ namespace NzbDrone.Core.Parser
                     else
                     {
                         var episode = _episodeService.FindEpisode(series.Id, absoluteEpisodeNumber);
+
+                        // Metadata absolute numbers can count OVAs (season 0) or skip numbers within season 1,
+                        // while files are numbered by season 1 episode. Prefer the season 1 episode with that number.
+                        if (seasonNumber <= 1 &&
+                            (episode == null || episode.SeasonNumber == 0 || episode.EpisodeNumber != absoluteEpisodeNumber))
+                        {
+                            episode = _episodeService.FindEpisode(series.Id, 1, absoluteEpisodeNumber) ?? episode;
+                        }
+
                         episodes.AddIfNotNull(episode);
                     }
                 }

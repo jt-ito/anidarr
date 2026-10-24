@@ -125,6 +125,8 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                             break;
                     }
 
+                    var relinkExisting = false;
+
                     if (newDownload)
                     {
                         if (downloadClientItem is { OutputPath.IsEmpty: false })
@@ -160,20 +162,32 @@ namespace NzbDrone.Core.MediaFiles.EpisodeImport
                             }
                             else
                             {
-                                if (_diskProvider.GetFileSize(destinationFilePath) == _diskProvider.GetFileSize(localEpisode.Path))
+                                if (_diskProvider.GetFileSize(destinationFilePath) != _diskProvider.GetFileSize(localEpisode.Path))
                                 {
-                                     _logger.Info("Destination file {0} already exists, is untracked, but matches the new file size. Treating as already-imported.", destinationFilePath);
-                                     importResults.Add(new ImportResult(importDecision, "Episode has already been imported"));
-                                     continue;
+                                    _logger.Warn("Destination file {0} already exists but does not match the expected file record (untracked). Skipping import to require manual intervention.", destinationFilePath);
+                                    importResults.Add(new ImportResult(importDecision, "Destination file already exists"));
+                                    continue;
                                 }
 
-                                _logger.Warn("Destination file {0} already exists but does not match the expected file record (untracked). Skipping import to require manual intervention.", destinationFilePath);
-                                importResults.Add(new ImportResult(importDecision, "Destination file already exists"));
-                                continue;
+                                // Same file is already in place but not linked to these episodes (e.g. an earlier import with the wrong episodes), so link it again
+                                _logger.Info("Destination file {0} already exists with a matching size but is not linked to these episodes. Linking it to them.", destinationFilePath);
+
+                                episodeFile.RelativePath = localEpisode.Series.Path.GetRelativePath(destinationFilePath);
+                                episodeFile.Path = destinationFilePath;
+
+                                foreach (var previousFile in _mediaFileService.GetFilesWithRelativePath(localEpisode.Series.Id, episodeFile.RelativePath))
+                                {
+                                    _mediaFileService.Delete(previousFile, DeleteMediaFileReason.ManualOverride);
+                                }
+
+                                relinkExisting = true;
                             }
                         }
 
-                        oldFiles = _episodeFileUpgrader.UpgradeEpisodeFile(episodeFile, localEpisode, copyOnly).OldFiles;
+                        if (!relinkExisting)
+                        {
+                            oldFiles = _episodeFileUpgrader.UpgradeEpisodeFile(episodeFile, localEpisode, copyOnly).OldFiles;
+                        }
                     }
                     else
                     {

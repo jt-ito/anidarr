@@ -193,7 +193,7 @@ function SeriesIndex() {
     <QueueDetailsProvider all={true}>
       <SelectProvider items={data}>
         <PageContent>
-          <PageToolbar>
+          <PageToolbar className={styles.toolbar}>
             <PageToolbarSection>
               <SeriesIndexRefreshSeriesButton
                 isSelectMode={isSelectMode}

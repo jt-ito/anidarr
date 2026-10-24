@@ -23,8 +23,10 @@ import {
 //
 // Solid
 import {
+  faArrowCircleDown as fasArrowCircleDown,
   faArrowCircleLeft as fasArrowCircleLeft,
   faArrowCircleRight as fasArrowCircleRight,
+  faArrowCircleUp as fasArrowCircleUp,
   faAsterisk as fasAsterisk,
   faBackward as fasBackward,
   faBan as fasBan,
@@ -126,6 +128,8 @@ export const ALTERNATE_TITLES = farClone;
 export const ADVANCED_SETTINGS = fasCog;
 export const ARROW_LEFT = fasArrowCircleLeft;
 export const ARROW_RIGHT = fasArrowCircleRight;
+export const SCROLL_DOWN = fasArrowCircleDown;
+export const SCROLL_UP = fasArrowCircleUp;
 export const BACKUP = farFileArchive;
 export const BLOCKLIST = fasBan;
 export const BUG = fasBug;
