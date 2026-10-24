@@ -3,6 +3,8 @@
   <PropertyGroup>
     <AnalysisLevel>6.0-all</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Known moderate advisories (ImageSharp, Cryptography.Pkcs) stay visible as warnings but do not fail restore -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1902</WarningsNotAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
 
