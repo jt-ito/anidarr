@@ -56,6 +56,7 @@ type SelectedChangeProps = SelectStateInputProps & {
 interface InteractiveImportRowProps {
   id: number;
   allowSeriesChange: boolean;
+  autoSelectEpisodeId?: number;
   relativePath: string;
   series?: Series;
   seasonNumber?: number;
@@ -82,6 +83,7 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
   const {
     id,
     allowSeriesChange,
+    autoSelectEpisodeId,
     relativePath,
     series,
     seasonNumber,
@@ -130,7 +132,10 @@ function InteractiveImportRow(props: InteractiveImportRowProps) {
         episodes.length &&
         quality &&
         languages &&
-        size > 0
+        size > 0 &&
+        // Opened for one episode: only pick the file that matches that episode
+        (!autoSelectEpisodeId ||
+          episodes.some((e) => e.id === autoSelectEpisodeId))
       ) {
         onSelectedChange({
           id,

@@ -111,6 +111,44 @@ namespace NzbDrone.Core.Test.MetadataSource.AniDb
             _subject.IsCached(123).Should().BeFalse();
         }
 
+        [TestCase(1, "<anime id=\"1\"><enddate>2020-01-01</enddate></anime>", true)]
+        [TestCase(48, "<anime id=\"1\"><enddate>2020-01-01</enddate></anime>", true)]
+        [TestCase(48, "<anime id=\"1\"><startdate>2026-10-01</startdate></anime>", false)]
+        [TestCase(48, "<anime id=\"1\"><enddate>2999-01-01</enddate></anime>", false)]
+        [TestCase(1, "<anime id=\"1\"></anime>", true)]
+        [TestCase(48, "not xml", false)]
+        public void should_only_reuse_a_cached_response_for_a_day_unless_the_anime_ended(int ageHours, string xml, bool expected)
+        {
+            var now = new DateTime(2026, 10, 25, 12, 0, 0, DateTimeKind.Utc);
+
+            AniDbXmlClient.IsCacheFresh(xml, now.AddHours(-ageHours), now).Should().Be(expected);
+        }
+
+        [Test]
+        public void should_refresh_an_old_cached_response_of_an_airing_anime()
+        {
+            GivenClientIsConfigured();
+            Directory.CreateDirectory(Path.Combine(_dataFolder, "AniDbCache"));
+            File.WriteAllText(CacheFileFor(123), Anime);
+            File.SetLastWriteTimeUtc(CacheFileFor(123), DateTime.UtcNow.AddDays(-3));
+
+            _subject.GetAnimeXml(123);
+
+            _rateLimiter.Verify(r => r.ExecuteAsync(It.IsAny<Func<string>>()), Times.Once());
+        }
+
+        [Test]
+        public void should_keep_using_an_old_cached_response_when_it_cannot_be_refreshed()
+        {
+            Directory.CreateDirectory(Path.Combine(_dataFolder, "AniDbCache"));
+            File.WriteAllText(CacheFileFor(123), Anime);
+            File.SetLastWriteTimeUtc(CacheFileFor(123), DateTime.UtcNow.AddDays(-3));
+
+            _subject.GetAnimeXml(123).Root.Attribute("id").Value.Should().Be("123");
+
+            _rateLimiter.Verify(r => r.ExecuteAsync(It.IsAny<Func<string>>()), Times.Never());
+        }
+
         [Test]
         public void should_go_through_the_rate_limiter_once_the_client_is_set_up()
         {

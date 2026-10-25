@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using NLog;
 using NzbDrone.Common.Cache;
 using NzbDrone.Common.EnvironmentInfo;
@@ -35,6 +36,8 @@ namespace NzbDrone.Core.HealthCheck
         private readonly HashSet<IProvideHealthCheck> _pendingHealthChecks;
         private readonly Debouncer _debounce;
 
+        private Timer _startupRetryTimer;
+        private bool _startupRetryScheduled;
         private bool _hasRunHealthChecksAfterGracePeriod;
         private bool _isRunningHealthChecksAfterGracePeriod;
 
@@ -131,7 +134,49 @@ namespace NzbDrone.Core.HealthCheck
                 _debounce.Resume();
             }
 
+            ScheduleStartupRetry();
+
             _eventAggregator.PublishEvent(new HealthCheckCompleteEvent());
+        }
+
+        // Dependencies such as download clients are often still starting when the startup checks run.
+        // Re-run what failed every minute during the startup grace period, so the failure clears as soon
+        // as the dependency is reachable, rather than waiting for a queued command or the next scheduled check.
+        private void ScheduleStartupRetry()
+        {
+            if (DateTime.UtcNow >= _startupGracePeriodEndTime)
+            {
+                return;
+            }
+
+            lock (_pendingHealthChecks)
+            {
+                if (_startupRetryScheduled || !_healthCheckResults.Values.Any())
+                {
+                    return;
+                }
+
+                _startupRetryScheduled = true;
+            }
+
+            _startupRetryTimer = new Timer(RetryFailedHealthChecks, null, TimeSpan.FromMinutes(1), Timeout.InfiniteTimeSpan);
+        }
+
+        private void RetryFailedHealthChecks(object state)
+        {
+            var failedChecks = _healthCheckResults.Values.Select(r => r.Source).ToHashSet();
+
+            lock (_pendingHealthChecks)
+            {
+                _startupRetryScheduled = false;
+
+                foreach (var healthCheck in _healthChecks.Where(h => failedChecks.Contains(h.GetType())))
+                {
+                    _pendingHealthChecks.Add(healthCheck);
+                }
+            }
+
+            ProcessHealthChecks();
         }
 
         public void Execute(CheckHealthCommand message)

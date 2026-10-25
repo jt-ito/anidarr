@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,6 +22,9 @@ namespace NzbDrone.Core.MediaFiles.MediaInfo
     {
         private readonly IDiskProvider _diskProvider;
         private readonly Logger _logger;
+
+        // A manual import reads the same file more than once (sample detection, then aggregation)
+        private readonly ConcurrentDictionary<(string Path, long Size, long LastWriteTicks), MediaInfoModel> _mediaInfoCache = new ConcurrentDictionary<(string Path, long Size, long LastWriteTicks), MediaInfoModel>();
 
         public const int MINIMUM_MEDIA_INFO_SCHEMA_REVISION = 14;
         public const int CURRENT_MEDIA_INFO_SCHEMA_REVISION = 14;
@@ -67,7 +71,12 @@ namespace NzbDrone.Core.MediaFiles.MediaInfo
                 return null;
             }
 
-            // TODO: Cache media info by path, mtime and length so we don't need to read files multiple times
+            var cacheKey = (filename, _diskProvider.GetFileSize(filename), _diskProvider.FileGetLastWrite(filename).Ticks);
+
+            if (_mediaInfoCache.TryGetValue(cacheKey, out var cachedMediaInfo))
+            {
+                return cachedMediaInfo;
+            }
 
             try
             {
@@ -176,6 +185,13 @@ namespace NzbDrone.Core.MediaFiles.MediaInfo
 
                 var sideData = streamSideData.Concat(framesSideData).ToList();
                 mediaInfoModel.VideoHdrFormat = GetHdrFormat(mediaInfoModel.VideoBitDepth, mediaInfoModel.VideoColourPrimaries, mediaInfoModel.VideoTransferCharacteristics, sideData);
+
+                if (_mediaInfoCache.Count > 2000)
+                {
+                    _mediaInfoCache.Clear();
+                }
+
+                _mediaInfoCache[cacheKey] = mediaInfoModel;
 
                 return mediaInfoModel;
             }

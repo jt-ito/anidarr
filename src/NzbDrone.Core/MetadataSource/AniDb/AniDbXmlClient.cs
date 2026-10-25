@@ -67,6 +67,29 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             _logger = logger;
         }
 
+        // AniDB keeps adding episodes while a show airs, so a cached response is only reused
+        // for a day, unless the anime has already ended. Ended anime do not change.
+        public static bool IsCacheFresh(string cachedXml, DateTime lastWriteUtc, DateTime nowUtc)
+        {
+            if (nowUtc - lastWriteUtc < TimeSpan.FromHours(24))
+            {
+                return true;
+            }
+
+            try
+            {
+                var doc = XDocument.Parse(cachedXml);
+                var ns = doc.Root?.Name.Namespace ?? XNamespace.None;
+                var endDate = doc.Root?.Element(ns + "enddate")?.Value;
+
+                return DateTime.TryParse(endDate, out var ended) && ended.Date < nowUtc.Date;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         public bool IsCached(int aniDbId)
         {
             var cacheFile = CacheFilePath("anime", $"aid={aniDbId}");
@@ -117,6 +140,7 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             }
 
             var cacheFile = CacheFilePath(request, extraParams);
+            string staleCache = null;
 
             if (File.Exists(cacheFile) && new FileInfo(cacheFile).Length > 0)
             {
@@ -125,8 +149,15 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                     var cached = File.ReadAllText(cacheFile);
                     if (!cached.Contains("<error"))
                     {
-                        _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
-                        return cached;
+                        if (IsCacheFresh(cached, File.GetLastWriteTimeUtc(cacheFile), DateTime.UtcNow))
+                        {
+                            _logger.Debug("Using cached AniDB response for {0} {1}", request, extraParams);
+                            return cached;
+                        }
+
+                        // Kept as a fallback in case AniDB cannot be reached
+                        staleCache = cached;
+                        _logger.Debug("Cached AniDB response for {0} {1} is out of date, refreshing it", request, extraParams);
                     }
                 }
                 catch (Exception ex)
@@ -139,6 +170,11 @@ namespace NzbDrone.Core.MetadataSource.AniDb
             // still take its turn in the rate limiter. Say what is wrong instead.
             if (!_configService.IsAniDbClientConfigured)
             {
+                if (staleCache != null)
+                {
+                    return staleCache;
+                }
+
                 throw new InvalidOperationException("The AniDB client name and version are not set. Enter them under Settings > Metadata Source (see the README for how to register an HTTP API client on AniDB).");
             }
 
@@ -156,7 +192,8 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                             try
                             {
                                 var cached = File.ReadAllText(cacheFile);
-                                if (!cached.Contains("<error"))
+                                if (!cached.Contains("<error") &&
+                                    IsCacheFresh(cached, File.GetLastWriteTimeUtc(cacheFile), DateTime.UtcNow))
                                 {
                                     return cached;
                                 }
@@ -168,7 +205,23 @@ namespace NzbDrone.Core.MetadataSource.AniDb
                         }
 
                         var httpRequest = new HttpRequest(url);
-                        var response = _httpClient.Execute(httpRequest);
+                        HttpResponse response;
+
+                        try
+                        {
+                            response = _httpClient.Execute(httpRequest);
+                        }
+                        catch (Exception ex) when (staleCache != null)
+                        {
+                            _logger.Warn(ex, "Could not refresh the AniDB response for {0} {1}, using the cached one", request, extraParams);
+                            return staleCache;
+                        }
+
+                        // Keep what we have unless AniDB banned us, which has to reach the ban handling
+                        if (staleCache != null && response.Content.Contains("<error") && !response.Content.ToLowerInvariant().Contains("banned"))
+                        {
+                            return staleCache;
+                        }
 
                         if (!response.Content.Contains("<error"))
                         {

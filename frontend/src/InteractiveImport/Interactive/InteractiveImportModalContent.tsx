@@ -1108,6 +1108,7 @@ function InteractiveImportModalContentInner(
                     key={item.id}
                     {...item}
                     allowSeriesChange={allowSeriesChange}
+                    autoSelectEpisodeId={episodeId}
                     columns={columns}
                     modalTitle={modalTitle}
                     isReprocessing={reprocessingItems.has(item.id)}
