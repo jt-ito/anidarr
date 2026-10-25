@@ -30,6 +30,9 @@ runs:
   steps:
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
+      with:
+        # an exact version is downloaded from builds.dotnet.microsoft.com, the latest-in-channel lookup goes through aka.ms and a blob server that is returning 409
+        dotnet-version: 10.0.401
 
     - name: Setup Postgres
       if: ${{ inputs.use_postgres }}
