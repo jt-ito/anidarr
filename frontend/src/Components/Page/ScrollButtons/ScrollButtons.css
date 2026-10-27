@@ -8,6 +8,14 @@
   gap: 8px;
 }
 
+/* The container takes no clicks while hidden, so it never blocks what is under it */
+.hidden {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 250ms, visibility 0s 250ms;
+  pointer-events: none;
+}
+
 .button {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@
 interface CssExports {
   'button': string;
   'container': string;
+  'hidden': string;
 }
 export const cssExports: CssExports;
 export default cssExports;

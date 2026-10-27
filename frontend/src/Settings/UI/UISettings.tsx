@@ -124,7 +124,10 @@ function UISettings() {
 
   const hasScrollButtonChanges =
     scrollButtons.showScrollButtons !== savedScrollButtons.showScrollButtons ||
-    scrollButtons.splitScrollButtons !== savedScrollButtons.splitScrollButtons;
+    scrollButtons.splitScrollButtons !==
+      savedScrollButtons.splitScrollButtons ||
+    scrollButtons.autoHideScrollButtons !==
+      savedScrollButtons.autoHideScrollButtons;
 
   const handleScrollButtonsChange = useCallback(
     ({ name, value }: InputChanged<boolean>) => {
@@ -310,6 +313,19 @@ function UISettings() {
                     name="splitScrollButtons"
                     helpText={translate('SplitScrollButtonsHelpText')}
                     value={scrollButtons.splitScrollButtons}
+                    onChange={handleScrollButtonsChange}
+                  />
+                </FormGroup>
+              ) : null}
+
+              {scrollButtons.showScrollButtons ? (
+                <FormGroup>
+                  <FormLabel>{translate('AutoHideScrollButtons')}</FormLabel>
+                  <FormInputGroup
+                    type={inputTypes.CHECK}
+                    name="autoHideScrollButtons"
+                    helpText={translate('AutoHideScrollButtonsHelpText')}
+                    value={scrollButtons.autoHideScrollButtons}
                     onChange={handleScrollButtonsChange}
                   />
                 </FormGroup>

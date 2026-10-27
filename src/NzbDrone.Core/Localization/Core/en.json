@@ -163,6 +163,8 @@
     "AutoTaggingSpecificationSeriesType":  "Series Type",
     "AutoTaggingSpecificationStatus":  "Status",
     "AutoTaggingSpecificationTag":  "Tag",
+    "AutoHideScrollButtons":  "Auto-hide Scroll Buttons",
+    "AutoHideScrollButtonsHelpText":  "Show the scroll buttons while scrolling, or when the pointer is in the bottom-right corner, and hide them after a moment so they do not cover the page",
     "Automatic":  "Automatic",
     "AutomaticAdd":  "Automatic Add",
     "AutomaticSearch":  "Automatic Search",

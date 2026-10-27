@@ -9,7 +9,8 @@
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
 
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+    <!-- Ask for 10.0.0 so any installed 10.0.x runtime is used, not only the patch the SDK was built with -->
+    <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
     <RuntimeIdentifiers>win-x64;win-x86;osx-x64;osx-arm64;linux-x64;linux-musl-x64;linux-arm;linux-arm64;linux-musl-arm64</RuntimeIdentifiers>
 
     <SonarrRootDir>$(MSBuildThisFileDirectory)..\</SonarrRootDir>

@@ -4,8 +4,9 @@
     <MSBuildAllProjects>$(MSBuildAllProjects);$(MSBuildThisFileFullPath)</MSBuildAllProjects>
 
     <!-- Enable roll-forward to latest patch.  This allows one restore operation
-         to apply to all of the self-contained publish operations. -->
-    <TargetLatestRuntimePatch>true</TargetLatestRuntimePatch>
+         to apply to all of the self-contained publish operations. Framework-dependent builds keep the
+         setting from Directory.Build.props so they run on any installed 10.0.x runtime. -->
+    <TargetLatestRuntimePatch Condition="'$(SelfContained)' == 'true'">true</TargetLatestRuntimePatch>
   </PropertyGroup>
 
   <Target Name="PublishAllRids">

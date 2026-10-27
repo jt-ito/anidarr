@@ -199,7 +199,9 @@ function EnhancedSelectInput<T extends EnhancedSelectInputValue<V>, V>(
   });
 
   const click = useClick(context);
-  const dismiss = useDismiss(context);
+  // On mobile the options are in a Modal, which closes itself. A press there is outside the floating
+  // element, so dismissing on outside press would close it before the option can be selected.
+  const dismiss = useDismiss(context, { enabled: !isMobile });
 
   const { getReferenceProps, getFloatingProps } = useInteractions([
     click,

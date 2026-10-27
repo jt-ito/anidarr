@@ -13,7 +13,7 @@ $startTime = Get-Date
 Write-Host "Started at: $($startTime.ToString('yyyy-MM-dd HH:mm:ss'))"
 
 Write-Host "Building Docker image for jteaito/anidarr:$version and latest..."
-docker build -t jteaito/anidarr:$version -t jteaito/anidarr:latest .
+docker build --pull -t jteaito/anidarr:$version -t jteaito/anidarr:latest .
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Docker build failed!"
     exit 1
